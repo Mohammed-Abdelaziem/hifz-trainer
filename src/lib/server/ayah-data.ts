@@ -56,11 +56,21 @@ async function fetchJson<T>(url: string, retries = 1): Promise<T> {
   throw lastErr;
 }
 
+function sanitizeUrl(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    new URL(url);
+    return url;
+  } catch {
+    return null;
+  }
+}
+
 async function getCachedRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
   const cached = await getDb().recitationAudio.findUnique({
     where: { verseKey_reciterId: { verseKey, reciterId } },
   });
-  return cached?.url ?? null;
+  return sanitizeUrl(cached?.url ?? null);
 }
 
 function toAbsoluteUrl(base: string, path: string): string {
@@ -104,9 +114,10 @@ export async function getOrFetchAyahData(
   const cachedUrl = await getCachedRecitationUrl(verseKey, reciterId);
 
   if (words && row?.recitationUrl && cachedUrl === null && reciterId === DEFAULT_RECITER_ID) {
+    const fixedUrl = toAbsoluteUrl(VERSES_CDN, row.recitationUrl);
     await db.recitationAudio.upsert({
       where: { verseKey_reciterId: { verseKey, reciterId } },
-      create: { verseKey, reciterId, url: row.recitationUrl },
+      create: { verseKey, reciterId, url: fixedUrl },
       update: {},
     });
   }
@@ -151,7 +162,7 @@ export async function getOrFetchAyahData(
     return {
       verseKey,
       words: words ?? [],
-      recitationUrl: freshUrl,
+      recitationUrl: sanitizeUrl(freshUrl),
       tafsir,
       source: words ? "quran" : "synthetic",
     };
@@ -160,7 +171,7 @@ export async function getOrFetchAyahData(
   return {
     verseKey,
     words: words ?? [],
-    recitationUrl: freshUrl,
+    recitationUrl: sanitizeUrl(freshUrl ?? row.recitationUrl),
     tafsir: row.tafsir ?? tafsir,
     source: words ? "quran" : "synthetic",
   };
