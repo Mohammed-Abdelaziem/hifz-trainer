@@ -63,11 +63,20 @@ async function getCachedRecitationUrl(verseKey: string, reciterId: number): Prom
   return cached?.url ?? null;
 }
 
+function toAbsoluteUrl(base: string, path: string): string {
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return path;
+  }
+}
+
 async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
   const res = await fetchJson<{ audio_files: { url: string }[] }>(
     `${QURAN_API_BASE}/recitations/${reciterId}/by_ayah/${verseKey}`
   ).catch(() => null);
-  const url = res?.audio_files?.[0]?.url ? VERSES_CDN + res.audio_files[0].url : null;
+  const relativeUrl = res?.audio_files?.[0]?.url;
+  const url = relativeUrl ? toAbsoluteUrl(VERSES_CDN, relativeUrl) : null;
   if (url) {
     await getDb().recitationAudio.upsert({
       where: { verseKey_reciterId: { verseKey, reciterId } },
@@ -121,7 +130,7 @@ export async function getOrFetchAyahData(
         text_uthmani: w.text_uthmani!,
         translation: w.translation?.text ?? "",
         transliteration: w.transliteration?.text ?? undefined,
-        audio_url: w.audio_url ? VERSES_CDN + w.audio_url : undefined,
+        audio_url: w.audio_url ? toAbsoluteUrl(VERSES_CDN, w.audio_url) : undefined,
       }));
   }
 
