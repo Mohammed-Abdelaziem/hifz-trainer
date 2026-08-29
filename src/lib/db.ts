@@ -13,8 +13,37 @@ function createAdapter(url: string) {
 
 export function getDb(): PrismaClient {
   if (!globalForPrisma.prisma) {
-    const url = process.env.DATABASE_URL ?? "file:./dev.db";
-    globalForPrisma.prisma = new PrismaClient({ adapter: createAdapter(url) });
+    globalForPrisma.prisma = new PrismaClient({
+      adapter: createAdapter(process.env.DATABASE_URL ?? "file:./dev.db"),
+    });
   }
   return globalForPrisma.prisma;
+}
+
+// URL validation utilities (exported for use in services)
+export function sanitizeUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+export function toAbsoluteUrl(base: string, path: string): string {
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return path;
+  }
+}
+
+export function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
