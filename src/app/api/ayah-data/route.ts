@@ -1,0 +1,29 @@
+import { getSessionUser } from "@/lib/server/auth";
+import { getOrFetchAyahData } from "@/lib/server/ayah-data";
+import { VALID_RECITER_IDS } from "@/lib/quran/reciters";
+
+export const dynamic = "force-dynamic";
+
+export async function GET(req: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const params = new URL(req.url).searchParams;
+    const verseKey = params.get("verseKey") ?? "";
+    if (!/^\d{1,3}:\d{1,3}$/.test(verseKey)) {
+      return Response.json({ error: "verseKey must match 'surah:ayah'" }, { status: 400 });
+    }
+
+    let reciterId = Number(params.get("reciter") ?? "");
+    if (!Number.isInteger(reciterId) || !VALID_RECITER_IDS.has(reciterId)) {
+      reciterId = VALID_RECITER_IDS.has(7) ? 7 : [...VALID_RECITER_IDS][0];
+    }
+
+    const data = await getOrFetchAyahData(verseKey, reciterId);
+    return Response.json(data);
+  } catch (err) {
+    console.error("[/api/ayah-data]", err);
+    return Response.json({ error: "Failed to fetch ayah data" }, { status: 502 });
+  }
+}
