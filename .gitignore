@@ -43,7 +43,9 @@ next-env.d.ts
 # local dev database
 dev.db
 
+# prisma generated client (regenerated via postinstall)
+generated/
+
 # test artifacts
 playwright-report/
 test-results/
-playwright-report/

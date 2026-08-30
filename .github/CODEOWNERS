@@ -1,0 +1,7 @@
+# Default owner for everything in the repo
+* @Mohammed-Abdelaziem
+
+# Infrastructure / CI
+.github/ @Mohammed-Abdelaziem
+prisma/ @Mohammed-Abdelaziem
+vercel.json @Mohammed-Abdelaziem
