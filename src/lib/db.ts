@@ -82,7 +82,7 @@ async function testConnection(db: PrismaClient): Promise<void> {
     console.error("[db] Connection test FAILED:", err);
     console.error("[db] Error name:", (err as Error)?.name);
     console.error("[db] Error message:", (err as Error)?.message);
-    console.error("[db] Error code:", (err as any)?.code);
+    console.error("[db] Error code:", (err as Record<string, unknown>)?.code);
     console.error("[db] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2));
   }
 }

@@ -1,5 +1,8 @@
 # Hifz Trainer — Quran Memorization Platform
 
+[![CI](https://github.com/Mohammed-Abdelaziem/hifz-trainer/actions/workflows/ci.yml/badge.svg)](https://github.com/Mohammed-Abdelaziem/hifz-trainer/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+
 Spaced-repetition driven Quran memorization implementing the traditional Hifz workflow:
 **Sabaq** (new intake) · **Sabqi** (recent review, 7–14 days) · **Manzil** (long-term rotation),
 automated with **SM-2** or **FSRS** scheduling and active-recall tooling.
