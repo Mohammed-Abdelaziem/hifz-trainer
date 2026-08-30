@@ -7,13 +7,37 @@ const globalForPrisma = globalThis as unknown as {
   connectionTested?: boolean;
 };
 
+function encodeUrl(rawUrl: string): string {
+  const schemeEnd = rawUrl.indexOf("://");
+  if (schemeEnd === -1) return rawUrl;
+  const scheme = rawUrl.slice(0, schemeEnd + 3);
+  const rest = rawUrl.slice(schemeEnd + 3);
+
+  const atIdx = rest.lastIndexOf("@");
+  if (atIdx === -1) return rawUrl;
+
+  const userInfo = rest.slice(0, atIdx);
+  const hostAndPath = rest.slice(atIdx);
+
+  const colonIdx = userInfo.indexOf(":");
+  if (colonIdx === -1) return rawUrl;
+
+  const user = userInfo.slice(0, colonIdx);
+  let pass = userInfo.slice(colonIdx + 1);
+  pass = pass.replace(/%(?![0-9a-fA-F]{2})/g, "%25");
+  pass = pass.replace(/#/g, "%23");
+
+  return `${scheme}${user}:${pass}${hostAndPath}`;
+}
+
 function createAdapter(rawUrl: string) {
-  const protocol = rawUrl.split("://")[0] ?? "none";
-  console.log(`[db] createAdapter protocol=${protocol}, urlLength=${rawUrl.length}`);
+  const encodedUrl = encodeUrl(rawUrl);
+  const protocol = encodedUrl.split("://")[0] ?? "none";
+  console.log(`[db] createAdapter protocol=${protocol}, urlLength=${encodedUrl.length}`);
 
   let parsedUrl: URL;
   try {
-    parsedUrl = new URL(rawUrl);
+    parsedUrl = new URL(encodedUrl);
   } catch (e) {
     console.error(`[db] FATAL: Cannot parse DATABASE_URL as URL`, e);
     throw new Error(`DATABASE_URL is not a valid URL. Protocol attempted: "${protocol}". Error: ${e}`);
@@ -21,11 +45,11 @@ function createAdapter(rawUrl: string) {
 
   if (parsedUrl.protocol === "postgres:" || parsedUrl.protocol === "postgresql:") {
     console.log(`[db] Creating PrismaPg adapter, host=${parsedUrl.hostname}, port=${parsedUrl.port}`);
-    return new PrismaPg({ connectionString: rawUrl });
+    return new PrismaPg({ connectionString: encodedUrl });
   }
 
   console.log(`[db] Falling back to PrismaBetterSqlite3 adapter`);
-  return new PrismaBetterSqlite3({ url: rawUrl });
+  return new PrismaBetterSqlite3({ url: encodedUrl });
 }
 
 export function sanitizeUrl(url: string | null | undefined): string | null {
