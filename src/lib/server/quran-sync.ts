@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getDbWithTest, sanitizeUrl } from "@/lib/db";
 import { everyAyahUrl } from "@/lib/quran/timings";
 
 const QURAN_API_BASE = "https://api.quran.com/api/v4";
@@ -78,7 +78,7 @@ async function mapWithConcurrency<T, R>(
 
 export async function syncFullQuran(): Promise<SyncReport> {
   const startedAt = Date.now();
-  const db = getDb();
+  const db = await getDbWithTest();
   const failedPages: number[] = [];
 
   try {
@@ -141,6 +141,11 @@ export async function syncFullQuran(): Promise<SyncReport> {
       await db.$transaction(
         chunk.map((v) => {
           const [surahStr, ayahStr] = v.verse_key.split(":");
+          const audioUrl = everyAyahUrl(v.verse_key);
+          const safeAudioUrl = sanitizeUrl(audioUrl);
+          if (!safeAudioUrl) {
+            console.error(`[quran-sync] INVALID audioUrl for verseKey=${v.verse_key}: "${audioUrl}"`);
+          }
           return db.verse.upsert({
             where: { verseKey: v.verse_key },
             create: {
@@ -150,7 +155,7 @@ export async function syncFullQuran(): Promise<SyncReport> {
               pageNumber: v.page_number,
               uthmaniText: v.text_uthmani,
               translation: "",
-              audioUrl: everyAyahUrl(v.verse_key),
+              audioUrl: safeAudioUrl ?? audioUrl,
               timestampsJson: "[]",
             },
             update: {
@@ -195,7 +200,7 @@ export interface SyncStatus {
 }
 
 export async function getSyncStatus(): Promise<SyncStatus> {
-  const db = getDb();
+  const db = await getDbWithTest();
   const [surahs, verses] = await Promise.all([db.surah.count(), db.verse.count()]);
   const expectedVerses = await db.surah.aggregate({ _sum: { ayahCount: true } });
   return {

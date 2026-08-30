@@ -1,5 +1,5 @@
 import type { QuranWord } from "@/types/quran";
-import { getDb } from "@/lib/db";
+import { getDb, getDbWithTest } from "@/lib/db";
 import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
 
 const QURAN_API_BASE = "https://api.quran.com/api/v4";
@@ -100,10 +100,16 @@ async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): 
   console.log("[fetchAndCacheRecitationUrl] absoluteUrl:", url);
   if (url) {
     try {
+      const sanitized = sanitizeUrl(url);
+      console.log("[fetchAndCacheRecitationUrl] sanitized:", sanitized);
+      if (!sanitized) {
+        console.error("[fetchAndCacheRecitationUrl] URL sanitization failed for:", url);
+        return null;
+      }
       await getDb().recitationAudio.upsert({
         where: { verseKey_reciterId: { verseKey, reciterId } },
-        create: { verseKey, reciterId, url },
-        update: { url },
+        create: { verseKey, reciterId, url: sanitized },
+        update: { url: sanitized },
       });
     } catch (e) {
       console.error("[fetchAndCacheRecitationUrl] upsert failed:", e);
@@ -119,7 +125,7 @@ export async function getOrFetchAyahData(
 ): Promise<AyahData> {
   if (!VALID_RECITER_IDS.has(reciterId)) reciterId = DEFAULT_RECITER_ID;
 
-  const db = getDb();
+  const db = await getDbWithTest();
   const row = await db.verse.findUnique({ where: { verseKey } });
 
   let words: QuranWord[] | null = null;
@@ -169,15 +175,24 @@ export async function getOrFetchAyahData(
 
   const wordsFreshened = Boolean(words) && row?.wordsSource !== "quran";
   if (row && (wordsFreshened || tafsir)) {
-    await db.verse.update({
-      where: { verseKey },
-      data: {
-        ...(wordsFreshened
-          ? { wordsJson: JSON.stringify(words), wordsSource: "quran" }
-          : {}),
-        ...(tafsir ? { tafsir } : {}),
-      },
-    });
+    const updateData: Record<string, unknown> = {};
+    if (wordsFreshened) {
+      updateData.wordsJson = JSON.stringify(words);
+      updateData.wordsSource = "quran";
+    }
+    if (tafsir) {
+      updateData.tafsir = tafsir;
+    }
+    console.log(`[getOrFetchAyahData] verse.update verseKey=${verseKey}, data keys=`, Object.keys(updateData));
+    try {
+      await db.verse.update({
+        where: { verseKey },
+        data: updateData as never,
+      });
+    } catch (err) {
+      console.error(`[getOrFetchAyahData] verse.update FAILED for verseKey=${verseKey}`, err);
+      throw err;
+    }
   }
 
   if (!row) {
@@ -211,7 +226,7 @@ const BULK_CONCURRENCY = 12;
 
 export async function bulkWarmAyahData(limit: number): Promise<BulkWarmReport> {
   const startedAt = Date.now();
-  const db = getDb();
+  const db = await getDbWithTest();
   const pending = await db.verse.findMany({
     where: { wordsSource: "synthetic" },
     select: { verseKey: true },

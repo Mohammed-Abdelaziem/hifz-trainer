@@ -8,7 +8,7 @@ import {
   verifyPassword,
 } from "@/lib/server/auth";
 import { ensureDemoUser, getOrCreateUser } from "@/lib/server/hifz-service";
-import { getDb } from "@/lib/db";
+import { getDbWithTest } from "@/lib/db";
 
 export interface AuthState {
   error?: string;
@@ -31,7 +31,7 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   const creds = parseCredentials(formData);
   if (!creds) return { error: "Enter a valid email and a password (min 8 chars)." };
 
-  const db = getDb();
+  const db = await getDbWithTest();
   const user = await db.user.findUnique({ where: { email: creds.email } });
   if (!user?.passwordHash || !(await verifyPassword(creds.password, user.passwordHash))) {
     return { error: "Incorrect email or password." };
@@ -45,7 +45,7 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   const creds = parseCredentials(formData);
   if (!creds) return { error: "Enter a valid email and a password (min 8 chars)." };
 
-  const db = getDb();
+  const db = await getDbWithTest();
   const existing = await db.user.findUnique({ where: { email: creds.email } });
   if (existing?.passwordHash) {
     return { error: "An account with that email already exists." };

@@ -1,6 +1,6 @@
 import type { Grade, MemoryState, SchedulerKind } from "@/types/quran";
 import type { DailyQueue, MemoryCell, QueueItem, StreakInfo } from "@/types/srs";
-import { getDb } from "@/lib/db";
+import { getDb, getDbWithTest, sanitizeUrl } from "@/lib/db";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 import {
   GRADE_QUALITY,
@@ -19,27 +19,50 @@ const PAGE_NUMBERS: Record<number, number> = { 1: 1, 112: 604 };
 let seedPromise: Promise<void> | null = null;
 
 async function seedVerses(): Promise<void> {
-  const db = getDb();
+  console.log("[seedVerses] Starting verse seeding...");
+  const db = await getDbWithTest();
+  let count = 0;
   for (const surah of Object.values(FIXTURE_SURAHS)) {
     for (const ayah of surah.ayahs) {
-      await db.verse.upsert({
-        where: { verseKey: ayah.verse_key },
-        create: {
-          verseKey: ayah.verse_key,
-          surahId: surah.id,
-          ayahNumber: ayah.ayah_number,
-          pageNumber: PAGE_NUMBERS[surah.id] ?? 1,
-          uthmaniText: ayah.words.map((w) => w.text_uthmani).join(" "),
-          translation: ayah.words.map((w) => w.translation).join(" "),
-          audioUrl: ayah.audio_url,
-          timestampsJson: JSON.stringify(ayah.timings),
-          wordsJson: JSON.stringify(ayah.words),
-          tafsir: ayah.tafsir,
-        },
-        update: {},
-      });
+      const safeAudioUrl = sanitizeUrl(ayah.audio_url);
+      const createData = {
+        verseKey: ayah.verse_key,
+        surahId: surah.id,
+        ayahNumber: ayah.ayah_number,
+        pageNumber: PAGE_NUMBERS[surah.id] ?? 1,
+        uthmaniText: ayah.words.map((w) => w.text_uthmani).join(" "),
+        translation: ayah.words.map((w) => w.translation).join(" "),
+        audioUrl: safeAudioUrl ?? ayah.audio_url,
+        timestampsJson: JSON.stringify(ayah.timings),
+        wordsJson: JSON.stringify(ayah.words),
+        tafsir: ayah.tafsir,
+      };
+      if (!safeAudioUrl) {
+        console.error(`[seedVerses] INVALID audio_url for verseKey=${ayah.verse_key}: "${ayah.audio_url}"`);
+      }
+      try {
+        await db.verse.upsert({
+          where: { verseKey: ayah.verse_key },
+          create: createData,
+          update: {},
+        });
+        count++;
+        if (count % 5 === 0) {
+          console.log(`[seedVerses] Upserted ${count} verses so far...`);
+        }
+      } catch (err) {
+        console.error(`[seedVerses] FAILED on verseKey=${ayah.verse_key}`);
+        console.error(`[seedVerses] createData:`, JSON.stringify(createData, null, 2));
+        console.error(`[seedVerses] error name:`, (err as Error)?.name);
+        console.error(`[seedVerses] error message:`, (err as Error)?.message);
+        console.error(`[seedVerses] error code:`, (err as any)?.code);
+        console.error(`[seedVerses] error meta:`, (err as any)?.meta);
+        console.error(`[seedVerses] full error:`, JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2));
+        throw err;
+      }
     }
   }
+  console.log(`[seedVerses] Done. Seeded ${count} verses.`);
 }
 
 export function ensureVersesSeeded(): Promise<void> {
@@ -59,7 +82,7 @@ function startOfDay(date: Date): Date {
 }
 
 export async function getOrCreateUser() {
-  const db = getDb();
+  const db = await getDbWithTest();
   await ensureVersesSeeded();
   return db.user.upsert({
     where: { email: DEMO_EMAIL },
@@ -69,7 +92,7 @@ export async function getOrCreateUser() {
 }
 
 export async function ensureDemoUser(passwordHash: string) {
-  const db = getDb();
+  const db = await getDbWithTest();
   await ensureVersesSeeded();
   await db.user.upsert({
     where: { email: DEMO_EMAIL },

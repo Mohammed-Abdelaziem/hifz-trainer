@@ -3,7 +3,7 @@ import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@prisma/client";
-import { getDb } from "@/lib/db";
+import { getDbWithTest } from "@/lib/db";
 
 const scrypt = promisify(scryptCb) as (
   password: string,
@@ -36,7 +36,7 @@ function expiryDate(): Date {
 }
 
 export async function createSession(userId: string): Promise<string> {
-  const db = getDb();
+  const db = await getDbWithTest();
   const token = randomBytes(32).toString("hex");
   await db.session.create({
     data: { token, userId, expiresAt: expiryDate() },
@@ -57,7 +57,7 @@ export async function getSessionUser(): Promise<User | null> {
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const db = getDb();
+  const db = await getDbWithTest();
   const session = await db.session.findUnique({
     where: { token },
     include: { user: true },
@@ -75,7 +75,7 @@ export async function destroySession(): Promise<void> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) {
-    const db = getDb();
+    const db = await getDbWithTest();
     await db.session.deleteMany({ where: { token } }).catch(() => {});
   }
   jar.delete(SESSION_COOKIE);
