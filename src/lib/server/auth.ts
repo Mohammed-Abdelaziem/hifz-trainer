@@ -35,8 +35,17 @@ function expiryDate(): Date {
   return d;
 }
 
-export async function createSession(userId: string): Promise<string> {
+export async function createSession(userId: string, rotate = false): Promise<string> {
   const db = await getDbWithTest();
+
+  if (rotate) {
+    const jar = await cookies();
+    const oldToken = jar.get(SESSION_COOKIE)?.value;
+    if (oldToken) {
+      await db.session.deleteMany({ where: { token: oldToken } }).catch(() => {});
+    }
+  }
+
   const token = randomBytes(32).toString("hex");
   await db.session.create({
     data: { token, userId, expiresAt: expiryDate() },
@@ -45,7 +54,7 @@ export async function createSession(userId: string): Promise<string> {
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV !== "development",
     path: "/",
     expires: expiryDate(),
   });

@@ -19,9 +19,7 @@ const PAGE_NUMBERS: Record<number, number> = { 1: 1, 112: 604 };
 let seedPromise: Promise<void> | null = null;
 
 async function seedVerses(): Promise<void> {
-  console.log("[seedVerses] Starting verse seeding...");
   const db = await getDbWithTest();
-  let count = 0;
   for (const surah of Object.values(FIXTURE_SURAHS)) {
     for (const ayah of surah.ayahs) {
       const safeAudioUrl = sanitizeUrl(ayah.audio_url);
@@ -37,32 +35,17 @@ async function seedVerses(): Promise<void> {
         wordsJson: JSON.stringify(ayah.words),
         tafsir: ayah.tafsir,
       };
-      if (!safeAudioUrl) {
-        console.error(`[seedVerses] INVALID audio_url for verseKey=${ayah.verse_key}: "${ayah.audio_url}"`);
-      }
       try {
         await db.verse.upsert({
           where: { verseKey: ayah.verse_key },
           create: createData,
           update: {},
         });
-        count++;
-        if (count % 5 === 0) {
-          console.log(`[seedVerses] Upserted ${count} verses so far...`);
-        }
-      } catch (err) {
-        console.error(`[seedVerses] FAILED on verseKey=${ayah.verse_key}`);
-        console.error(`[seedVerses] createData:`, JSON.stringify(createData, null, 2));
-        console.error(`[seedVerses] error name:`, (err as Error)?.name);
-        console.error(`[seedVerses] error message:`, (err as Error)?.message);
-        console.error(`[seedVerses] error code:`, (err as Record<string, unknown>)?.code);
-        console.error(`[seedVerses] error meta:`, (err as Record<string, unknown>)?.meta);
-        console.error(`[seedVerses] full error:`, JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2));
-        throw err;
+      } catch {
+        throw new Error(`Failed to seed verse ${ayah.verse_key}`);
       }
     }
   }
-  console.log(`[seedVerses] Done. Seeded ${count} verses.`);
 }
 
 export function ensureVersesSeeded(): Promise<void> {

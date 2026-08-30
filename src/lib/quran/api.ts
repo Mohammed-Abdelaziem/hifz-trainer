@@ -74,7 +74,11 @@ async function bundleFromDbRows(surahId: number): Promise<SurahBundle | null> {
   const ayahs: Ayah[] = verseRows.map((row) => {
     let words: QuranWord[];
     if (row.wordsJson) {
-      words = JSON.parse(row.wordsJson) as QuranWord[];
+      try {
+        words = JSON.parse(row.wordsJson) as QuranWord[];
+      } catch {
+        words = [];
+      }
     } else {
       words = row.uthmaniText.split(" ").map((text, i) => ({
         id: `${row.verseKey}:${i + 1}`,
@@ -113,8 +117,7 @@ export async function getSurahBundle(surahId: number): Promise<SurahBundle | nul
 
   try {
     return await bundleFromDbRows(surahId);
-  } catch (err) {
-    console.error("[getSurahBundle]", err);
+  } catch {
     return null;
   }
 }
