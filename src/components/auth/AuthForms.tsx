@@ -105,11 +105,11 @@ export function AuthForms() {
 
       <form action={demoSignInAction}>
         <Button type="submit" variant="outline" className="w-full">
-          Continue with demo account
+          Try demo account
         </Button>
       </form>
       <p className="mt-2 text-center text-[11px] text-stone-400">
-        Demo account (demo@hifz.local) keeps shared sample progress.
+        Demo creates a temporary account with sample progress.
       </p>
     </div>
   );

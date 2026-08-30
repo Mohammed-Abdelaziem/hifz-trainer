@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { randomBytes } from "node:crypto";
 import {
   createSession,
   destroySession,
@@ -56,14 +57,16 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
     ? await db.user.update({ where: { id: existing.id }, data: { passwordHash } })
     : await db.user.create({ data: { email: creds.email, passwordHash } });
 
-  await createSession(user.id);
+  await createSession(user.id, true);
   redirect("/");
 }
 
 export async function demoSignInAction(): Promise<void> {
-  await ensureDemoUser(await hashPassword("demo1234"));
-  const user = await getOrCreateUser();
-  await createSession(user.id);
+  const demoEmail = `demo-${randomBytes(8).toString("hex")}@hifz.local`;
+  const demoPassword = randomBytes(16).toString("hex");
+  await ensureDemoUser(demoEmail, await hashPassword(demoPassword));
+  const user = await getOrCreateUser(demoEmail);
+  await createSession(user.id, true);
   redirect("/");
 }
 

@@ -64,22 +64,22 @@ function startOfDay(date: Date): Date {
   return d;
 }
 
-export async function getOrCreateUser() {
+export async function getOrCreateUser(email = DEMO_EMAIL) {
   const db = await getDbWithTest();
   await ensureVersesSeeded();
   return db.user.upsert({
-    where: { email: DEMO_EMAIL },
-    create: { email: DEMO_EMAIL },
+    where: { email },
+    create: { email },
     update: {},
   });
 }
 
-export async function ensureDemoUser(passwordHash: string) {
+export async function ensureDemoUser(email: string, passwordHash: string) {
   const db = await getDbWithTest();
   await ensureVersesSeeded();
   await db.user.upsert({
-    where: { email: DEMO_EMAIL },
-    create: { email: DEMO_EMAIL, passwordHash },
+    where: { email },
+    create: { email, passwordHash },
     update: { passwordHash },
   });
 }
