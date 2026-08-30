@@ -55,8 +55,8 @@ async function seedVerses(): Promise<void> {
         console.error(`[seedVerses] createData:`, JSON.stringify(createData, null, 2));
         console.error(`[seedVerses] error name:`, (err as Error)?.name);
         console.error(`[seedVerses] error message:`, (err as Error)?.message);
-        console.error(`[seedVerses] error code:`, (err as any)?.code);
-        console.error(`[seedVerses] error meta:`, (err as any)?.meta);
+        console.error(`[seedVerses] error code:`, (err as Record<string, unknown>)?.code);
+        console.error(`[seedVerses] error meta:`, (err as Record<string, unknown>)?.meta);
         console.error(`[seedVerses] full error:`, JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2));
         throw err;
       }
