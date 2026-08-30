@@ -59,9 +59,14 @@ async function fetchJson<T>(url: string, retries = 1): Promise<T> {
 function sanitizeUrl(url: string | null): string | null {
   if (!url) return null;
   try {
-    new URL(url);
+    const parsed = new URL(url);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      console.error("[sanitizeUrl] Invalid protocol:", url);
+      return null;
+    }
     return url;
-  } catch {
+  } catch (e) {
+    console.error("[sanitizeUrl] Invalid URL:", url, e);
     return null;
   }
 }
@@ -82,17 +87,28 @@ function toAbsoluteUrl(base: string, path: string): string {
 }
 
 async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
+  console.log(`[fetchAndCacheRecitationUrl] verseKey=${verseKey}, reciterId=${reciterId}`);
   const res = await fetchJson<{ audio_files: { url: string }[] }>(
     `${QURAN_API_BASE}/recitations/${reciterId}/by_ayah/${verseKey}`
-  ).catch(() => null);
+  ).catch((e) => {
+    console.error("[fetchAndCacheRecitationUrl] fetch failed:", e);
+    return null;
+  });
   const relativeUrl = res?.audio_files?.[0]?.url;
+  console.log("[fetchAndCacheRecitationUrl] relativeUrl:", relativeUrl);
   const url = relativeUrl ? toAbsoluteUrl(VERSES_CDN, relativeUrl) : null;
+  console.log("[fetchAndCacheRecitationUrl] absoluteUrl:", url);
   if (url) {
-    await getDb().recitationAudio.upsert({
-      where: { verseKey_reciterId: { verseKey, reciterId } },
-      create: { verseKey, reciterId, url },
-      update: { url },
-    });
+    try {
+      await getDb().recitationAudio.upsert({
+        where: { verseKey_reciterId: { verseKey, reciterId } },
+        create: { verseKey, reciterId, url },
+        update: { url },
+      });
+    } catch (e) {
+      console.error("[fetchAndCacheRecitationUrl] upsert failed:", e);
+      throw e;
+    }
   }
   return url;
 }
@@ -115,11 +131,17 @@ export async function getOrFetchAyahData(
 
   if (words && row?.recitationUrl && cachedUrl === null && reciterId === DEFAULT_RECITER_ID) {
     const fixedUrl = toAbsoluteUrl(VERSES_CDN, row.recitationUrl);
-    await db.recitationAudio.upsert({
-      where: { verseKey_reciterId: { verseKey, reciterId } },
-      create: { verseKey, reciterId, url: fixedUrl },
-      update: {},
-    });
+    console.log("[getOrFetchAyahData] upserting recitationAudio:", { verseKey, reciterId, fixedUrl });
+    try {
+      await db.recitationAudio.upsert({
+        where: { verseKey_reciterId: { verseKey, reciterId } },
+        create: { verseKey, reciterId, url: fixedUrl },
+        update: {},
+      });
+    } catch (e) {
+      console.error("[getOrFetchAyahData] upsert failed:", e);
+      throw e;
+    }
   }
 
   const needsTafsir = Boolean(row) && !row?.tafsir;
@@ -171,7 +193,7 @@ export async function getOrFetchAyahData(
   return {
     verseKey,
     words: words ?? [],
-    recitationUrl: sanitizeUrl(freshUrl ?? row.recitationUrl),
+    recitationUrl: sanitizeUrl(freshUrl ?? row.recitationUrl) ?? null,
     tafsir: row.tafsir ?? tafsir,
     source: words ? "quran" : "synthetic",
   };
