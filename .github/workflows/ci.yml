@@ -1,9 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
   pull_request:
+    branches: [main, dev]
 
 jobs:
   verify:
@@ -35,6 +34,8 @@ jobs:
       - run: npm ci
 
       - run: npx prisma generate
+
+      - run: npx prisma db push --accept-data-loss
 
       - run: npm run typecheck
 
