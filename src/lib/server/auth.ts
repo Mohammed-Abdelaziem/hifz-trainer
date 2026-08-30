@@ -2,7 +2,7 @@ import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import type { User } from "@prisma/client";
+import type { User } from "../../../generated/prisma";
 import { getDbWithTest } from "@/lib/db";
 
 const scrypt = promisify(scryptCb) as (
