@@ -128,12 +128,14 @@ export function ReaderWorkspace({
   scheduler,
   requestRetention,
   availableSurahs,
+  isGuest,
 }: {
   surah: SurahBundle;
   initialVerseKey?: string;
   scheduler: SchedulerKind;
   requestRetention: number;
   availableSurahs: { id: number; name_simple: string }[];
+  isGuest?: boolean;
 }) {
   const engine = useMemo(() => new AudioEngine(), []);
   const router = useRouter();
@@ -250,7 +252,7 @@ export function ReaderWorkspace({
     flashTimer.current = setTimeout(() => setFlash(null), 2600);
 
     const isOnline = navigator.onLine;
-    if (isOnline) {
+    if (!isGuest && isOnline) {
       fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

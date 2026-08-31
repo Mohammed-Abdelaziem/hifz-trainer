@@ -14,7 +14,7 @@ const LINKS = [
   { href: "/analytics", label: "Heatmap", icon: Map },
 ];
 
-export function SiteHeader({ user }: { user?: { email: string } | null }) {
+export function SiteHeader({ user, isGuest }: { user?: { email: string } | null; isGuest?: boolean }) {
   const pathname = usePathname();
   const [offline, setOffline] = useState(false);
   const [lastOnline, setLastOnline] = useState(true);
@@ -65,14 +65,14 @@ export function SiteHeader({ user }: { user?: { email: string } | null }) {
             );
           })}
         </nav>
-        {user ? (
+        {user || isGuest ? (
           <>
             <div className="flex items-center gap-2 border-l border-stone-200 pl-3 dark:border-stone-700">
               <span
-                title={user.email}
+                title={user?.email ?? "Guest mode — progress saved locally"}
                 className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
               >
-                {user.email}
+                {user?.email ?? "Guest"}
               </span>
               <form action={signOutAction}>
                 <button

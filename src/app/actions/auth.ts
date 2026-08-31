@@ -8,6 +8,7 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/lib/server/auth";
+import { setGuestCookie, clearGuestCookie } from "@/lib/server/guest";
 import { ensureDemoUser, getOrCreateUser } from "@/lib/server/hifz-service";
 import { getDbWithTest } from "@/lib/db";
 
@@ -70,7 +71,13 @@ export async function demoSignInAction(): Promise<void> {
   redirect("/");
 }
 
+export async function guestSignInAction(): Promise<void> {
+  await setGuestCookie();
+  redirect("/");
+}
+
 export async function signOutAction(): Promise<void> {
   await destroySession();
+  await clearGuestCookie();
   redirect("/login");
 }
