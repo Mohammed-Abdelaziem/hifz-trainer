@@ -8,8 +8,7 @@ export const dynamic = "force-dynamic";
 const VALID_SCHEDULERS = new Set(["sm2", "fsrs"]);
 
 export async function GET() {
-  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-  if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
+  const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
   if (!user) return Response.json({ scheduler: "sm2", requestRetention: 0.9 });
   return Response.json({
     scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
@@ -19,8 +18,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-    if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
     if (!user) return Response.json({ ok: true, scheduler: "sm2", requestRetention: 0.9 });
 
     const body = (await req.json().catch(() => null)) as

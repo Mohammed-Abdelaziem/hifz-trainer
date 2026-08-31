@@ -4,15 +4,24 @@ import { isGuestSession } from "@/lib/server/guest";
 
 export const dynamic = "force-dynamic";
 
+const EMPTY_QUEUE = {
+  sabaq: [],
+  sabqi: [],
+  manzil: [],
+  estimatedMinutes: 0,
+  scheduler: "sm2" as const,
+  requestRetention: 0.9,
+  streak: { current: 0, longest: 0, dailyTargetCount: 5, todayReviewed: 0 },
+};
+
 export async function GET() {
   try {
-    const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-    if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
-    if (!user) return Response.json({ sabaq: [], sabqi: [], manzil: [] });
+    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+    if (!user) return Response.json(EMPTY_QUEUE);
     const queue = await buildDailyQueue(user.id);
     return Response.json(queue);
   } catch (err) {
     console.error("[/api/queue]", err);
-    return Response.json({ error: "Failed to load queue" }, { status: 500 });
+    return Response.json(EMPTY_QUEUE);
   }
 }

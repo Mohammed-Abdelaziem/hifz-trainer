@@ -32,8 +32,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-    if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
     if (!user) return Response.json({ ok: true, guest: true });
     const data = await recordReview({
       userId: user.id,

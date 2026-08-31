@@ -1,5 +1,3 @@
-import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { getOrFetchAyahData } from "@/lib/server/ayah-data";
 import { VALID_RECITER_IDS } from "@/lib/quran/reciters";
 
@@ -7,9 +5,6 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   try {
-    const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-    if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
-
     const params = new URL(req.url).searchParams;
     const verseKey = params.get("verseKey") ?? "";
     if (!/^\d{1,3}:\d{1,3}$/.test(verseKey)) {
