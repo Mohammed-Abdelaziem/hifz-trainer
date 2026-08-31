@@ -112,13 +112,37 @@ async function bundleFromDbRows(surahId: number): Promise<SurahBundle | null> {
 export async function getSurahBundle(surahId: number): Promise<SurahBundle | null> {
   const fixture = FIXTURE_SURAHS[surahId];
   if (fixture) {
-    const meta = await fetchChapterMeta(surahId);
-    return meta ? { ...fixture, ...meta } : fixture;
+    try {
+      const meta = await fetchChapterMeta(surahId);
+      return meta ? { ...fixture, ...meta } : fixture;
+    } catch {
+      return fixture;
+    }
   }
 
   try {
-    return await bundleFromDbRows(surahId);
+    const fromDb = await bundleFromDbRows(surahId);
+    if (fromDb) return fromDb;
   } catch {
-    return null;
+    // DB unavailable
   }
+
+  try {
+    const meta = await fetchChapterMeta(surahId);
+    if (meta) {
+      return {
+        id: surahId,
+        name_arabic: meta.name_arabic,
+        name_simple: meta.name_simple,
+        english_name: meta.english_name,
+        revelation_place: "makkah",
+        ayah_count: 0,
+        ayahs: [],
+      };
+    }
+  } catch {
+    // external API unavailable
+  }
+
+  return null;
 }

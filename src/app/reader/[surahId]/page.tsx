@@ -8,15 +8,27 @@ import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
 type Props = PageProps<'/reader/[surahId]'>;
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { surahId } = await params;
-  const surah = await getSurahBundle(Number(surahId));
-  if (!surah) return { title: "Surah not found" };
-  return { title: `${surah.name_simple} — Hifz Trainer` };
+  try {
+    const { surahId } = await params;
+    const surah = await getSurahBundle(Number(surahId));
+    if (!surah) return { title: "Surah not found" };
+    return { title: `${surah.name_simple} — Hifz Trainer` };
+  } catch {
+    return { title: "Hifz Trainer" };
+  }
 }
 
 export default async function ReaderPage(props: Props) {
-  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-  const isGuest = !user && guest;
+  let user = null;
+  let isGuest = false;
+  try {
+    const [u, g] = await Promise.all([getSessionUser(), isGuestSession()]);
+    user = u;
+    isGuest = !u && g;
+  } catch {
+    // DB unavailable — continue as anonymous
+  }
+
   const [{ surahId }, searchParams] = await Promise.all([
     props.params,
     props.searchParams,
@@ -24,7 +36,19 @@ export default async function ReaderPage(props: Props) {
   const id = Number(surahId);
   if (!Number.isInteger(id)) notFound();
 
-  const [surah, navItems] = await Promise.all([getSurahBundle(id), getAvailableSurahs()]);
+  let surah = null;
+  let navItems: { id: number; name_simple: string }[] = [];
+  try {
+    [surah, navItems] = await Promise.all([
+      getSurahBundle(id),
+      getAvailableSurahs().then((items) =>
+        items.map(({ id: aid, name_simple }) => ({ id: aid, name_simple }))
+      ),
+    ]);
+  } catch {
+    // DB unavailable
+  }
+
   if (!surah) notFound();
 
   const verseParam = (await searchParams).verse;
@@ -38,10 +62,7 @@ export default async function ReaderPage(props: Props) {
       scheduler={isGuest ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
       requestRetention={isGuest ? 0.9 : (user?.requestRetention ?? 0.9)}
       isGuest={isGuest}
-      availableSurahs={navItems.map(({ id: aid, name_simple }) => ({
-        id: aid,
-        name_simple,
-      }))}
+      availableSurahs={navItems}
     />
   );
 }
