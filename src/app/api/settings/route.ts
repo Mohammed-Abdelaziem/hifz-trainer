@@ -52,9 +52,10 @@ export async function POST(req: Request) {
       return Response.json({ error: "Nothing to update" }, { status: 400 });
     }
 
-    await getDb().user.update({ where: { id: user.id }, data });
+    const db = await getDb();
+    await db.user.update({ where: { id: user.id }, data });
 
-    const updated = await getDb().user.findUniqueOrThrow({
+    const updated = await db.user.findUniqueOrThrow({
       where: { id: user.id },
       select: { scheduler: true, requestRetention: true },
     });

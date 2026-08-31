@@ -126,7 +126,7 @@ export async function recordReview(params: {
   grade: Grade;
   durationMs?: number;
 }): Promise<{ result: ReviewResult; streak: StreakInfo }> {
-  const db = getDb();
+  const db = await getDb();
   const now = new Date();
 
   const user = await db.user.findUniqueOrThrow({ where: { id: params.userId } });
@@ -260,7 +260,7 @@ function surahName(surahId: number): string {
 }
 
 export async function buildMemoryMap(userId: string): Promise<MemoryCell[]> {
-  const db = getDb();
+  const db = await getDb();
   const [verses, surahRows] = await Promise.all([
     db.verse.findMany({
       include: { memoryStates: { where: { userId } } },
@@ -296,7 +296,7 @@ export async function buildMemoryMap(userId: string): Promise<MemoryCell[]> {
 }
 
 export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
-  const db = getDb();
+  const db = await getDb();
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 

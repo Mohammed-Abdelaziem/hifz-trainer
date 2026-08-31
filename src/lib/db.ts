@@ -1,6 +1,4 @@
 import { PrismaClient } from "../../generated/prisma";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaPg } from "@prisma/adapter-pg";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -30,7 +28,7 @@ function encodeUrl(rawUrl: string): string {
   return `${scheme}${user}:${pass}${hostAndPath}`;
 }
 
-function createAdapter(rawUrl: string) {
+async function createAdapter(rawUrl: string) {
   const encodedUrl = encodeUrl(rawUrl);
 
   let parsedUrl: URL;
@@ -41,9 +39,11 @@ function createAdapter(rawUrl: string) {
   }
 
   if (parsedUrl.protocol === "postgres:" || parsedUrl.protocol === "postgresql:") {
+    const { PrismaPg } = await import("@prisma/adapter-pg");
     return new PrismaPg({ connectionString: encodedUrl });
   }
 
+  const { PrismaBetterSqlite3 } = await import("@prisma/adapter-better-sqlite3");
   return new PrismaBetterSqlite3({ url: encodedUrl });
 }
 
@@ -77,19 +77,26 @@ async function testConnection(db: PrismaClient): Promise<void> {
 }
 
 export async function getDbWithTest(): Promise<PrismaClient> {
-  const db = getDb();
+  const db = await getDb();
   await testConnection(db);
   return db;
 }
 
-export function getDb(): PrismaClient {
-  if (!globalForPrisma.prisma) {
-    const rawUrl = process.env.DATABASE_URL;
-    if (!rawUrl && process.env.NODE_ENV === "production") {
-      throw new Error("DATABASE_URL is required in production");
-    }
-    const adapter = createAdapter(rawUrl ?? "file:./dev.db");
-    globalForPrisma.prisma = new PrismaClient({ adapter });
+let pendingClient: Promise<PrismaClient> | null = null;
+
+export async function getDb(): Promise<PrismaClient> {
+  if (globalForPrisma.prisma) return globalForPrisma.prisma;
+  const rawUrl = process.env.DATABASE_URL;
+  if (!rawUrl && process.env.NODE_ENV === "production") {
+    throw new Error("DATABASE_URL is required in production");
   }
-  return globalForPrisma.prisma;
+  if (!pendingClient) {
+    pendingClient = (async () => {
+      const adapter = await createAdapter(rawUrl ?? "file:./dev.db");
+      return new PrismaClient({ adapter });
+    })();
+  }
+  const client = await pendingClient;
+  globalForPrisma.prisma = client;
+  return client;
 }
