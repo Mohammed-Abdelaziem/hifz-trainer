@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import {
   signInAction,
   signUpAction,
-  demoSignInAction,
+  guestSignInAction,
   type AuthState,
 } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -103,13 +103,13 @@ export function AuthForms() {
         <span className="h-px flex-1 bg-stone-200 dark:bg-stone-700" />
       </div>
 
-      <form action={demoSignInAction}>
+      <form action={guestSignInAction}>
         <Button type="submit" variant="outline" className="w-full">
-          Try demo account
+          Continue without account
         </Button>
       </form>
       <p className="mt-2 text-center text-[11px] text-stone-400">
-        Demo creates a temporary account with sample progress.
+        Your progress stays on this device. No account needed.
       </p>
     </div>
   );

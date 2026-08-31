@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/server/auth";
+import { isGuestSession } from "@/lib/server/guest";
 
 export const dynamic = "force-dynamic";
 
@@ -29,8 +30,23 @@ function bucketIndex(intervalDays: number): number {
 
 export async function GET() {
   try {
-    const user = await getSessionUser();
-    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
+    if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) {
+      return Response.json({
+        totalReviews: 0,
+        activeDays: 0,
+        avgDurationMs: 0,
+        grades: { AGAIN: 0, HARD: 0, GOOD: 0, EASY: 0 },
+        perDay: [],
+        schedulerCompare: {
+          buckets: [...INTERVAL_BUCKETS],
+          sm2: [0, 0, 0, 0, 0],
+          fsrs: [0, 0, 0, 0, 0],
+          totals: { sm2: 0, fsrs: 0 },
+        },
+      });
+    }
     const db = getDb();
     const since = new Date();
     since.setDate(since.getDate() - 29);

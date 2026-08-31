@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
-import { requirePageUser } from "@/lib/server/auth";
+import { getSessionUser } from "@/lib/server/auth";
+import { isGuestSession } from "@/lib/server/guest";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
 
 type Props = PageProps<'/reader/[surahId]'>;
@@ -14,7 +15,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ReaderPage(props: Props) {
-  const user = await requirePageUser();
+  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
+  const isGuest = !user && guest;
   const [{ surahId }, searchParams] = await Promise.all([
     props.params,
     props.searchParams,
@@ -33,8 +35,9 @@ export default async function ReaderPage(props: Props) {
       key={id}
       surah={surah}
       initialVerseKey={initialVerseKey}
-      scheduler={user.scheduler === "fsrs" ? "fsrs" : "sm2"}
-      requestRetention={user.requestRetention ?? 0.9}
+      scheduler={isGuest ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
+      requestRetention={isGuest ? 0.9 : (user?.requestRetention ?? 0.9)}
+      isGuest={isGuest}
       availableSurahs={navItems.map(({ id: aid, name_simple }) => ({
         id: aid,
         name_simple,
