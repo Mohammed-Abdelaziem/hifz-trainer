@@ -47,7 +47,7 @@ export async function GET() {
         },
       });
     }
-    const db = getDb();
+    const db = await getDb();
     const since = new Date();
     since.setDate(since.getDate() - 29);
     since.setHours(0, 0, 0, 0);

@@ -47,7 +47,8 @@ export async function getAvailableSurahs(): Promise<SurahNavItem[]> {
   }));
 
   try {
-    const rows = await getDb().surah.findMany({ orderBy: { id: "asc" } });
+    const db = await getDb();
+    const rows = await db.surah.findMany({ orderBy: { id: "asc" } });
     if (rows.length > 0) {
       return rows.map((s) => ({
         id: s.id,
@@ -63,7 +64,7 @@ export async function getAvailableSurahs(): Promise<SurahNavItem[]> {
 }
 
 async function bundleFromDbRows(surahId: number): Promise<SurahBundle | null> {
-  const db = getDb();
+  const db = await getDb();
   const [surahRow, verseRows] = await Promise.all([
     db.surah.findUnique({ where: { id: surahId } }),
     db.verse.findMany({ where: { surahId }, orderBy: { ayahNumber: "asc" } }),

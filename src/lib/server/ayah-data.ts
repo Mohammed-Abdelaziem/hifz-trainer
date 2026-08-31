@@ -70,7 +70,8 @@ function sanitizeUrl(url: string | null): string | null {
 }
 
 async function getCachedRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
-  const cached = await getDb().recitationAudio.findUnique({
+  const db = await getDb();
+  const cached = await db.recitationAudio.findUnique({
     where: { verseKey_reciterId: { verseKey, reciterId } },
   });
   return sanitizeUrl(cached?.url ?? null);
@@ -94,7 +95,8 @@ async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): 
     try {
       const sanitized = sanitizeUrl(url);
       if (!sanitized) return null;
-      await getDb().recitationAudio.upsert({
+      const db = await getDb();
+      await db.recitationAudio.upsert({
         where: { verseKey_reciterId: { verseKey, reciterId } },
         create: { verseKey, reciterId, url: sanitized },
         update: { url: sanitized },
