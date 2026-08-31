@@ -30,8 +30,7 @@ function bucketIndex(intervalDays: number): number {
 
 export async function GET() {
   try {
-    const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-    if (!user && !guest) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
     if (!user) {
       return Response.json({
         totalReviews: 0,
