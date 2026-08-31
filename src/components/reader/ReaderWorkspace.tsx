@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Flame } from "lucide-react";
@@ -242,7 +242,7 @@ export function ReaderWorkspace({
     return () => engine.destroy();
   }, [engine]);
 
-  const handleGrade = (grade: Grade) => {
+  const handleGrade = useCallback((grade: Grade) => {
     const verseKey = selected.verse_key;
     const prev = memoryStatesRef.current.get(verseKey) ?? EMPTY_SNAPSHOT;
     const outcome = previewSchedule(scheduler, prev, grade, requestRetention);
@@ -269,11 +269,9 @@ export function ReaderWorkspace({
         })
         .catch(() => {});
     } else {
-      // Offline: queue the review
       offlineReviewQueue.enqueue({ verseKey, grade, timestamp: Date.now() }).then((id) => {
         setFlash(`Offline — review queued (${id.slice(0, 8)})`);
       });
-      // Register background sync for when we come online
       registerBackgroundSync().catch(() => {});
     }
 
@@ -284,7 +282,7 @@ export function ReaderWorkspace({
       resetRevealed(nextAyah.verse_key);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  };
+  }, [selected.verse_key, scheduler, requestRetention, isGuest, surah.ayahs, selectAyah, resetRevealed]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -307,7 +305,7 @@ export function ReaderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [handleGrade, engine, setHelpOpen]);
 
   return (
     <AudioSyncProvider engine={engine} timings={effectiveSelected.timings}>

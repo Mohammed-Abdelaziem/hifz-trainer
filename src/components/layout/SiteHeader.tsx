@@ -16,8 +16,7 @@ const LINKS = [
 
 export function SiteHeader({ user, isGuest }: { user?: { email: string } | null; isGuest?: boolean }) {
   const pathname = usePathname();
-  const [offline, setOffline] = useState(false);
-  const [lastOnline, setLastOnline] = useState(true);
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" ? !navigator.onLine : false);
 
   useEffect(() => {
     const handleOnline = () => setOffline(false);
@@ -29,11 +28,6 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
-
-  if (lastOnline !== navigator.onLine) {
-    setLastOnline(navigator.onLine);
-    setOffline(!navigator.onLine);
-  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/85 backdrop-blur dark:border-stone-800 dark:bg-stone-950/85">

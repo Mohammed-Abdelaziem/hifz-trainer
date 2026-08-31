@@ -88,10 +88,11 @@ export function OnboardingTour() {
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Onboarding tour">
       <div className="relative w-[90vw] max-w-md rounded-2xl border border-stone-200 bg-white p-8 shadow-2xl dark:border-stone-700 dark:bg-stone-900">
         <button
           onClick={skip}
+          aria-label="Skip onboarding"
           className="absolute right-4 top-4 text-xs font-medium text-stone-400 transition-colors hover:text-stone-600 dark:hover:text-stone-200 cursor-pointer"
         >
           Skip

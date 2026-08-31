@@ -16,6 +16,7 @@ function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
 }
 
 const AUTH_ROUTES = ["/login", "/signup"];
+const AUTH_ACTION_ROUTES = ["/login", "/"];
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60_000;
 
@@ -26,7 +27,7 @@ export function middleware(request: NextRequest) {
   const isAuthPage = AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
   const isAuthAction =
     method === "POST" &&
-    (pathname === "/" || pathname.startsWith("/"));
+    AUTH_ACTION_ROUTES.some((r) => pathname === r);
 
   if (!isAuthPage && !isAuthAction) {
     return NextResponse.next();

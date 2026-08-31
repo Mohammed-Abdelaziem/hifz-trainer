@@ -116,7 +116,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [engine]);
 
   const idx = availableSurahs.findIndex((s) => s.id === surah.id);
   const prev = idx > 0 ? availableSurahs[idx - 1] : null;
