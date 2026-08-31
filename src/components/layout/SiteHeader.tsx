@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookMarked, LayoutDashboard, LogOut, Map, WifiOff } from "lucide-react";
+import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, WifiOff } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/reader/1", label: "Reader", icon: BookMarked },
+  { href: "/quran", label: "Quran", icon: BookOpen },
+  { href: "/reader/1", label: "Hifz", icon: BookMarked },
   { href: "/analytics", label: "Heatmap", icon: Map },
 ];
 
@@ -46,7 +47,7 @@ export function SiteHeader({ user }: { user?: { email: string } | null }) {
         <nav className="ml-auto flex items-center gap-1">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href.split("?")[0]);
+              href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link
                 key={href}
