@@ -86,21 +86,106 @@ async function syncPendingReviews() {
   }
 
   try {
+    const pending = await getPendingReviews();
+    if (pending.length === 0) {
+      for (const client of clients) {
+        client.postMessage({ type: "SYNC_COMPLETED", payload: { synced: 0, failed: 0 } });
+      }
+      return;
+    }
+
     const response = await fetch("/api/reviews/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reviews: pending.map((r) => ({
+          verseKey: r.verseKey,
+          grade: r.grade,
+          durationMs: r.durationMs,
+        })),
+      }),
     });
     const result = await response.json();
+
+    if (result.synced > 0) {
+      for (const item of pending.slice(0, result.synced)) {
+        await markReviewSynced(item.id);
+      }
+    }
+    if (result.failed > 0) {
+      for (const item of pending.slice(result.synced)) {
+        await incrementReviewRetries(item.id);
+      }
+    }
 
     for (const client of clients) {
       client.postMessage({ type: "SYNC_COMPLETED", payload: result });
     }
   } catch (error) {
-    console.error("Background sync failed:", error);
     for (const client of clients) {
       client.postMessage({ type: "SYNC_FAILED", error: error.message });
     }
   }
+}
+
+function getPendingReviews() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("hifz-offline", 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("review-queue", "readonly");
+      const store = tx.objectStore("review-queue");
+      const index = store.index("synced");
+      const req = index.getAll(IDBKeyRange.only(false));
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    };
+  });
+}
+
+function markReviewSynced(id) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("hifz-offline", 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("review-queue", "readwrite");
+      const store = tx.objectStore("review-queue");
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const item = getReq.result;
+        if (item) {
+          item.synced = true;
+          store.put(item);
+        }
+        resolve();
+      };
+      getReq.onerror = () => reject(getReq.error);
+    };
+  });
+}
+
+function incrementReviewRetries(id) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("hifz-offline", 1);
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => {
+      const db = request.result;
+      const tx = db.transaction("review-queue", "readwrite");
+      const store = tx.objectStore("review-queue");
+      const getReq = store.get(id);
+      getReq.onsuccess = () => {
+        const item = getReq.result;
+        if (item) {
+          item.retries = (item.retries || 0) + 1;
+          store.put(item);
+        }
+        resolve();
+      };
+      getReq.onerror = () => reject(getReq.error);
+    };
+  });
 }
 
 function isReviewApi(url) {

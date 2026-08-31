@@ -26,9 +26,10 @@ export async function POST(req: Request) {
           durationMs: review.durationMs,
         });
         results.push({ verseKey: review.verseKey, ok: true, result: result.result });
-      } catch (error) {
-        console.error(`Failed to sync review for ${review.verseKey}:`, error);
-        results.push({ verseKey: review.verseKey, ok: false, error: String(error) });
+      } catch {
+        const safeKey = review.verseKey.replace(/[^\d:]/g, "");
+        console.error(`Failed to sync review for ${safeKey}`);
+        results.push({ verseKey: review.verseKey, ok: false, error: "Sync failed" });
       }
     }
 

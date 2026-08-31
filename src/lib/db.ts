@@ -32,23 +32,18 @@ function encodeUrl(rawUrl: string): string {
 
 function createAdapter(rawUrl: string) {
   const encodedUrl = encodeUrl(rawUrl);
-  const protocol = encodedUrl.split("://")[0] ?? "none";
-  console.log(`[db] createAdapter protocol=${protocol}, urlLength=${encodedUrl.length}`);
 
   let parsedUrl: URL;
   try {
     parsedUrl = new URL(encodedUrl);
-  } catch (e) {
-    console.error(`[db] FATAL: Cannot parse DATABASE_URL as URL`, e);
-    throw new Error(`DATABASE_URL is not a valid URL. Protocol attempted: "${protocol}". Error: ${e}`);
+  } catch {
+    throw new Error("DATABASE_URL is not a valid URL");
   }
 
   if (parsedUrl.protocol === "postgres:" || parsedUrl.protocol === "postgresql:") {
-    console.log(`[db] Creating PrismaPg adapter, host=${parsedUrl.hostname}, port=${parsedUrl.port}`);
     return new PrismaPg({ connectionString: encodedUrl });
   }
 
-  console.log(`[db] Falling back to PrismaBetterSqlite3 adapter`);
   return new PrismaBetterSqlite3({ url: encodedUrl });
 }
 
@@ -74,16 +69,10 @@ export function toAbsoluteUrl(base: string, path: string): string {
 async function testConnection(db: PrismaClient): Promise<void> {
   if (globalForPrisma.connectionTested) return;
   try {
-    console.log("[db] Running connection test (SELECT 1)...");
     await db.$queryRaw`SELECT 1`;
-    console.log("[db] Connection test PASSED");
     globalForPrisma.connectionTested = true;
-  } catch (err) {
-    console.error("[db] Connection test FAILED:", err);
-    console.error("[db] Error name:", (err as Error)?.name);
-    console.error("[db] Error message:", (err as Error)?.message);
-    console.error("[db] Error code:", (err as Record<string, unknown>)?.code);
-    console.error("[db] Full error:", JSON.stringify(err, Object.getOwnPropertyNames(err as object), 2));
+  } catch {
+    // Connection test failed — will retry on next call
   }
 }
 
@@ -96,14 +85,11 @@ export async function getDbWithTest(): Promise<PrismaClient> {
 export function getDb(): PrismaClient {
   if (!globalForPrisma.prisma) {
     const rawUrl = process.env.DATABASE_URL;
-    console.log(`[db] getDb() initializing. DATABASE_URL is ${rawUrl ? "SET (length=" + rawUrl.length + ")" : "UNDEFINED"}`);
-    if (!rawUrl) {
-      console.error("[db] WARNING: DATABASE_URL is undefined! Falling back to file:./dev.db");
+    if (!rawUrl && process.env.NODE_ENV === "production") {
+      throw new Error("DATABASE_URL is required in production");
     }
     const adapter = createAdapter(rawUrl ?? "file:./dev.db");
-    console.log("[db] Adapter created, instantiating PrismaClient...");
     globalForPrisma.prisma = new PrismaClient({ adapter });
-    console.log("[db] PrismaClient initialized successfully");
   }
   return globalForPrisma.prisma;
 }

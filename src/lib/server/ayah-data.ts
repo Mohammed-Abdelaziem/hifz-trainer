@@ -61,12 +61,10 @@ function sanitizeUrl(url: string | null): string | null {
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      console.error("[sanitizeUrl] Invalid protocol:", url);
       return null;
     }
     return url;
-  } catch (e) {
-    console.error("[sanitizeUrl] Invalid URL:", url, e);
+  } catch {
     return null;
   }
 }
@@ -87,33 +85,22 @@ function toAbsoluteUrl(base: string, path: string): string {
 }
 
 async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
-  console.log(`[fetchAndCacheRecitationUrl] verseKey=${verseKey}, reciterId=${reciterId}`);
   const res = await fetchJson<{ audio_files: { url: string }[] }>(
     `${QURAN_API_BASE}/recitations/${reciterId}/by_ayah/${verseKey}`
-  ).catch((e) => {
-    console.error("[fetchAndCacheRecitationUrl] fetch failed:", e);
-    return null;
-  });
+  ).catch(() => null);
   const relativeUrl = res?.audio_files?.[0]?.url;
-  console.log("[fetchAndCacheRecitationUrl] relativeUrl:", relativeUrl);
   const url = relativeUrl ? toAbsoluteUrl(VERSES_CDN, relativeUrl) : null;
-  console.log("[fetchAndCacheRecitationUrl] absoluteUrl:", url);
   if (url) {
     try {
       const sanitized = sanitizeUrl(url);
-      console.log("[fetchAndCacheRecitationUrl] sanitized:", sanitized);
-      if (!sanitized) {
-        console.error("[fetchAndCacheRecitationUrl] URL sanitization failed for:", url);
-        return null;
-      }
+      if (!sanitized) return null;
       await getDb().recitationAudio.upsert({
         where: { verseKey_reciterId: { verseKey, reciterId } },
         create: { verseKey, reciterId, url: sanitized },
         update: { url: sanitized },
       });
-    } catch (e) {
-      console.error("[fetchAndCacheRecitationUrl] upsert failed:", e);
-      throw e;
+    } catch {
+      return null;
     }
   }
   return url;
@@ -130,23 +117,25 @@ export async function getOrFetchAyahData(
 
   let words: QuranWord[] | null = null;
   if (row?.wordsSource === "quran" && row.wordsJson) {
-    words = JSON.parse(row.wordsJson) as QuranWord[];
+    try {
+      words = JSON.parse(row.wordsJson) as QuranWord[];
+    } catch {
+      words = null;
+    }
   }
 
   const cachedUrl = await getCachedRecitationUrl(verseKey, reciterId);
 
   if (words && row?.recitationUrl && cachedUrl === null && reciterId === DEFAULT_RECITER_ID) {
     const fixedUrl = toAbsoluteUrl(VERSES_CDN, row.recitationUrl);
-    console.log("[getOrFetchAyahData] upserting recitationAudio:", { verseKey, reciterId, fixedUrl });
     try {
       await db.recitationAudio.upsert({
         where: { verseKey_reciterId: { verseKey, reciterId } },
         create: { verseKey, reciterId, url: fixedUrl },
         update: {},
       });
-    } catch (e) {
-      console.error("[getOrFetchAyahData] upsert failed:", e);
-      throw e;
+    } catch {
+      // ignore upsert failure
     }
   }
 
@@ -183,15 +172,13 @@ export async function getOrFetchAyahData(
     if (tafsir) {
       updateData.tafsir = tafsir;
     }
-    console.log(`[getOrFetchAyahData] verse.update verseKey=${verseKey}, data keys=`, Object.keys(updateData));
     try {
       await db.verse.update({
         where: { verseKey },
         data: updateData as never,
       });
-    } catch (err) {
-      console.error(`[getOrFetchAyahData] verse.update FAILED for verseKey=${verseKey}`, err);
-      throw err;
+    } catch {
+      // ignore update failure
     }
   }
 
