@@ -24,6 +24,7 @@ import { scheduleFsrs } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
 import { useReaderStore } from "@/stores/reader-store";
 import { Badge } from "@/components/ui/badge";
+import { Select } from "@/components/ui/select";
 import { RatingBar } from "./RatingBar";
 import { AudioControlBar } from "./AudioControlBar";
 import { MaskingToolbar } from "./MaskingToolbar";
@@ -352,20 +353,18 @@ export function ReaderWorkspace({
                           ←
                         </Link>
                       )}
-                      <select
-                        value={surah.id}
+                      <Select
+                        value={String(surah.id)}
                         onChange={(e) => {
                           router.push(`/reader/${e.target.value}`);
                         }}
                         aria-label="Switch surah"
-                        className="max-w-[150px] cursor-pointer rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-600 outline-none focus:border-amber-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
-                      >
-                        {availableSurahs.map((s) => (
-                          <option key={s.id} value={s.id}>
-                            {s.id}. {s.name_simple}
-                          </option>
-                        ))}
-                      </select>
+                        className="max-w-[150px]"
+                        options={availableSurahs.map((s) => ({
+                          value: String(s.id),
+                          label: `${s.id}. ${s.name_simple}`,
+                        }))}
+                      />
                       {next && (
                         <Link
                           href={`/reader/${next.id}`}

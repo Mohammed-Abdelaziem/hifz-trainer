@@ -8,6 +8,7 @@ import { useReaderStore } from "@/stores/reader-store";
 import { RECITERS } from "@/lib/quran/reciters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { formatMs } from "@/lib/utils";
 
@@ -209,18 +210,16 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
         />
       </div>
 
-      <select
-        value={reciterId}
+      <Select
+        value={String(reciterId)}
         onChange={(e) => setReciterId(Number(e.target.value))}
         aria-label="Reciter"
-        className="hidden max-w-[150px] shrink-0 cursor-pointer rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-600 outline-none focus:border-amber-600 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 md:block"
-      >
-        {RECITERS.map((r) => (
-          <option key={r.id} value={r.id}>
-            {r.name}
-          </option>
-        ))}
-      </select>
+        className="hidden max-w-[150px] shrink-0 md:block"
+        options={RECITERS.map((r) => ({
+          value: String(r.id),
+          label: r.name,
+        }))}
+      />
     </div>
   );
 }

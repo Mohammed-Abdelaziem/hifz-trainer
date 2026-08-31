@@ -8,6 +8,7 @@ import type { Ayah, QuranWord, SurahBundle, WordTiming } from "@/types/quran";
 import { AudioEngine } from "@/lib/audio/engine";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
+import { Select } from "@/components/ui/select";
 import { AudioControlBar } from "@/components/reader/AudioControlBar";
 import { TafsirDrawer } from "@/components/reader/TafsirDrawer";
 import { VerseCanvas } from "@/components/reader/VerseCanvas";
@@ -41,6 +42,8 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
 
   useEffect(() => {
     useReaderStore.persist.rehydrate();
+    const store = useReaderStore.getState();
+    store.setMaskMode("FULL");
     const target =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey
@@ -158,18 +161,16 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
                     ←
                   </Link>
                 )}
-                <select
-                  value={surah.id}
+                <Select
+                  value={String(surah.id)}
                   onChange={(e) => router.push(`/quran?surah=${e.target.value}`)}
                   aria-label="Switch surah"
-                  className="max-w-[150px] cursor-pointer rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-600 outline-none focus:border-amber-600 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
-                >
-                  {availableSurahs.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.id}. {s.name_simple}
-                    </option>
-                  ))}
-                </select>
+                  className="max-w-[150px]"
+                  options={availableSurahs.map((s) => ({
+                    value: String(s.id),
+                    label: `${s.id}. ${s.name_simple}`,
+                  }))}
+                />
                 {next && (
                   <Link
                     href={`/quran?surah=${next.id}`}
@@ -186,17 +187,17 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <label className="text-xs text-stone-500 dark:text-stone-400">Layout:</label>
-              <select
+              <Select
                 value={layoutMode}
                 onChange={(e) => {
                   const store = useReaderStore.getState();
                   store.setLayoutMode(e.target.value as "FLOW" | "MUSHAF");
                 }}
-                className="cursor-pointer rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-600 outline-none dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300"
-              >
-                <option value="FLOW">Flow</option>
-                <option value="MUSHAF">Mushaf</option>
-              </select>
+                options={[
+                  { value: "FLOW", label: "Flow" },
+                  { value: "MUSHAF", label: "Mushaf" },
+                ]}
+              />
             </div>
             <div className="flex items-center gap-2">
               <label className="text-xs text-stone-500 dark:text-stone-400">Size:</label>
