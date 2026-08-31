@@ -14,7 +14,6 @@ type Props = {
 
 export default async function QuranPage(props: Props) {
   const searchParams = await props.searchParams;
-  const navItems = await getAvailableSurahs();
 
   let surahId = 1;
   if (searchParams.surah) {
@@ -31,7 +30,21 @@ export default async function QuranPage(props: Props) {
     }
   }
 
-  const [surah] = await Promise.all([getSurahBundle(surahId)]);
+  let navItems: { id: number; name_simple: string; ayah_count: number }[] = [];
+  try {
+    navItems = await getAvailableSurahs().then((items) =>
+      items.map(({ id, name_simple, ayah_count }) => ({ id, name_simple, ayah_count }))
+    );
+  } catch {
+    // DB unavailable — use empty nav
+  }
+
+  let surah = null;
+  try {
+    surah = await getSurahBundle(surahId);
+  } catch {
+    // unavailable
+  }
   if (!surah) notFound();
 
   const initialVerseKey = searchParams.verse ?? undefined;
@@ -41,11 +54,7 @@ export default async function QuranPage(props: Props) {
       key={surahId}
       surah={surah}
       initialVerseKey={initialVerseKey}
-      availableSurahs={navItems.map(({ id, name_simple, ayah_count }) => ({
-        id,
-        name_simple,
-        ayah_count,
-      }))}
+      availableSurahs={navItems}
     />
   );
 }
