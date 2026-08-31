@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SwRegister } from "@/components/pwa/SwRegister";
+import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { getSessionUser } from "@/lib/server/auth";
 
 const geistSans = Geist({
@@ -44,6 +45,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full flex flex-col">
         <Providers>
+          <OnboardingTour />
           <SiteHeader user={user ? { email: user.email } : null} />
           <main className="flex flex-1 flex-col">{children}</main>
           <SwRegister />
