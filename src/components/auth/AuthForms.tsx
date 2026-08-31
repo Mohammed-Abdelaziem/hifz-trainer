@@ -6,7 +6,7 @@ import { Loader2 } from "lucide-react";
 import {
   signInAction,
   signUpAction,
-  demoSignInAction,
+  guestSignInAction,
   type AuthState,
 } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -88,7 +88,7 @@ export function AuthForms() {
         className="space-y-4 rounded-xl border border-stone-200 bg-white p-6 shadow-sm dark:border-stone-800 dark:bg-stone-900"
       >
         <Field name="email" type="email" label="Email" placeholder="you@example.com" />
-        <Field name="password" type="password" label="Password" placeholder="min 8 characters" />
+        <Field name="password" type="password" label="Password" placeholder="min 12 characters" />
         {state?.error && (
           <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 dark:bg-red-950/40 dark:text-red-300">
             {state.error}
@@ -103,13 +103,13 @@ export function AuthForms() {
         <span className="h-px flex-1 bg-stone-200 dark:bg-stone-700" />
       </div>
 
-      <form action={demoSignInAction}>
+      <form action={guestSignInAction}>
         <Button type="submit" variant="outline" className="w-full">
-          Continue with demo account
+          Continue without account
         </Button>
       </form>
       <p className="mt-2 text-center text-[11px] text-stone-400">
-        Demo account (demo@hifz.local) keeps shared sample progress.
+        Your progress stays on this device. No account needed.
       </p>
     </div>
   );

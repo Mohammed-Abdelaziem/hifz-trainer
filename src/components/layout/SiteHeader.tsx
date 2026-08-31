@@ -3,20 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookMarked, LayoutDashboard, LogOut, Map, WifiOff } from "lucide-react";
+import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, WifiOff } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/reader/1", label: "Reader", icon: BookMarked },
+  { href: "/quran", label: "Quran", icon: BookOpen },
+  { href: "/reader/1", label: "Hifz", icon: BookMarked },
   { href: "/analytics", label: "Heatmap", icon: Map },
 ];
 
-export function SiteHeader({ user }: { user?: { email: string } | null }) {
+export function SiteHeader({ user, isGuest }: { user?: { email: string } | null; isGuest?: boolean }) {
   const pathname = usePathname();
-  const [offline, setOffline] = useState(false);
-  const [lastOnline, setLastOnline] = useState(true);
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" ? !navigator.onLine : false);
 
   useEffect(() => {
     const handleOnline = () => setOffline(false);
@@ -28,11 +28,6 @@ export function SiteHeader({ user }: { user?: { email: string } | null }) {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
-
-  if (lastOnline !== navigator.onLine) {
-    setLastOnline(navigator.onLine);
-    setOffline(!navigator.onLine);
-  }
 
   return (
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/85 backdrop-blur dark:border-stone-800 dark:bg-stone-950/85">
@@ -46,7 +41,7 @@ export function SiteHeader({ user }: { user?: { email: string } | null }) {
         <nav className="ml-auto flex items-center gap-1">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const active =
-              href === "/" ? pathname === "/" : pathname.startsWith(href.split("?")[0]);
+              href === "/" ? pathname === "/" : pathname.startsWith(href);
             return (
               <Link
                 key={href}
@@ -64,14 +59,14 @@ export function SiteHeader({ user }: { user?: { email: string } | null }) {
             );
           })}
         </nav>
-        {user ? (
+        {user || isGuest ? (
           <>
             <div className="flex items-center gap-2 border-l border-stone-200 pl-3 dark:border-stone-700">
               <span
-                title={user.email}
+                title={user?.email ?? "Guest mode — progress saved locally"}
                 className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
               >
-                {user.email}
+                {user?.email ?? "Guest"}
               </span>
               <form action={signOutAction}>
                 <button

@@ -101,7 +101,7 @@ function DashboardSkeleton() {
   );
 }
 
-export function DashboardView({ availableSurahs }: { availableSurahs: { id: number; name_arabic: string; name_simple: string; ayah_count: number }[] }) {
+export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: { id: number; name_arabic: string; name_simple: string; ayah_count: number }[]; isGuest?: boolean }) {
   const { data: queue, isLoading, isError } = useQueue();
   const fullCorpus = availableSurahs.length >= 114;
 
@@ -126,6 +126,16 @@ export function DashboardView({ availableSurahs }: { availableSurahs: { id: numb
           </Link>
         </div>
       </header>
+
+      {isGuest && (
+        <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+          You&apos;re browsing as a guest.{" "}
+          <Link href="/login" className="font-medium underline">
+            Sign in
+          </Link>{" "}
+          to save your progress across devices.
+        </div>
+      )}
 
       {isError ? (
         <Card className="border-red-200 p-6 text-sm text-red-700 dark:border-red-900 dark:text-red-300">
