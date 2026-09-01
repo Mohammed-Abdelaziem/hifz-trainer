@@ -84,6 +84,11 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   }
 
   function handleTogglePlay() {
+    console.log("[AudioControlBar] toggle play:", {
+      playbackMode,
+      engineMode: engine.getMode(),
+      isPlaying: engine.isPlaying(),
+    });
     if (playbackMode === "word") {
       if (seqRunningRef.current) stopSequence();
       else void runSequence(words.filter((w) => w.text_uthmani.trim().length > 0));

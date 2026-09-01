@@ -199,11 +199,19 @@ export function ReaderWorkspace({
   useEffect(() => {
     if (!hasAyahs || !selected) return;
     let cancelled = false;
-    fetch(
-      `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`
-    )
-      .then((r) => (r.ok ? r.json() : null))
+    const url = `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`;
+    console.log("[ReaderWorkspace] fetching ayah-data:", url);
+    fetch(url)
+      .then((r) => {
+        console.log("[ReaderWorkspace] ayah-data response:", r.status, r.statusText);
+        return r.ok ? r.json() : null;
+      })
       .then((data: { words?: QuranWord[]; recitationUrl?: string | null; tafsir?: string | null } | null) => {
+        console.log("[ReaderWorkspace] ayah-data result:", {
+          hasWords: Boolean(data?.words?.length),
+          wordCount: data?.words?.length ?? 0,
+          recitationUrl: data?.recitationUrl ?? null,
+        });
         if (!cancelled && data?.words?.length) {
           setLiveState({
             key: `${selected.verse_key}:${reciterId}`,
@@ -213,7 +221,7 @@ export function ReaderWorkspace({
           });
         }
       })
-      .catch(() => {});
+      .catch((err) => console.error("[ReaderWorkspace] ayah-data fetch error:", err));
     return () => {
       cancelled = true;
     };
@@ -235,6 +243,11 @@ export function ReaderWorkspace({
     const bestAudioUrl = live.audioUrl && live.audioUrl.trim().length > 0
       ? live.audioUrl
       : selected.audio_url || "";
+    console.log("[ReaderWorkspace] effectiveSelected computed:", {
+      verseKey: selected.verse_key,
+      source: live ? "live" : "fixture",
+      audio_url: bestAudioUrl,
+    });
     return {
       ...selected,
       words: live.words,
@@ -245,6 +258,7 @@ export function ReaderWorkspace({
   }, [selected, live]);
 
   useEffect(() => {
+    console.log("[ReaderWorkspace] engine.load() called:", effectiveSelected.audio_url);
     engine.load(effectiveSelected.audio_url);
   }, [engine, effectiveSelected.audio_url]);
 
