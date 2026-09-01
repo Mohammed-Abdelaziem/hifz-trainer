@@ -1,7 +1,6 @@
 const VERSION = "hifz-v1";
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
-const AUDIO_CACHE = `${VERSION}-audio`;
 const DATA_CACHE = `${VERSION}-data`;
 
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
@@ -40,10 +39,6 @@ function isStaticAsset(url) {
     url.pathname.startsWith("/icon") ||
     /\.(woff2?|ttf|css|js|svg|png|jpg|webp|ico)$/.test(url.pathname)
   );
-}
-
-function isAudio(_url) {
-  return false;
 }
 
 function isAyahData(url) {
@@ -199,11 +194,6 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       networkFirst(request, SHELL_CACHE, caches.match("/offline"))
     );
-    return;
-  }
-
-  if (isAudio(url)) {
-    event.respondWith(cacheFirst(request, AUDIO_CACHE));
     return;
   }
 
