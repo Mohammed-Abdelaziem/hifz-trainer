@@ -37,10 +37,14 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
 
-  const selected: Ayah =
-    surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0];
+  const hasAyahs = surah.ayahs.length > 0;
+
+  const selected: Ayah | null = hasAyahs
+    ? (surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0])
+    : null;
 
   useEffect(() => {
+    if (!hasAyahs) return;
     useReaderStore.persist.rehydrate();
     const store = useReaderStore.getState();
     store.setMaskMode("FULL");
@@ -50,12 +54,13 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
         : surah.ayahs[0].verse_key;
     selectAyah(target);
     resetRevealed(target);
-  }, [selectAyah, resetRevealed, surah, initialVerseKey]);
+  }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   useEffect(() => {
+    if (!hasAyahs || !selected) return;
     let cancelled = false;
     fetch(
-      `/api/ayah-data?verseKey=${encodeURIComponent(selectedVerseKey)}&reciter=${reciterId}`
+      `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`
     )
       .then((r) => (r.ok ? r.json() : null))
       .then(
@@ -64,7 +69,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
         ) => {
           if (!cancelled && data?.words?.length) {
             setLiveState({
-              key: `${selectedVerseKey}:${reciterId}`,
+              key: `${selected.verse_key}:${reciterId}`,
               words: data.words,
               audioUrl: data.recitationUrl ?? null,
               tafsir: data.tafsir ?? null,
@@ -76,12 +81,13 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
     return () => {
       cancelled = true;
     };
-  }, [selectedVerseKey, reciterId]);
+  }, [hasAyahs, selected, reciterId]);
 
   const live =
-    liveState && liveState.key === `${selectedVerseKey}:${reciterId}` ? liveState : null;
+    liveState && selected && liveState.key === `${selected.verse_key}:${reciterId}` ? liveState : null;
 
   const effectiveSelected: Ayah = useMemo(() => {
+    if (!selected) return { ayah_number: 0, verse_key: "1:1", words: [], audio_url: "", timings: [], tafsir: "" };
     if (!live) return selected;
     let cursor = 300;
     const timings: WordTiming[] = live.words.map((w) => {
@@ -120,6 +126,34 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [engine]);
+
+  if (!hasAyahs) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+        <header className="mb-5">
+          <Link
+            href="/"
+            className="mb-2 inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+          >
+            <ArrowLeft className="h-3 w-3" /> Home
+          </Link>
+          <h1 className="flex items-baseline gap-3">
+            <span dir="rtl" lang="ar" className="font-quran text-4xl">
+              {surah.name_arabic}
+            </span>
+          </h1>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+            {surah.name_simple} · {surah.english_name}
+          </p>
+        </header>
+        <div className="rounded-xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            No verse data available for this surah. Please try another.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const idx = availableSurahs.findIndex((s) => s.id === surah.id);
   const prev = idx > 0 ? availableSurahs[idx - 1] : null;
