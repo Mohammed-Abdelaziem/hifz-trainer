@@ -42,10 +42,13 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   useEffect(() => {
     seqGenRef.current++;
     seqRunningRef.current = false;
-    engine.stop();
     engine.abortClips();
     setForcedActiveIndex(null);
   }, [verseKey, engine, setForcedActiveIndex]);
+
+  useEffect(() => {
+    engine.setRate(speed);
+  }, [engine, speed]);
 
   async function runSequence(list: QuranWord[]) {
     const gen = ++seqGenRef.current;
