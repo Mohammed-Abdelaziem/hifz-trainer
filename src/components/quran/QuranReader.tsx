@@ -96,10 +96,13 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
       cursor = seg.end_ms + 130;
       return seg;
     });
+    const bestAudioUrl = live.audioUrl && live.audioUrl.trim().length > 0
+      ? live.audioUrl
+      : selected.audio_url;
     return {
       ...selected,
       words: live.words,
-      audio_url: live.audioUrl ?? selected.audio_url,
+      audio_url: bestAudioUrl,
       timings,
       tafsir: selected.tafsir || live.tafsir || "",
     };

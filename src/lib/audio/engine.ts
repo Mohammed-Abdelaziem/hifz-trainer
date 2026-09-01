@@ -7,6 +7,7 @@ const WORD_CLIP_FALLBACK_MS = 900;
 export class AudioEngine {
   private howl: Howl | null = null;
   private url: string | null = null;
+  private lastGoodUrl: string | null = null;
   private mode: EngineMode = "idle";
   private rateFactor = 1;
   private virtualPlaying = false;
@@ -21,6 +22,7 @@ export class AudioEngine {
   async load(url: string) {
     if (!url) return;
     if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") return;
+    const previousUrl = this.url;
     this.softStop();
     this.unload();
     this.url = url;
@@ -46,30 +48,40 @@ export class AudioEngine {
       });
       howl.on("load", () => {
         this.mode = "howler";
+        this.lastGoodUrl = url;
         howl.rate(this.rateFactor);
         if (this.pendingPlay) {
           this.pendingPlay = false;
           howl.play();
         }
       });
-      howl.on("loaderror", () => {
+      howl.on("loaderror", (_id, err) => {
+        if (this.loadSeq !== myLoad) return;
+        console.warn("[AudioEngine] load failed:", url, err);
+        if (previousUrl && previousUrl !== url) {
+          console.log("[AudioEngine] falling back to:", previousUrl);
+          void this.load(previousUrl);
+          return;
+        }
         this.mode = "virtual";
         if (this.pendingPlay) {
           this.pendingPlay = false;
           this.playVirtual();
         }
         if (this.clipResolve && !this.virtualClipTimer) {
-          this.virtualClipTimer = setTimeout(
-            () => {
-              this.virtualClipTimer = null;
-              this.resolveClipIfCurrent(this.loadSeq);
-            },
-            WORD_CLIP_FALLBACK_MS / this.rateFactor
-          );
+          this.virtualClipTimer = setTimeout(() => {
+            this.virtualClipTimer = null;
+            this.resolveClipIfCurrent(this.loadSeq);
+          }, WORD_CLIP_FALLBACK_MS / this.rateFactor);
         }
       });
       this.howl = howl;
-    } catch {
+    } catch (err) {
+      console.warn("[AudioEngine] load exception:", url, err);
+      if (previousUrl && previousUrl !== url) {
+        void this.load(previousUrl);
+        return;
+      }
       this.mode = "virtual";
     }
   }
@@ -186,6 +198,10 @@ export class AudioEngine {
       return Number.isFinite(d) ? d * 1000 : null;
     }
     return null;
+  }
+
+  getMode(): EngineMode {
+    return this.mode;
   }
 
   private virtualNow() {
