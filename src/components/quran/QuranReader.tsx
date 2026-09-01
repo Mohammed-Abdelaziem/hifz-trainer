@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
+import { everyAyahUrl } from "@/lib/quran/timings";
 import type { Ayah, QuranWord, SurahBundle, WordTiming } from "@/types/quran";
 import { AudioEngine } from "@/lib/audio/engine";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
@@ -104,9 +105,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
       cursor = seg.end_ms + 130;
       return seg;
     });
-    const bestAudioUrl = live.audioUrl && live.audioUrl.trim().length > 0
-      ? live.audioUrl
-      : selected.audio_url || "";
+    const bestAudioUrl = everyAyahUrl(selected.verse_key);
     console.log("[QuranReader] effectiveSelected computed:", {
       verseKey: selected.verse_key,
       source: live ? "live" : "fixture",
