@@ -17,6 +17,7 @@ async function fetchChapterMeta(
 ): Promise<{ name_arabic: string; name_simple: string; english_name: string } | null> {
   try {
     const res = await fetch(`${QURAN_API_BASE}/chapters/${surahId}?language=en`, {
+      cache: "no-store",
       signal: AbortSignal.timeout(2500),
     });
     if (!res.ok) return null;
@@ -122,7 +123,7 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
   try {
     const res = await fetch(
       `${QURAN_API_BASE}/verses/by_chapter/${surahId}?words=true&per_page=1000&word_fields=text_uthmani`,
-      { signal: AbortSignal.timeout(15_000) }
+      { cache: "no-store", signal: AbortSignal.timeout(15_000) }
     );
     if (!res.ok) return null;
     const json = (await res.json()) as {
