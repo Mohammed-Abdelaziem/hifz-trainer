@@ -16,6 +16,7 @@ import type {
 } from "@/types/quran";
 import { AudioEngine } from "@/lib/audio/engine";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
+import { everyAyahUrl } from "@/lib/quran/timings";
 import {
   schedule,
   describeOutcome,
@@ -240,9 +241,7 @@ export function ReaderWorkspace({
       cursor = seg.end_ms + 130;
       return seg;
     });
-    const bestAudioUrl = live.audioUrl && live.audioUrl.trim().length > 0
-      ? live.audioUrl
-      : selected.audio_url || "";
+    const bestAudioUrl = everyAyahUrl(selected.verse_key);
     console.log("[ReaderWorkspace] effectiveSelected computed:", {
       verseKey: selected.verse_key,
       source: live ? "live" : "fixture",

@@ -43,10 +43,7 @@ function isStaticAsset(url) {
 }
 
 function isAudio(url) {
-  return (
-    url.hostname.endsWith("quran.com") ||
-    url.hostname.endsWith("everyayah.com")
-  );
+  return false;
 }
 
 function isAyahData(url) {
