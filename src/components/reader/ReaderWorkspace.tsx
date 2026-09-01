@@ -178,22 +178,14 @@ export function ReaderWorkspace({
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
 
-  if (surah.ayahs.length === 0) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
-        <div className="rounded-xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
-          <p className="text-sm text-stone-500 dark:text-stone-400">
-            No verse data available for this surah. Please try another.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const hasAyahs = surah.ayahs.length > 0;
 
-  const selected: Ayah =
-    surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0];
+  const selected: Ayah | null = hasAyahs
+    ? (surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0])
+    : null;
 
   useEffect(() => {
+    if (!hasAyahs) return;
     useReaderStore.persist.rehydrate();
     const requested =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
@@ -202,18 +194,19 @@ export function ReaderWorkspace({
     const target = requested ?? surah.ayahs[0].verse_key;
     selectAyah(target);
     resetRevealed(target);
-  }, [selectAyah, resetRevealed, surah, initialVerseKey]);
+  }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   useEffect(() => {
+    if (!hasAyahs || !selected) return;
     let cancelled = false;
     fetch(
-      `/api/ayah-data?verseKey=${encodeURIComponent(selectedVerseKey)}&reciter=${reciterId}`
+      `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`
     )
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { words?: QuranWord[]; recitationUrl?: string | null; tafsir?: string | null } | null) => {
         if (!cancelled && data?.words?.length) {
           setLiveState({
-            key: `${selectedVerseKey}:${reciterId}`,
+            key: `${selected.verse_key}:${reciterId}`,
             words: data.words,
             audioUrl: data.recitationUrl ?? null,
             tafsir: data.tafsir ?? null,
@@ -224,12 +217,13 @@ export function ReaderWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [selectedVerseKey, reciterId]);
+  }, [hasAyahs, selected, reciterId]);
 
   const live =
-    liveState && liveState.key === `${selectedVerseKey}:${reciterId}` ? liveState : null;
+    liveState && selected && liveState.key === `${selected.verse_key}:${reciterId}` ? liveState : null;
 
   const effectiveSelected: Ayah = useMemo(() => {
+    if (!selected) return { ayah_number: 0, verse_key: "1:1", words: [], audio_url: "", timings: [], tafsir: "" };
     if (!live) return selected;
     let cursor = 300;
     const timings: WordTiming[] = live.words.map((w) => {
@@ -256,6 +250,7 @@ export function ReaderWorkspace({
   }, [engine]);
 
   const handleGrade = useCallback((grade: Grade) => {
+    if (!selected) return;
     const verseKey = selected.verse_key;
     const prev = memoryStatesRef.current.get(verseKey) ?? EMPTY_SNAPSHOT;
     const outcome = previewSchedule(scheduler, prev, grade, requestRetention);
@@ -295,7 +290,7 @@ export function ReaderWorkspace({
       resetRevealed(nextAyah.verse_key);
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [selected.verse_key, scheduler, requestRetention, isGuest, surah.ayahs, selectAyah, resetRevealed]);
+  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, selectAyah, resetRevealed]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -319,6 +314,18 @@ export function ReaderWorkspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleGrade, engine, setHelpOpen]);
+
+  if (!hasAyahs) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+        <div className="rounded-xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            No verse data available for this surah. Please try another.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AudioSyncProvider engine={engine} timings={effectiveSelected.timings}>
