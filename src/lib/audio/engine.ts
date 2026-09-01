@@ -19,6 +19,7 @@ export class AudioEngine {
   private virtualClipTimer: ReturnType<typeof setTimeout> | null = null;
 
   async load(url: string) {
+    if (!url) return;
     if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") return;
     this.softStop();
     this.unload();

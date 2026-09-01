@@ -178,6 +178,18 @@ export function ReaderWorkspace({
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
 
+  if (surah.ayahs.length === 0) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+        <div className="rounded-xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            No verse data available for this surah. Please try another.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const selected: Ayah =
     surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0];
 

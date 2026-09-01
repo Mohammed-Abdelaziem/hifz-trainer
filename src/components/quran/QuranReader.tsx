@@ -37,6 +37,34 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
 
+  if (surah.ayahs.length === 0) {
+    return (
+      <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+        <header className="mb-5">
+          <Link
+            href="/"
+            className="mb-2 inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
+          >
+            <ArrowLeft className="h-3 w-3" /> Home
+          </Link>
+          <h1 className="flex items-baseline gap-3">
+            <span dir="rtl" lang="ar" className="font-quran text-4xl">
+              {surah.name_arabic}
+            </span>
+          </h1>
+          <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
+            {surah.name_simple} · {surah.english_name}
+          </p>
+        </header>
+        <div className="rounded-xl border border-stone-200 bg-white p-8 text-center shadow-sm dark:border-stone-800 dark:bg-stone-900">
+          <p className="text-sm text-stone-500 dark:text-stone-400">
+            No verse data available for this surah. Please try another.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const selected: Ayah =
     surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0];
 

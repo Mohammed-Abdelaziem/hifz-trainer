@@ -109,6 +109,61 @@ async function bundleFromDbRows(surahId: number): Promise<SurahBundle | null> {
   };
 }
 
+interface QcVerseWord {
+  position: number;
+  char_type_name: string;
+  text_uthmani: string | null;
+  audio_url: string | null;
+  translation: { text: string } | null;
+  transliteration: { text: string } | null;
+}
+
+async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
+  try {
+    const res = await fetch(
+      `${QURAN_API_BASE}/verses/by_chapter/${surahId}?words=true&per_page=1000&word_fields=text_uthmani`,
+      { signal: AbortSignal.timeout(15_000) }
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      verses?: Array<{
+        verse_key: string;
+        verse_number: number;
+        words: QcVerseWord[];
+        text_uthmani: string;
+      }>;
+    };
+    if (!json.verses || json.verses.length === 0) return null;
+
+    return json.verses.map((v) => {
+      const words: QuranWord[] = v.words
+        .filter((w) => w.char_type_name === "word" && w.text_uthmani)
+        .map((w) => ({
+          id: `${v.verse_key}:${w.position}`,
+          text_uthmani: w.text_uthmani!,
+          translation: w.translation?.text ?? "",
+          transliteration: w.transliteration?.text ?? undefined,
+          audio_url: w.audio_url
+            ? w.audio_url.startsWith("http")
+              ? w.audio_url
+              : `https://verses.quran.com/${w.audio_url}`
+            : undefined,
+        }));
+
+      return {
+        ayah_number: v.verse_number,
+        verse_key: v.verse_key,
+        words,
+        audio_url: everyAyahUrl(v.verse_key),
+        timings: synthTimings(words),
+        tafsir: "",
+      };
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function getSurahBundle(surahId: number): Promise<SurahBundle | null> {
   const fixture = FIXTURE_SURAHS[surahId];
   if (fixture) {
@@ -127,21 +182,33 @@ export async function getSurahBundle(surahId: number): Promise<SurahBundle | nul
     // DB unavailable
   }
 
-  try {
-    const meta = await fetchChapterMeta(surahId);
-    if (meta) {
-      return {
-        id: surahId,
-        name_arabic: meta.name_arabic,
-        name_simple: meta.name_simple,
-        english_name: meta.english_name,
-        revelation_place: "makkah",
-        ayah_count: 0,
-        ayahs: [],
-      };
-    }
-  } catch {
-    // external API unavailable
+  const [meta, verses] = await Promise.all([
+    fetchChapterMeta(surahId),
+    fetchVersesFromApi(surahId),
+  ]);
+
+  if (meta && verses && verses.length > 0) {
+    return {
+      id: surahId,
+      name_arabic: meta.name_arabic,
+      name_simple: meta.name_simple,
+      english_name: meta.english_name,
+      revelation_place: "makkah",
+      ayah_count: verses.length,
+      ayahs: verses,
+    };
+  }
+
+  if (meta) {
+    return {
+      id: surahId,
+      name_arabic: meta.name_arabic,
+      name_simple: meta.name_simple,
+      english_name: meta.english_name,
+      revelation_place: "makkah",
+      ayah_count: 0,
+      ayahs: [],
+    };
   }
 
   return null;
