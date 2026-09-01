@@ -162,7 +162,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   return (
     <AudioSyncProvider engine={engine} timings={effectiveSelected.timings}>
       <LiveWordsContext.Provider
-        value={live ? { verseKey: selected.verse_key, words: live.words } : null}
+        value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
         <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
           <header className="mb-5">
@@ -262,7 +262,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
           <div className="mx-auto max-w-4xl p-3">
             <AudioControlBar
               words={effectiveSelected.words}
-              verseKey={selected.verse_key}
+              verseKey={selected!.verse_key}
             />
           </div>
         </div>

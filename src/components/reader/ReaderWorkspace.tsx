@@ -330,7 +330,7 @@ export function ReaderWorkspace({
   return (
     <AudioSyncProvider engine={engine} timings={effectiveSelected.timings}>
       <LiveWordsContext.Provider
-        value={live ? { verseKey: selected.verse_key, words: live.words } : null}
+        value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
         <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
           <header className="mb-5">
@@ -427,8 +427,8 @@ export function ReaderWorkspace({
 
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
           <div className="mx-auto flex max-w-4xl flex-col gap-2.5 p-3">
-            <AudioControlBar words={effectiveSelected.words} verseKey={selected.verse_key} syncStatus={syncStatus} />
-            <RatingBar verseKey={selected.verse_key} onGrade={handleGrade} />
+            <AudioControlBar words={effectiveSelected.words} verseKey={selected!.verse_key} syncStatus={syncStatus} />
+            <RatingBar verseKey={selected!.verse_key} onGrade={handleGrade} />
           </div>
         </div>
 
