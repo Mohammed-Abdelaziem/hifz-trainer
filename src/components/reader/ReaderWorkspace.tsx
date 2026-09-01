@@ -234,7 +234,7 @@ export function ReaderWorkspace({
     });
     const bestAudioUrl = live.audioUrl && live.audioUrl.trim().length > 0
       ? live.audioUrl
-      : selected.audio_url;
+      : selected.audio_url || "";
     return {
       ...selected,
       words: live.words,

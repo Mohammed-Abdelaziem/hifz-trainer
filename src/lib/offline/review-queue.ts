@@ -13,13 +13,19 @@ const DB_VERSION = 1;
 const STORE_NAME = "review-queue";
 
 class OfflineReviewQueue {
-  private dbPromise: Promise<IDBDatabase>;
+  private dbPromise: Promise<IDBDatabase> | null = null;
 
-  constructor() {
-    this.dbPromise = this.initDB();
+  private getDB(): Promise<IDBDatabase> {
+    if (!this.dbPromise) {
+      this.dbPromise = this.initDB();
+    }
+    return this.dbPromise;
   }
 
   private initDB(): Promise<IDBDatabase> {
+    if (typeof window === "undefined" || typeof indexedDB === "undefined") {
+      return Promise.reject(new Error("IndexedDB not available"));
+    }
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
       request.onerror = () => reject(request.error);
@@ -36,7 +42,7 @@ class OfflineReviewQueue {
   }
 
   async enqueue(item: Omit<ReviewQueueItem, "id" | "retries" | "synced">): Promise<string> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     const id = crypto.randomUUID();
     const itemWithMeta: ReviewQueueItem = {
       ...item,
@@ -55,7 +61,7 @@ class OfflineReviewQueue {
   }
 
   async getPending(): Promise<ReviewQueueItem[]> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readonly");
       const store = tx.objectStore(STORE_NAME);
@@ -67,7 +73,7 @@ class OfflineReviewQueue {
   }
 
   async markSynced(id: string): Promise<void> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
@@ -88,7 +94,7 @@ class OfflineReviewQueue {
   }
 
   async incrementRetries(id: string): Promise<void> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
@@ -109,7 +115,7 @@ class OfflineReviewQueue {
   }
 
   async remove(id: string): Promise<void> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
@@ -120,7 +126,7 @@ class OfflineReviewQueue {
   }
 
   async clearSynced(): Promise<number> {
-    const db = await this.dbPromise;
+    const db = await this.getDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
@@ -145,6 +151,7 @@ class OfflineReviewQueue {
 export const offlineReviewQueue = new OfflineReviewQueue();
 
 export async function registerBackgroundSync(): Promise<void> {
+  if (typeof window === "undefined") return;
   if ("serviceWorker" in navigator && "sync" in window.ServiceWorkerRegistration.prototype) {
     const registration = await navigator.serviceWorker.ready;
     try {
