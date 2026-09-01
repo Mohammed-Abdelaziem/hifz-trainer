@@ -241,10 +241,6 @@ export function ReaderWorkspace({
     };
   }, [selected, live]);
 
-  useEffect(() => {
-    engine.load(effectiveSelected.audio_url);
-  }, [engine, effectiveSelected.audio_url]);
-
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
 
   useEffect(() => {
@@ -260,6 +256,10 @@ export function ReaderWorkspace({
       }
     });
   }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, selectAyah, resetRevealed]);
+
+  useEffect(() => {
+    engine.load(effectiveSelected.audio_url);
+  }, [engine, effectiveSelected.audio_url]);
 
   useEffect(() => {
     return () => engine.destroy();

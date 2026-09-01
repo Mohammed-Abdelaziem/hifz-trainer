@@ -10,6 +10,7 @@ export class AudioEngine {
   private lastGoodUrl: string | null = null;
   private mode: EngineMode = "idle";
   private rateFactor = 1;
+  private volumeFactor = 1;
   private virtualPlaying = false;
   private anchorWall = 0;
   private anchorPos = 0;
@@ -49,13 +50,17 @@ export class AudioEngine {
           this.anchorPos = Number(howl.duration() || 0) * 1000;
           this.resolveClipIfCurrent(myLoad);
           this.loadSeq++;
-          this.endCallback?.();
+          if (this.endCallback) {
+            const cb = this.endCallback;
+            queueMicrotask(() => cb());
+          }
         }
       });
       howl.on("load", () => {
         this.mode = "howler";
         this.lastGoodUrl = url;
         howl.rate(this.rateFactor);
+        howl.volume(this.volumeFactor);
         if (this.pendingPlay) {
           this.pendingPlay = false;
           howl.play();
@@ -177,6 +182,16 @@ export class AudioEngine {
     }
     this.rateFactor = clamped;
     if (this.howl) this.howl.rate(clamped);
+  }
+
+  setVolume(vol: number) {
+    const clamped = Math.min(1, Math.max(0, vol));
+    this.volumeFactor = clamped;
+    if (this.howl) this.howl.volume(clamped);
+  }
+
+  getVolume() {
+    return this.volumeFactor;
   }
 
   getRate() {

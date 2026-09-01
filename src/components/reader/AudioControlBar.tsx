@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Square, WholeWord, ListMusic, Repeat } from "lucide-react";
+import { Pause, Play, Square, WholeWord, ListMusic, Repeat, Volume2, VolumeX } from "lucide-react";
 import type { QuranWord } from "@/types/quran";
 import { useAudioSyncContext, usePlayback } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
@@ -23,6 +23,8 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
 
   const speed = useReaderStore((s) => s.speed);
   const setSpeed = useReaderStore((s) => s.setSpeed);
+  const volume = useReaderStore((s) => s.volume);
+  const setVolume = useReaderStore((s) => s.setVolume);
   const loopA = useReaderStore((s) => s.loopA);
   const loopB = useReaderStore((s) => s.loopB);
   const setLoopA = useReaderStore((s) => s.setLoopA);
@@ -51,6 +53,10 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   useEffect(() => {
     engine.setRate(speed);
   }, [engine, speed]);
+
+  useEffect(() => {
+    engine.setVolume(volume);
+  }, [engine, volume]);
 
   async function runSequence(list: QuranWord[]) {
     const gen = ++seqGenRef.current;
@@ -105,10 +111,6 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
     setPlaybackMode(playbackMode === "word" ? "continuous" : "word");
   }
 
-  function handleContinuousToggle() {
-    setContinuousPlay(!continuousPlay);
-  }
-
   const isWord = playbackMode === "word";
   const isPlaying = isWord ? seqActive : playing;
   const maxMs = engine.durationMs() ?? Math.max(8000, positionMs + 1000);
@@ -144,10 +146,10 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           <Button
             size="sm"
             variant={continuousPlay ? "default" : "outline"}
-            onClick={handleContinuousToggle}
+            onClick={() => setContinuousPlay(!continuousPlay)}
             aria-label={continuousPlay ? "Disable continuous play" : "Enable continuous play"}
             className="gap-1.5"
-            title={continuousPlay ? "Playing continuously — click to stop after verse" : "Click to keep playing through verses"}
+            title={continuousPlay ? "Playing continuously" : "Keep playing through verses"}
           >
             <Repeat className="h-4 w-4" />
             {continuousPlay ? "On" : "Off"}
@@ -227,6 +229,25 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           onValueChange={(v) => setSpeed(v[0])}
           className="flex-1"
           aria-label="Playback speed"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setVolume(volume === 0 ? 1 : 0)}
+          className="text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+          aria-label={volume === 0 ? "Unmute" : "Mute"}
+        >
+          {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+        <Slider
+          value={[volume]}
+          min={0}
+          max={1}
+          step={0.05}
+          onValueChange={(v) => setVolume(v[0])}
+          className="w-16"
+          aria-label="Volume"
         />
       </div>
 

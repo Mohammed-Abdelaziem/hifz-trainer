@@ -10,7 +10,7 @@ import { AudioEngine } from "@/lib/audio/engine";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
 import { Select } from "@/components/ui/select";
-import { AudioControlBar } from "@/components/reader/AudioControlBar";
+import { QuranAudioBar } from "@/components/reader/QuranAudioBar";
 import { TafsirDrawer } from "@/components/reader/TafsirDrawer";
 import { VerseCanvas } from "@/components/reader/VerseCanvas";
 import { LiveWordsContext } from "@/components/reader/live-words-context";
@@ -106,10 +106,6 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
     };
   }, [selected, live]);
 
-  useEffect(() => {
-    engine.load(effectiveSelected.audio_url);
-  }, [engine, effectiveSelected.audio_url]);
-
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
 
   useEffect(() => {
@@ -124,6 +120,10 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
       }
     });
   }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, selectAyah, resetRevealed]);
+
+  useEffect(() => {
+    engine.load(effectiveSelected.audio_url);
+  }, [engine, effectiveSelected.audio_url]);
 
   useEffect(() => {
     return () => engine.destroy();
@@ -276,10 +276,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
 
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
           <div className="mx-auto max-w-4xl p-3">
-            <AudioControlBar
-              words={effectiveSelected.words}
-              verseKey={selected!.verse_key}
-            />
+            <QuranAudioBar />
           </div>
         </div>
 
