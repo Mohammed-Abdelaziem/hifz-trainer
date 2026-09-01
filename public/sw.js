@@ -42,7 +42,7 @@ function isStaticAsset(url) {
   );
 }
 
-function isAudio(url) {
+function isAudio(_url) {
   return false;
 }
 
