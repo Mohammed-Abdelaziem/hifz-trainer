@@ -16,7 +16,7 @@ const LINKS = [
 
 export function SiteHeader({ user, isGuest }: { user?: { email: string } | null; isGuest?: boolean }) {
   const pathname = usePathname();
-  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" ? !navigator.onLine : false);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setOffline(false);

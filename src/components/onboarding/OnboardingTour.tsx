@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { BookOpen, Headphones, Brain, BarChart3, Sparkles } from "lucide-react";
 import { useOnboardingStore } from "@/stores/onboarding-store";
@@ -60,6 +60,10 @@ export function OnboardingTour() {
   const { hasCompletedOnboarding, completeOnboarding } = useOnboardingStore();
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(0);
+
+  useEffect(() => {
+    useOnboardingStore.persist.rehydrate();
+  }, []);
 
   if (hasCompletedOnboarding) return null;
 

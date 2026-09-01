@@ -3,7 +3,6 @@ import type { Howl } from "howler";
 type EngineMode = "idle" | "loading" | "howler" | "virtual";
 
 const WORD_CLIP_FALLBACK_MS = 900;
-const TAG = "[AudioEngine]";
 
 export class AudioEngine {
   private howl: Howl | null = null;
@@ -19,31 +18,25 @@ export class AudioEngine {
   private clipResolve: (() => void) | null = null;
   private clipSeq = 0;
   private virtualClipTimer: ReturnType<typeof setTimeout> | null = null;
+  private endCallback: (() => void) | null = null;
+
+  onEnd(callback: () => void) {
+    this.endCallback = callback;
+  }
 
   async load(url: string) {
-    if (!url) {
-      console.log(TAG, "load() called with empty url — skipping");
-      return;
-    }
-    if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") {
-      console.log(TAG, "load() same url, mode=" + this.mode, "— skipping");
-      return;
-    }
+    if (!url) return;
+    if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") return;
     const previousUrl = this.url;
-    console.log(TAG, "load()", { url, previousUrl, mode: this.mode });
     this.softStop();
     this.unload();
     this.url = url;
     this.anchorPos = 0;
-    if (typeof window === "undefined") {
-      console.log(TAG, "load() SSR — aborting");
-      return;
-    }
+    if (typeof window === "undefined") return;
     this.mode = "loading";
     const myLoad = ++this.loadSeq;
     try {
       const { Howl: HowlCtor } = await import("howler");
-      console.log(TAG, "load() Howler imported, creating Howl for:", url);
       const howl = new HowlCtor({
         src: [url],
         format: ["mp3"],
@@ -53,35 +46,28 @@ export class AudioEngine {
       });
       howl.once("end", () => {
         if (this.loadSeq === myLoad) {
-          console.log(TAG, "playback ended, duration:", howl.duration());
           this.anchorPos = Number(howl.duration() || 0) * 1000;
           this.resolveClipIfCurrent(myLoad);
           this.loadSeq++;
+          this.endCallback?.();
         }
       });
       howl.on("load", () => {
-        console.log(TAG, "Howl loaded OK, mode -> howler, url:", url);
         this.mode = "howler";
         this.lastGoodUrl = url;
         howl.rate(this.rateFactor);
         if (this.pendingPlay) {
-          console.log(TAG, "pending play — playing now");
           this.pendingPlay = false;
           howl.play();
         }
       });
       howl.on("loaderror", (_id, err) => {
-        if (this.loadSeq !== myLoad) {
-          console.log(TAG, "loaderror (stale loadSeq) — ignoring", { loadSeq: this.loadSeq, myLoad });
-          return;
-        }
-        console.warn(TAG, "loaderror:", { url, error: String(err), loadSeq: myLoad });
+        if (this.loadSeq !== myLoad) return;
+        console.warn("[AudioEngine] load failed:", url, String(err));
         if (previousUrl && previousUrl !== url) {
-          console.log(TAG, "falling back to previous url:", previousUrl);
           void this.load(previousUrl);
           return;
         }
-        console.log(TAG, "no fallback available, switching to virtual mode");
         this.mode = "virtual";
         if (this.pendingPlay) {
           this.pendingPlay = false;
@@ -96,9 +82,8 @@ export class AudioEngine {
       });
       this.howl = howl;
     } catch (err) {
-      console.error(TAG, "load() exception:", { url, error: String(err) });
+      console.warn("[AudioEngine] load exception:", url, String(err));
       if (previousUrl && previousUrl !== url) {
-        console.log(TAG, "exception fallback to previous url:", previousUrl);
         void this.load(previousUrl);
         return;
       }
@@ -144,13 +129,11 @@ export class AudioEngine {
   }
 
   play() {
-    console.log(TAG, "play() mode:", this.mode);
     if (this.mode === "howler" && this.howl) {
       if (!this.howl.playing()) this.howl.play();
     } else if (this.mode === "virtual") {
       this.playVirtual();
     } else {
-      console.log(TAG, "play() setting pendingPlay (howl not ready)");
       this.pendingPlay = true;
     }
   }
@@ -161,7 +144,6 @@ export class AudioEngine {
   }
 
   pause() {
-    console.log(TAG, "pause()");
     this.pendingPlay = false;
     if (this.mode === "howler" && this.howl) {
       this.howl.pause();
@@ -251,7 +233,6 @@ export class AudioEngine {
   }
 
   destroy() {
-    console.log(TAG, "destroy()");
     this.pause();
     this.unload();
     this.url = null;

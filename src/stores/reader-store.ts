@@ -14,6 +14,7 @@ interface ReaderSettings {
   fontSizePx: number;
   speed: number;
   reciterId: number;
+  continuousPlay: boolean;
 }
 
 interface ReaderSessionState {
@@ -35,6 +36,7 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setFontSize: (px: number) => void;
   setSpeed: (x: number) => void;
   setReciterId: (id: number) => void;
+  setContinuousPlay: (on: boolean) => void;
   selectAyah: (verseKey: string) => void;
   revealWord: (wordId: string) => void;
   revealAll: (wordIds: string[]) => void;
@@ -56,6 +58,7 @@ const DEFAULT_SETTINGS = {
   fontSizePx: 32,
   speed: 1,
   reciterId: DEFAULT_RECITER_ID,
+  continuousPlay: false,
 };
 
 export const useReaderStore = create<ReaderStore>()(
@@ -80,6 +83,7 @@ export const useReaderStore = create<ReaderStore>()(
         set({ fontSizePx: Math.min(56, Math.max(22, fontSizePx)) }),
       setSpeed: (speed) => set({ speed: Math.min(1.5, Math.max(0.5, speed)) }),
       setReciterId: (reciterId) => set({ reciterId }),
+      setContinuousPlay: (continuousPlay) => set({ continuousPlay }),
 
       selectAyah: (selectedVerseKey) =>
         set({
@@ -139,6 +143,7 @@ export const useReaderStore = create<ReaderStore>()(
         fontSizePx: s.fontSizePx,
         speed: s.speed,
         reciterId: s.reciterId,
+        continuousPlay: s.continuousPlay,
       }),
     }
   )

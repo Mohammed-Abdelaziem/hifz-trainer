@@ -60,22 +60,14 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   useEffect(() => {
     if (!hasAyahs || !selected) return;
     let cancelled = false;
-    const url = `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`;
-    console.log("[QuranReader] fetching ayah-data:", url);
-    fetch(url)
-      .then((r) => {
-        console.log("[QuranReader] ayah-data response:", r.status, r.statusText);
-        return r.ok ? r.json() : null;
-      })
+    fetch(
+      `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`
+    )
+      .then((r) => (r.ok ? r.json() : null))
       .then(
         (
           data: { words?: QuranWord[]; recitationUrl?: string | null; tafsir?: string | null } | null
         ) => {
-          console.log("[QuranReader] ayah-data result:", {
-            hasWords: Boolean(data?.words?.length),
-            wordCount: data?.words?.length ?? 0,
-            recitationUrl: data?.recitationUrl ?? null,
-          });
           if (!cancelled && data?.words?.length) {
             setLiveState({
               key: `${selected.verse_key}:${reciterId}`,
@@ -86,7 +78,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
           }
         }
       )
-      .catch((err) => console.error("[QuranReader] ayah-data fetch error:", err));
+      .catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -105,25 +97,33 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
       cursor = seg.end_ms + 130;
       return seg;
     });
-    const bestAudioUrl = everyAyahUrl(selected.verse_key);
-    console.log("[QuranReader] effectiveSelected computed:", {
-      verseKey: selected.verse_key,
-      source: live ? "live" : "fixture",
-      audio_url: bestAudioUrl,
-    });
     return {
       ...selected,
       words: live.words,
-      audio_url: bestAudioUrl,
+      audio_url: everyAyahUrl(selected.verse_key),
       timings,
       tafsir: selected.tafsir || live.tafsir || "",
     };
   }, [selected, live]);
 
   useEffect(() => {
-    console.log("[QuranReader] engine.load() called:", effectiveSelected.audio_url);
     engine.load(effectiveSelected.audio_url);
   }, [engine, effectiveSelected.audio_url]);
+
+  const continuousPlay = useReaderStore((s) => s.continuousPlay);
+
+  useEffect(() => {
+    engine.onEnd(() => {
+      if (!continuousPlay || !hasAyahs || !selected) return;
+      const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
+      if (idx < 0) return;
+      const next = surah.ayahs[(idx + 1) % surah.ayahs.length];
+      if (next.verse_key !== selected.verse_key) {
+        selectAyah(next.verse_key);
+        resetRevealed(next.verse_key);
+      }
+    });
+  }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, selectAyah, resetRevealed]);
 
   useEffect(() => {
     return () => engine.destroy();

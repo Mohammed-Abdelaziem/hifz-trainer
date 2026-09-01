@@ -16,15 +16,7 @@ export async function GET(req: Request) {
       reciterId = VALID_RECITER_IDS.has(7) ? 7 : [...VALID_RECITER_IDS][0];
     }
 
-    console.log("[/api/ayah-data] GET", { verseKey, reciterId });
     const data = await getOrFetchAyahData(verseKey, reciterId);
-    console.log("[/api/ayah-data] result", {
-      verseKey,
-      wordCount: data.words.length,
-      hasRecitationUrl: Boolean(data.recitationUrl),
-      recitationUrl: data.recitationUrl,
-      source: data.source,
-    });
     return Response.json(data);
   } catch (err) {
     console.error("[/api/ayah-data]", err);

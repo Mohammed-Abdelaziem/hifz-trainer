@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Square, WholeWord, ListMusic } from "lucide-react";
+import { Pause, Play, Square, WholeWord, ListMusic, Repeat } from "lucide-react";
 import type { QuranWord } from "@/types/quran";
 import { useAudioSyncContext, usePlayback } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
@@ -33,6 +33,8 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   const setForcedActiveIndex = useReaderStore((s) => s.setForcedActiveIndex);
   const reciterId = useReaderStore((s) => s.reciterId);
   const setReciterId = useReaderStore((s) => s.setReciterId);
+  const continuousPlay = useReaderStore((s) => s.continuousPlay);
+  const setContinuousPlay = useReaderStore((s) => s.setContinuousPlay);
 
   const seqRunningRef = useRef(false);
   const seqGenRef = useRef(0);
@@ -84,11 +86,6 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   }
 
   function handleTogglePlay() {
-    console.log("[AudioControlBar] toggle play:", {
-      playbackMode,
-      engineMode: engine.getMode(),
-      isPlaying: engine.isPlaying(),
-    });
     if (playbackMode === "word") {
       if (seqRunningRef.current) stopSequence();
       else void runSequence(words.filter((w) => w.text_uthmani.trim().length > 0));
@@ -106,6 +103,10 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   function handleModeToggle() {
     stopSequence();
     setPlaybackMode(playbackMode === "word" ? "continuous" : "word");
+  }
+
+  function handleContinuousToggle() {
+    setContinuousPlay(!continuousPlay);
   }
 
   const isWord = playbackMode === "word";
@@ -139,6 +140,17 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           >
             {isWord ? <WholeWord className="h-4 w-4" /> : <ListMusic className="h-4 w-4" />}
             {isWord ? "WbW" : "Full"}
+          </Button>
+          <Button
+            size="sm"
+            variant={continuousPlay ? "default" : "outline"}
+            onClick={handleContinuousToggle}
+            aria-label={continuousPlay ? "Disable continuous play" : "Enable continuous play"}
+            className="gap-1.5"
+            title={continuousPlay ? "Playing continuously — click to stop after verse" : "Click to keep playing through verses"}
+          >
+            <Repeat className="h-4 w-4" />
+            {continuousPlay ? "On" : "Off"}
           </Button>
           {syncStatus && syncStatus !== "idle" && (
             <span className="ml-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
