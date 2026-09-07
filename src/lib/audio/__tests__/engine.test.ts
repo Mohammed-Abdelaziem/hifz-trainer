@@ -270,6 +270,31 @@ describe("AudioEngine", () => {
       await engine.load("https://example.com/a.mp3");
       expect(getLastHowl()._rate).toBe(0.75);
     });
+
+    it("re-anchors position in virtual mode when rate changes", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/bad.mp3");
+      getLastHowl().fireLoadError("fail");
+      engine.play();
+      engine.setRate(1.2);
+      expect(engine.getRate()).toBe(1.2);
+    });
+
+    it("clamps exactly at boundary 0.5", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/a.mp3");
+      getLastHowl().fireLoad();
+      engine.setRate(0.5);
+      expect(engine.getRate()).toBe(0.5);
+    });
+
+    it("clamps exactly at boundary 1.5", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/a.mp3");
+      getLastHowl().fireLoad();
+      engine.setRate(1.5);
+      expect(engine.getRate()).toBe(1.5);
+    });
   });
 
   describe("setVolume / getVolume", () => {
@@ -467,6 +492,34 @@ describe("AudioEngine", () => {
       engine.play();
       const pos = engine.nowMs();
       expect(pos).toBeGreaterThanOrEqual(0);
+    });
+
+    it("setVolume applies in virtual mode", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/bad.mp3");
+      getLastHowl().fireLoadError("fail");
+      engine.setVolume(0.5);
+      expect(engine.getVolume()).toBe(0.5);
+    });
+
+    it("position advances while playing in virtual mode", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/bad.mp3");
+      getLastHowl().fireLoadError("fail");
+      engine.play();
+      const pos1 = engine.nowMs();
+      await new Promise((r) => setTimeout(r, 50));
+      const pos2 = engine.nowMs();
+      expect(pos2).toBeGreaterThanOrEqual(pos1);
+    });
+
+    it("stop in virtual mode resets position", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/bad.mp3");
+      getLastHowl().fireLoadError("fail");
+      engine.play();
+      engine.stop();
+      expect(engine.nowMs()).toBe(0);
     });
   });
 
