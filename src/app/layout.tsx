@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Scheherazade_New } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { SiteHeader } from "@/components/layout/SiteHeader";
+import { MobileNav } from "@/components/layout/MobileNav";
 import { SwRegister } from "@/components/pwa/SwRegister";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { GuestProvider } from "@/components/auth/GuestContext";
@@ -51,7 +52,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <GuestProvider isGuest={isGuest}>
             <OnboardingTour />
             <SiteHeader user={user ? { email: user.email } : null} isGuest={isGuest} />
-            <main className="flex flex-1 flex-col">{children}</main>
+            <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
+            <MobileNav />
             <SwRegister />
           </GuestProvider>
         </Providers>

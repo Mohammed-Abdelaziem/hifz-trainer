@@ -116,7 +116,7 @@ export function AudioSyncProvider({
 
 export function useAudioSyncContext(): SyncContextValue {
   const ctx = useContext(AudioSyncContext);
-  if (!ctx) throw new Error("usePlayback must be used within AudioSyncProvider");
+  if (!ctx) throw new Error("useAudioSyncContext must be used within AudioSyncProvider");
   return ctx;
 }
 

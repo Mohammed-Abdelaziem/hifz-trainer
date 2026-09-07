@@ -20,9 +20,8 @@ export class AudioEngine {
   private clipSeq = 0;
   private virtualClipTimer: ReturnType<typeof setTimeout> | null = null;
   private endCallback: (() => void) | null = null;
-  private capturedEndCb: (() => void) | null = null;
 
-  onEnd(callback: () => void) {
+  onEnd(callback: (() => void) | null) {
     this.endCallback = callback;
   }
 
@@ -37,7 +36,6 @@ export class AudioEngine {
     if (typeof window === "undefined") return;
     this.mode = "loading";
     const myLoad = ++this.loadSeq;
-    this.capturedEndCb = this.endCallback;
     try {
       const { Howl: HowlCtor } = await import("howler");
       if (this.loadSeq !== myLoad) return;
@@ -50,16 +48,14 @@ export class AudioEngine {
         volume: this.volumeFactor,
       });
       howl.once("end", () => {
-        if (this.loadSeq === myLoad) {
-          this.anchorPos = Number(howl.duration() || 0) * 1000;
-          this.resolveClipIfCurrent(myLoad);
-          this.loadSeq++;
-          const cb = this.capturedEndCb;
-          if (cb) {
-            this.capturedEndCb = null;
-            queueMicrotask(() => cb());
-          }
-        }
+        if (this.loadSeq !== myLoad) return;
+        this.anchorPos = Number(howl.duration() || 0) * 1000;
+        this.resolveClipIfCurrent(myLoad);
+        this.loadSeq++;
+        this.howl = null;
+        this.mode = "idle";
+        const cb = this.endCallback;
+        if (cb) queueMicrotask(() => cb());
       });
       howl.on("load", () => {
         if (this.loadSeq !== myLoad) return;
@@ -85,9 +81,10 @@ export class AudioEngine {
           this.playVirtual();
         }
         if (this.clipResolve && !this.virtualClipTimer) {
+          const fallbackLoad = myLoad;
           this.virtualClipTimer = setTimeout(() => {
             this.virtualClipTimer = null;
-            this.resolveClipIfCurrent(this.loadSeq);
+            this.resolveClipIfCurrent(fallbackLoad);
           }, WORD_CLIP_FALLBACK_MS / this.rateFactor);
         }
       });
@@ -237,20 +234,11 @@ export class AudioEngine {
 
   private softStop() {
     this.clearVirtualClipTimer();
-    this.pendingPlay = false;
-    const wasPlaying = this.isPlaying();
     if (this.virtualPlaying) {
       this.virtualPlaying = false;
       this.anchorPos = this.virtualNow();
     }
     if (this.howl) this.howl.stop();
-    if (wasPlaying) {
-      const cb = this.capturedEndCb;
-      if (cb) {
-        this.capturedEndCb = null;
-        queueMicrotask(() => cb());
-      }
-    }
   }
 
   private unload() {
@@ -262,7 +250,7 @@ export class AudioEngine {
   }
 
   destroy() {
-    this.capturedEndCb = null;
+    this.endCallback = null;
     this.pause();
     this.unload();
     this.url = null;

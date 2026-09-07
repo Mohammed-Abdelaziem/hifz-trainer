@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { everyAyahUrl } from "@/lib/quran/timings";
-import type { Ayah, QuranWord, SurahBundle, WordTiming } from "@/types/quran";
-import { AudioEngine } from "@/lib/audio/engine";
+import type { SurahBundle } from "@/types/quran";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
+import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
 import { useReaderStore } from "@/stores/reader-store";
 import { Select } from "@/components/ui/select";
 import { QuranAudioBar } from "@/components/reader/QuranAudioBar";
@@ -22,33 +20,20 @@ interface QuranReaderProps {
 }
 
 export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranReaderProps) {
-  const engine = useMemo(() => new AudioEngine(), []);
-  const router = useRouter();
-  const [liveState, setLiveState] = useState<{
-    key: string;
-    words: QuranWord[];
-    audioUrl: string | null;
-    tafsir: string | null;
-  } | null>(null);
-
-  const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
-  const reciterId = useReaderStore((s) => s.reciterId);
+  const hasAyahs = surah.ayahs.length > 0;
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
 
-  const hasAyahs = surah.ayahs.length > 0;
-
-  const selected: Ayah | null = hasAyahs
-    ? (surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0])
-    : null;
+  const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
+  const engine = useAudioEngine({ surah, selected, hasAyahs });
+  useAudioSettings(engine);
 
   useEffect(() => {
     if (!hasAyahs) return;
     useReaderStore.persist.rehydrate();
-    const store = useReaderStore.getState();
-    store.setMaskMode("FULL");
+    useReaderStore.getState().setMaskMode("FULL");
     const target =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey
@@ -58,90 +43,8 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   useEffect(() => {
-    if (!hasAyahs || !selected) return;
-    let cancelled = false;
-    fetch(
-      `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`
-    )
-      .then((r) => (r.ok ? r.json() : null))
-      .then(
-        (
-          data: { words?: QuranWord[]; recitationUrl?: string | null; tafsir?: string | null } | null
-        ) => {
-          if (!cancelled && data?.words?.length) {
-            setLiveState({
-              key: `${selected.verse_key}:${reciterId}`,
-              words: data.words,
-              audioUrl: data.recitationUrl ?? null,
-              tafsir: data.tafsir ?? null,
-            });
-          }
-        }
-      )
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [hasAyahs, selected, reciterId]);
-
-  const live =
-    liveState && selected && liveState.key === `${selected.verse_key}:${reciterId}` ? liveState : null;
-
-  const effectiveSelected: Ayah = useMemo(() => {
-    if (!selected) return { ayah_number: 0, verse_key: "1:1", words: [], audio_url: "", timings: [], tafsir: "" };
-    if (!live) return selected;
-    let cursor = 300;
-    const timings: WordTiming[] = live.words.map((w) => {
-      const dur = Math.min(1800, Math.max(550, 380 + w.text_uthmani.length * 95));
-      const seg = { start_ms: cursor, end_ms: cursor + dur };
-      cursor = seg.end_ms + 130;
-      return seg;
-    });
-    return {
-      ...selected,
-      words: live.words,
-      audio_url: everyAyahUrl(selected.verse_key),
-      timings,
-      tafsir: selected.tafsir || live.tafsir || "",
-    };
-  }, [selected, live]);
-
-  const continuousPlay = useReaderStore((s) => s.continuousPlay);
-
-  useEffect(() => {
-    engine.onEnd(() => {
-      if (!continuousPlay || !hasAyahs || !selected) return;
-      const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
-      if (idx < 0) return;
-      const next = surah.ayahs[(idx + 1) % surah.ayahs.length];
-      if (next.verse_key !== selected.verse_key) {
-        selectAyah(next.verse_key);
-        resetRevealed(next.verse_key);
-      }
-    });
-  }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, selectAyah, resetRevealed]);
-
-  useEffect(() => {
     engine.load(effectiveSelected.audio_url);
   }, [engine, effectiveSelected.audio_url]);
-
-  useEffect(() => {
-    return () => engine.destroy();
-  }, [engine]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-      if (e.code === "Space" && !e.repeat) {
-        e.preventDefault();
-        if (engine.isPlaying()) engine.pause();
-        else engine.play();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [engine]);
 
   if (!hasAyahs) {
     return (
@@ -213,7 +116,9 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
                 )}
                 <Select
                   value={String(surah.id)}
-                  onChange={(e) => router.push(`/quran?surah=${e.target.value}`)}
+                  onChange={(e) => {
+                    window.location.href = `/quran?surah=${e.target.value}`;
+                  }}
                   aria-label="Switch surah"
                   className="max-w-[150px]"
                   options={availableSurahs.map((s) => ({
@@ -240,8 +145,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
               <Select
                 value={layoutMode}
                 onChange={(e) => {
-                  const store = useReaderStore.getState();
-                  store.setLayoutMode(e.target.value as "FLOW" | "MUSHAF");
+                  useReaderStore.getState().setLayoutMode(e.target.value as "FLOW" | "MUSHAF");
                 }}
                 options={[
                   { value: "FLOW", label: "Flow" },

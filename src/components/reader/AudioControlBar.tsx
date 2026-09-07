@@ -86,7 +86,6 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
     seqRunningRef.current = false;
     seqGenRef.current++;
     engine.stop();
-    engine.abortClips();
     setForcedActiveIndex(null);
     setSeqActive(false);
   }
