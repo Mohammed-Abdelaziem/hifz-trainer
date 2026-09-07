@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Flame } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
@@ -10,6 +11,8 @@ import type {
   SchedulerKind,
   SurahBundle,
 } from "@/types/quran";
+import type { VerseTiming } from "@/lib/audio/full-surah";
+import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
 import {
@@ -134,6 +137,7 @@ export function ReaderWorkspace({
   availableSurahs: { id: number; name_simple: string }[];
   isGuest?: boolean;
 }) {
+  const router = useRouter();
   const hasAyahs = surah.ayahs.length > 0;
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -145,6 +149,10 @@ export function ReaderWorkspace({
   const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
+  const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
+  const reciterId = useReaderStore((s) => s.reciterId);
+
+  const [verseTimings, setVerseTimings] = useState<VerseTiming[]>([]);
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const engine = useAudioEngine({
@@ -152,6 +160,8 @@ export function ReaderWorkspace({
     selected,
     hasAyahs,
     onVerseChange: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+    availableSurahs,
+    surahUrl: (id) => `/reader/${id}`,
   });
   useAudioSettings(engine);
 
@@ -168,8 +178,23 @@ export function ReaderWorkspace({
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   useEffect(() => {
-    engine.load(effectiveSelected.audio_url);
-  }, [engine, effectiveSelected.audio_url]);
+    if (surahAudioMode && hasAyahs) {
+      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
+        setVerseTimings(timings);
+      });
+      const url = getSurahAudioUrl(surah.id, reciterId);
+      engine.load(url);
+    } else {
+      setVerseTimings([]);
+      engine.load(effectiveSelected.audio_url);
+    }
+  }, [surahAudioMode, reciterId, surah.id, surah.ayah_count, engine, effectiveSelected.audio_url, hasAyahs]);
+
+  useEffect(() => {
+    if (!surahAudioMode) {
+      engine.load(effectiveSelected.audio_url);
+    }
+  }, [engine, effectiveSelected.audio_url, surahAudioMode]);
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
@@ -230,13 +255,22 @@ export function ReaderWorkspace({
     }
 
     const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
-    const nextAyah = surah.ayahs[(idx + 1) % surah.ayahs.length];
-    if (nextAyah.verse_key !== selected.verse_key) {
+    if (idx + 1 < surah.ayahs.length) {
+      const nextAyah = surah.ayahs[idx + 1];
       selectAyah(nextAyah.verse_key);
       resetRevealed(nextAyah.verse_key);
       window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      const surahIdx = availableSurahs.findIndex((s) => s.id === surah.id);
+      const nextSurah =
+        surahIdx >= 0 && surahIdx < availableSurahs.length - 1
+          ? availableSurahs[surahIdx + 1]
+          : null;
+      if (nextSurah) {
+        window.location.href = `/reader/${nextSurah.id}`;
+      }
     }
-  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, selectAyah, resetRevealed]);
+  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -268,7 +302,7 @@ export function ReaderWorkspace({
   }
 
   return (
-    <AudioSyncProvider engine={engine} timings={effectiveSelected.timings}>
+    <AudioSyncProvider engine={engine} timings={effectiveSelected.timings} verseTimings={verseTimings}>
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
@@ -318,7 +352,7 @@ export function ReaderWorkspace({
                       <Select
                         value={String(surah.id)}
                         onChange={(e) => {
-                          window.location.href = `/reader/${e.target.value}`;
+                          router.push(`/reader/${e.target.value}`);
                         }}
                         aria-label="Switch surah"
                         className="max-w-[150px]"

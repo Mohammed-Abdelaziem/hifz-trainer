@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Square, WholeWord, ListMusic, Repeat, Volume2, VolumeX } from "lucide-react";
+import { Pause, Play, Square, WholeWord, ListMusic, Repeat, Volume2, VolumeX, Disc } from "lucide-react";
 import type { QuranWord } from "@/types/quran";
 import { useAudioSyncContext, usePlayback } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
@@ -37,6 +37,8 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   const setReciterId = useReaderStore((s) => s.setReciterId);
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
   const setContinuousPlay = useReaderStore((s) => s.setContinuousPlay);
+  const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
+  const setSurahAudioMode = useReaderStore((s) => s.setSurahAudioMode);
 
   const seqRunningRef = useRef(false);
   const seqGenRef = useRef(0);
@@ -144,15 +146,31 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           </Button>
           <Button
             size="sm"
-            variant={continuousPlay ? "default" : "outline"}
-            onClick={() => setContinuousPlay(!continuousPlay)}
-            aria-label={continuousPlay ? "Disable continuous play" : "Enable continuous play"}
+            variant={surahAudioMode ? "default" : "outline"}
+            onClick={() => {
+              stopSequence();
+              setSurahAudioMode(!surahAudioMode);
+            }}
+            aria-label={surahAudioMode ? "Switch to verse mode" : "Switch to full surah mode"}
             className="gap-1.5"
-            title={continuousPlay ? "Playing continuously" : "Keep playing through verses"}
+            title={surahAudioMode ? "Playing full surah" : "Play entire surah continuously"}
           >
-            <Repeat className="h-4 w-4" />
-            {continuousPlay ? "On" : "Off"}
+            <Disc className="h-4 w-4" />
+            {surahAudioMode ? "Surah" : "Verse"}
           </Button>
+          {!surahAudioMode && (
+            <Button
+              size="sm"
+              variant={continuousPlay ? "default" : "outline"}
+              onClick={() => setContinuousPlay(!continuousPlay)}
+              aria-label={continuousPlay ? "Disable continuous play" : "Enable continuous play"}
+              className="gap-1.5"
+              title={continuousPlay ? "Playing continuously" : "Keep playing through verses"}
+            >
+              <Repeat className="h-4 w-4" />
+              {continuousPlay ? "On" : "Off"}
+            </Button>
+          )}
           {syncStatus && syncStatus !== "idle" && (
             <span className="ml-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
               {syncStatus === "syncing" && <span className="animate-spin">⟳</span>}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Pause, Play, Square, Repeat, Volume2, VolumeX } from "lucide-react";
+import { Pause, Play, Square, Volume2, VolumeX } from "lucide-react";
 import { useAudioSyncContext, usePlayback } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
 import { RECITERS } from "@/lib/quran/reciters";
@@ -10,17 +10,16 @@ import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { formatMs } from "@/lib/utils";
 
-export function QuranAudioBar() {
+export function QuranAudioBar({ surahId, ayahCount }: { surahId: number; ayahCount: number }) {
   const { engine } = useAudioSyncContext();
   const positionMs = usePlayback((p) => p.positionMs);
   const playing = usePlayback((p) => p.playing);
+  const durationMs = usePlayback((p) => p.durationMs);
 
   const speed = useReaderStore((s) => s.speed);
   const setSpeed = useReaderStore((s) => s.setSpeed);
   const volume = useReaderStore((s) => s.volume);
   const setVolume = useReaderStore((s) => s.setVolume);
-  const continuousPlay = useReaderStore((s) => s.continuousPlay);
-  const setContinuousPlay = useReaderStore((s) => s.setContinuousPlay);
   const reciterId = useReaderStore((s) => s.reciterId);
   const setReciterId = useReaderStore((s) => s.setReciterId);
 
@@ -32,7 +31,7 @@ export function QuranAudioBar() {
     engine.setVolume(volume);
   }, [engine, volume]);
 
-  const maxMs = engine.durationMs() ?? Math.max(8000, positionMs + 1000);
+  const maxMs = durationMs ?? Math.max(8000, positionMs + 1000);
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
@@ -51,17 +50,6 @@ export function QuranAudioBar() {
           onClick={() => (playing ? engine.pause() : engine.play())}
         >
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
-        <Button
-          size="sm"
-          variant={continuousPlay ? "default" : "outline"}
-          onClick={() => setContinuousPlay(!continuousPlay)}
-          aria-label={continuousPlay ? "Stop after verse" : "Continue reading"}
-          className="gap-1.5"
-          title={continuousPlay ? "Playing continuously" : "Keep playing through verses"}
-        >
-          <Repeat className="h-4 w-4" />
-          {continuousPlay ? "On" : "Off"}
         </Button>
       </div>
 

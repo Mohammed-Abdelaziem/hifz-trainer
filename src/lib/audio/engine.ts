@@ -1,4 +1,5 @@
 import type { Howl } from "howler";
+import type { VerseTiming } from "./full-surah";
 
 type EngineMode = "idle" | "loading" | "howler" | "virtual";
 
@@ -21,8 +22,48 @@ export class AudioEngine {
   private virtualClipTimer: ReturnType<typeof setTimeout> | null = null;
   private endCallback: (() => void) | null = null;
 
+  private surahTimings: VerseTiming[] | null = null;
+  private currentVerseIndex = -1;
+  private verseChangeCallback: ((verseKey: string) => void) | null = null;
+
   onEnd(callback: (() => void) | null) {
     this.endCallback = callback;
+  }
+
+  onVerseChange(callback: ((verseKey: string) => void) | null) {
+    this.verseChangeCallback = callback;
+  }
+
+  setSurahTimings(timings: VerseTiming[]) {
+    this.surahTimings = timings;
+    this.currentVerseIndex = -1;
+  }
+
+  clearSurahTimings() {
+    this.surahTimings = null;
+    this.currentVerseIndex = -1;
+    this.verseChangeCallback = null;
+  }
+
+  private checkVerseChange() {
+    if (!this.surahTimings || this.surahTimings.length === 0) return;
+    const pos = this.nowMs();
+    let idx = -1;
+    for (let i = 0; i < this.surahTimings.length; i++) {
+      const t = this.surahTimings[i];
+      if (pos >= t.start_ms && pos < t.end_ms) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1 && pos >= this.surahTimings[this.surahTimings.length - 1].start_ms) {
+      idx = this.surahTimings.length - 1;
+    }
+    if (idx !== -1 && idx !== this.currentVerseIndex) {
+      this.currentVerseIndex = idx;
+      const cb = this.verseChangeCallback;
+      if (cb) queueMicrotask(() => cb(this.surahTimings![idx].verseKey));
+    }
   }
 
   async load(url: string) {
@@ -52,8 +93,11 @@ export class AudioEngine {
         this.anchorPos = Number(howl.duration() || 0) * 1000;
         this.resolveClipIfCurrent(myLoad);
         this.loadSeq++;
+        howl.off();
+        howl.unload();
         this.howl = null;
         this.mode = "idle";
+        this.currentVerseIndex = -1;
         const cb = this.endCallback;
         if (cb) queueMicrotask(() => cb());
       });
@@ -67,6 +111,10 @@ export class AudioEngine {
           this.pendingPlay = false;
           howl.play();
         }
+      });
+      howl.on("play", () => {
+        if (this.loadSeq !== myLoad) return;
+        this.checkVerseChange();
       });
       howl.on("loaderror", (_id, err) => {
         if (this.loadSeq !== myLoad) return;
@@ -175,6 +223,7 @@ export class AudioEngine {
     }
     this.anchorPos = Math.max(0, ms);
     this.anchorWall = Date.now();
+    if (this.surahTimings) this.checkVerseChange();
   }
 
   setRate(rate: number) {
@@ -251,6 +300,9 @@ export class AudioEngine {
 
   destroy() {
     this.endCallback = null;
+    this.verseChangeCallback = null;
+    this.surahTimings = null;
+    this.currentVerseIndex = -1;
     this.pause();
     this.unload();
     this.url = null;
