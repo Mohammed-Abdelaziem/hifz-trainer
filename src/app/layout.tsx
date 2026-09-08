@@ -8,7 +8,6 @@ import { SwRegister } from "@/components/pwa/SwRegister";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { GuestProvider } from "@/components/auth/GuestContext";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { JsonLd } from "@/components/seo/JsonLd";
 
 const geistSans = Geist({
@@ -83,8 +82,8 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-  const isGuest = !user && guest;
+  const user = await getSessionUser();
+  const isGuest = !user;
   return (
     <html
       lang="en"

@@ -1,6 +1,5 @@
 import { buildDailyQueue } from "@/lib/server/hifz-service";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,7 @@ const EMPTY_QUEUE = {
 
 export async function GET() {
   try {
-    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+    const user = await getSessionUser();
     if (!user) return Response.json(EMPTY_QUEUE);
     const queue = await buildDailyQueue(user.id);
     return Response.json(queue);

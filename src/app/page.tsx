@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { getAvailableSurahs } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 
 export const dynamic = "force-dynamic";
@@ -19,12 +18,11 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  let isGuest = false;
+  let user = null;
   let available: { id: number; name_arabic: string; name_simple: string; ayah_count: number }[] = [];
 
   try {
-    const [u, g] = await Promise.all([getSessionUser(), isGuestSession()]);
-    isGuest = !u && g;
+    user = await getSessionUser();
   } catch {
     // DB unavailable — fall through as anonymous
   }
@@ -35,5 +33,5 @@ export default async function HomePage() {
     available = [];
   }
 
-  return <DashboardView availableSurahs={available} isGuest={isGuest} />;
+  return <DashboardView availableSurahs={available} isGuest={!user} />;
 }

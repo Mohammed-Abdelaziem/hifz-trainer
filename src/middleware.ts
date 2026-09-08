@@ -15,6 +15,18 @@ function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
   return true;
 }
 
+function isSameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return true; // same-origin or non-CORS request
+  try {
+    const originHost = new URL(origin).host;
+    return originHost === host;
+  } catch {
+    return false;
+  }
+}
+
 const AUTH_ROUTES = ["/login", "/signup"];
 const AUTH_ACTION_ROUTES = ["/login", "/"];
 const RATE_LIMIT = 5;
@@ -32,6 +44,13 @@ export function middleware(request: NextRequest) {
   const method = request.method;
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
+  // CSRF protection: reject cross-origin POST/PUT/DELETE to API routes
+  if (pathname.startsWith("/api/") && (method === "POST" || method === "PUT" || method === "DELETE")) {
+    if (!isSameOrigin(request)) {
+      return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
+    }
+  }
 
   // Auth rate limiting
   const isAuthPage = AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));

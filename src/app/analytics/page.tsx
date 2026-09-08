@@ -3,7 +3,6 @@ import { MushafGrid } from "@/components/analytics/MushafGrid";
 import { ReviewActivity } from "@/components/analytics/ReviewActivity";
 import { SchedulerCompare } from "@/components/analytics/SchedulerCompare";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 
 export const metadata: Metadata = {
   title: "Memory Heatmap — Track Your Quran Memorization Progress",
@@ -24,8 +23,8 @@ export const metadata: Metadata = {
 };
 
 export default async function AnalyticsPage() {
-  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-  const isGuest = !user && guest;
+  const user = await getSessionUser();
+  const isGuest = !user;
   return (
     <div className="mx-auto max-w-5xl flex-1 space-y-6 px-4 py-8">
       <header className="mb-2">

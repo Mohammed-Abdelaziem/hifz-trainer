@@ -4,10 +4,6 @@ vi.mock("@/lib/server/auth", () => ({
   getSessionUser: vi.fn(),
 }));
 
-vi.mock("@/lib/server/guest", () => ({
-  isGuestSession: vi.fn(),
-}));
-
 vi.mock("@/lib/server/quran-sync", () => ({
   getSyncStatus: vi.fn(),
   syncFullQuran: vi.fn(),
@@ -19,13 +15,11 @@ vi.mock("@/lib/server/ayah-data", () => ({
 
 import { GET, POST } from "../route";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { getSyncStatus, syncFullQuran } from "@/lib/server/quran-sync";
 
 describe("/api/sync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (isGuestSession as ReturnType<typeof vi.fn>).mockResolvedValue(false);
   });
 
   it("GET returns sync status", async () => {

@@ -1,12 +1,11 @@
 import { buildMemoryMap } from "@/lib/server/hifz-service";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+    const user = await getSessionUser();
     if (!user) return Response.json({ verses: [] });
     const verses = await buildMemoryMap(user.id);
     return Response.json({ verses });

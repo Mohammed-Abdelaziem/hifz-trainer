@@ -8,16 +8,19 @@ datasource db {
 }
 
 model User {
-  id               String    @id @default(cuid())
-  email            String    @unique
-  passwordHash     String?
-  createdAt        DateTime  @default(now())
-  dailyTargetCount Int       @default(10)
-  currentStreak    Int       @default(0)
-  longestStreak    Int       @default(0)
-  lastActiveDate   DateTime?
-  scheduler        String    @default("sm2")
-  requestRetention Float     @default(0.9)
+  id                     String    @id @default(cuid())
+  email                  String    @unique
+  passwordHash           String?
+  createdAt              DateTime  @default(now())
+  dailyTargetCount       Int       @default(10)
+  currentStreak          Int       @default(0)
+  longestStreak          Int       @default(0)
+  lastActiveDate         DateTime?
+  scheduler              String    @default("sm2")
+  requestRetention       Float     @default(0.9)
+  lastPasswordChangedAt  DateTime?
+  failedLoginAttempts    Int       @default(0)
+  lockedUntil            DateTime?
 
   sessions     Session[]
   memoryStates UserMemoryState[]
@@ -25,11 +28,12 @@ model User {
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  token     String   @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  token         String   @unique
+  userId        String
+  expiresAt     DateTime
+  createdAt     DateTime @default(now())
+  lastRefreshAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -66,6 +70,7 @@ model Verse {
   reviewLogs   ReviewLog[]
 
   @@index([surahId])
+  @@index([pageNumber])
 }
 
 model UserMemoryState {
@@ -118,4 +123,5 @@ model ReviewLog {
   verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
 
   @@index([userId, createdAt])
+  @@index([verseKey])
 }
