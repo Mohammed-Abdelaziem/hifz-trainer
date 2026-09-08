@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
 const HF_API_URL = "https://api-inference.huggingface.co/models/openai/whisper-small";
-const HF_API_KEY = process.env.HF_API_KEY;
+function getApiKey(): string | undefined {
+  return process.env.HF_API_KEY;
+}
 
 const REFERENCE_TEXTS: Record<string, string> = {
   "1:1": "بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ",
@@ -86,7 +88,8 @@ function analyzeTajweed(transcription: string) {
 }
 
 async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string): Promise<string> {
-  if (!HF_API_KEY) {
+  const apiKey = getApiKey();
+  if (!apiKey) {
     throw new Error("HF_API_KEY not set. Get free token at huggingface.co/settings/tokens");
   }
 
@@ -103,7 +106,7 @@ async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string)
   const response = await fetch(HF_API_URL, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${HF_API_KEY}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": contentType,
     },
     body: audioBuffer,
@@ -122,7 +125,7 @@ async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string)
   return result.text || "";
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
     const formData = await req.formData();
     const audioFile = formData.get("audio") as File;
