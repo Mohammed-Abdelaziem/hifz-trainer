@@ -52,14 +52,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://whollyquran.com",
+    url: "https://whollyquran.me",
     siteName: "Wholly Quran",
     title: "Hifz Trainer — Memorize the Quran with Spaced Repetition",
     description:
       "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking.",
     images: [
       {
-        url: "https://whollyquran.com/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition",
+        url: "https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition",
         width: 1200,
         height: 630,
         alt: "Wholly Quran — Quran Memorization Platform",
@@ -71,11 +71,11 @@ export const metadata: Metadata = {
     title: "Hifz Trainer — Memorize the Quran",
     description:
       "Free Quran memorization platform with spaced-repetition, word-by-word reader, and tajweed checker.",
-    images: ["https://whollyquran.com/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition"],
+    images: ["https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition"],
   },
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg" },
-  metadataBase: new URL("https://whollyquran.com"),
+  metadataBase: new URL("https://whollyquran.me"),
 };
 
 export const viewport: Viewport = {

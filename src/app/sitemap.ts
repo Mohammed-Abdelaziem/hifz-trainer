@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const BASE_URL = "https://whollyquran.com";
+const BASE_URL = "https://whollyquran.me";
 
 const SURAH_NAMES: Record<number, string> = {
   1: "Al-Fatiha",

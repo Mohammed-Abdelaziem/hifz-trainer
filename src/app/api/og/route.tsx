@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
             fontSize: 16,
           }}
         >
-          whollyquran.com
+          whollyquran.me
         </div>
       </div>
     ),

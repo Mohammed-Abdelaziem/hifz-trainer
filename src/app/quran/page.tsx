@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     title: "Read Quran Online — Wholly Quran",
     description:
       "Read, listen, and explore the Holy Quran with word-by-word Arabic text, English translations, and tafsir.",
-    url: "https://whollyquran.com/quran",
+    url: "https://whollyquran.me/quran",
   },
 };
 

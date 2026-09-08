@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     title: "Hifz Trainer — Quran Memorization Dashboard",
     description:
       "Track your Quran memorization with spaced-repetition. Sabaq intake, Sabqi review, Manzil rotation.",
-    url: "https://whollyquran.com",
+    url: "https://whollyquran.me",
   },
 };
 

@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       openGraph: {
         title: `${surah.name_simple} — Wholly Quran`,
         description,
-        url: `https://whollyquran.com/reader/${surah.id}`,
+        url: `https://whollyquran.me/reader/${surah.id}`,
       },
       twitter: {
         title: `${surah.name_simple} — Wholly Quran`,

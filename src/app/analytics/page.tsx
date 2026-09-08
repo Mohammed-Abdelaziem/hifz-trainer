@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     title: "Quran Memorization Heatmap — Wholly Quran",
     description:
       "Interactive heatmap showing your Quran memorization strength across all 114 surahs.",
-    url: "https://whollyquran.com/analytics",
+    url: "https://whollyquran.me/analytics",
   },
 };
 

@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/settings/", "/dashboard/"],
       },
     ],
-    sitemap: "https://whollyquran.com/sitemap.xml",
+    sitemap: "https://whollyquran.me/sitemap.xml",
   };
 }
