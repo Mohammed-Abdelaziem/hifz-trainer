@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { getAllSlugs } from "@/lib/blog/posts";
 
 const BASE_URL = "https://whollyquran.me";
 
@@ -152,5 +153,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })
   );
 
-  return [...staticPages, ...surahPages];
+  const blogPages: MetadataRoute.Sitemap = getAllSlugs().map((slug) => ({
+    url: `${BASE_URL}/blog/${slug}`,
+    lastModified: now,
+    changeFrequency: "monthly" as const,
+    priority: 0.8,
+  }));
+
+  return [...staticPages, ...surahPages, ...blogPages];
 }

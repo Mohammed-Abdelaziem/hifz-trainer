@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, Settings, WifiOff } from "lucide-react";
+import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, PenLine, Settings, WifiOff } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/quran", label: "Quran", icon: BookOpen },
   { href: "/reader/1", label: "Hifz", icon: BookMarked },
   { href: "/analytics", label: "Heatmap", icon: Map },
+  { href: "/blog", label: "Blog", icon: PenLine },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
