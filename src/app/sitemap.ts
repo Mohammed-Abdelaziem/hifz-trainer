@@ -137,10 +137,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
-      url: `${BASE_URL}/login`,
+      url: `${BASE_URL}/blog`,
       lastModified: now,
-      changeFrequency: "yearly",
-      priority: 0.3,
+      changeFrequency: "weekly",
+      priority: 0.8,
     },
   ];
 

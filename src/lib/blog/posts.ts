@@ -86,7 +86,7 @@ May Allah make it easy for you to memorize His book. Start today, and don't look
   },
   {
     slug: "tajweed-rules-beginners-guide",
-    title: "Tajweed Rules for Beginners: Read the Quran Beautiful",
+    title: "Tajweed Rules for Beginners: Read the Quran Beautifully",
     description:
       "A simple, beginner-friendly guide to tajweed rules. Learn the essential pronunciation rules, makharij (letter origins), and common mistakes to avoid when reading the Quran.",
     publishedAt: "2026-09-08",
@@ -128,14 +128,15 @@ Each letter has attributes that affect how it's pronounced:
 Every beginner should master these first:
 
 **Rule 1: Noon Sakin and Tanween**
-- Izhar (clear): when followed by ح خ ع غ ف ق ه ء — pronounce clearly
-- Idghaam (merging): when followed by ب م و ي — merge with nasalization
+- Izhar (clear): when followed by ء ه ع ح غ خ ف ق — pronounce clearly through the throat
+- Idghaam (merging): when followed by ل ر م و ي ن — merge with nasalization
 - Iqlab (conversion): when followed by ب — convert to م sound
 - Ghunnah (nasalization): when followed by ن or م — hold nasal sound for 2 counts
 
 **Rule 2: Meem Sakin**
 - Similar rules to noon sakin but with different letters
-- Izhar: followed by ب — pronounce clearly
+- Izhar: followed by any letter except م and ب — pronounce clearly
+- Iqlab: followed by ب — convert to م sound
 - Idghaam: followed by م — merge
 
 **Rule 3: Madd (Elongation)**
@@ -145,7 +146,7 @@ Every beginner should master these first:
 
 **Rule 4: Qalqalah (Echoing)**
 - When stopping on ب، ج، د، ط، ظ with sukun — produce a slight bounce
-- Example: the last letter in أَحَد, جَمَع
+- Example: the last letter in أَحَد (د), يَجْمَع (ج)
 
 **Rule 5: Lam and Ra rules**
 - Heavy (tafkheem) vs light (tarqeeq) depending on surrounding vowels

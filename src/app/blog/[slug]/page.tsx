@@ -38,26 +38,71 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function renderMarkdown(content: string): string {
-  return content
-    .replace(/^### (.+)$/gm, '<h3 class="mt-6 mb-2 text-lg font-semibold">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="mt-8 mb-3 text-xl font-bold">$1</h2>')
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-amber-400 pl-4 italic text-stone-600 dark:text-stone-300">$1</blockquote>')
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 list-decimal">$2</li>')
-    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
-    .replace(/\|(.+)\|/g, (match) => {
-      const cells = match
-        .split("|")
-        .filter((c) => c.trim())
-        .map((c) => c.trim());
-      if (cells.every((c) => c.startsWith("---"))) return "";
-      return `<tr>${cells.map((c) => `<td class="border border-stone-200 px-3 py-1.5 dark:border-stone-700">${c}</td>`).join("")}</tr>`;
-    })
-    .replace(/^---+$/gm, '<hr class="my-6 border-stone-200 dark:border-stone-700" />')
-    .replace(/\n\n/g, '</p><p class="mb-4 leading-relaxed">')
-    .replace(/\n/g, "<br />");
+  let html = escapeHtml(content);
+
+  // Headings
+  html = html.replace(/^### (.+)$/gm, '<h3 class="mt-6 mb-2 text-lg font-semibold">$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2 class="mt-8 mb-3 text-xl font-bold">$1</h2>');
+
+  // Bold and italic (must escape after to avoid conflicts)
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  // Blockquote
+  html = html.replace(
+    /^&gt; (.+)$/gm,
+    '<blockquote class="border-l-4 border-amber-400 pl-4 italic text-stone-600 dark:text-stone-300">$1</blockquote>'
+  );
+
+  // Tables — wrap in <table>
+  html = html.replace(
+    /((?:^\|.+\|$\n?)+)/gm,
+    (block) => {
+      const rows = block.trim().split("\n");
+      const bodyRows = rows.filter((r) => !r.match(/^\|[\s-|]+$/));
+      if (bodyRows.length === 0) return "";
+      const trs = bodyRows
+        .map((row) => {
+          const cells = row
+            .split("|")
+            .filter((c) => c.trim())
+            .map((c) => c.trim());
+          return `<tr>${cells.map((c) => `<td class="border border-stone-200 px-3 py-1.5 dark:border-stone-700">${c}</td>`).join("")}</tr>`;
+        })
+        .join("\n");
+      return `<table class="my-4 w-full border-collapse">${trs}</table>`;
+    }
+  );
+
+  // Ordered lists — wrap consecutive li in ol
+  html = html.replace(
+    /((?:^<li class="ml-4 list-decimal">.*<\/li>\n?)+)/gm,
+    (block) => `<ol class="my-2 ml-6 list-decimal space-y-1">${block.trim()}</ol>`
+  );
+
+  // Unordered lists — wrap consecutive li in ul
+  html = html.replace(
+    /((?:^<li class="ml-4 list-disc">.*<\/li>\n?)+)/gm,
+    (block) => `<ul class="my-2 ml-6 list-disc space-y-1">${block.trim()}</ul>`
+  );
+
+  // Horizontal rule
+  html = html.replace(/^---+$/gm, '<hr class="my-6 border-stone-200 dark:border-stone-700" />');
+
+  // Paragraphs
+  html = html.replace(/\n\n/g, '</p><p class="mb-4 leading-relaxed">');
+  html = html.replace(/\n/g, "<br />");
+
+  return html;
 }
 
 export default async function BlogPostPage({ params }: Props) {
