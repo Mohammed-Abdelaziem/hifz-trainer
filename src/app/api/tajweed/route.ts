@@ -64,19 +64,21 @@ function analyzeTajweed(transcription: string) {
 
   // Check for common letter substitutions
   const words = transcription.split(/\s+/);
+  let qalqalahCount = 0;
   for (const word of words) {
     // Qalqalah only applies when STOPPING on these letters (word-final position)
     // and only when the letter has sukun (no vowel). Since we can't detect sukun
     // from transcription alone, we only flag it as a reminder, not a penalty.
     const qalqalahLetters = ["ب", "ج", "د", "ط", "ظ"];
     const lastChar = word.slice(-1);
-    if (qalqalahLetters.includes(lastChar)) {
+    if (qalqalahLetters.includes(lastChar) && qalqalahCount < 3) {
       issues.push({
         rule: "Echo (Qalqalah)",
         severity: "info",
         message: `Word ends with "${lastChar}". If stopping here, apply qalqalah.`,
         suggestion: "When pausing on this letter, produce a slight bouncing sound.",
       });
+      qalqalahCount++;
     }
   }
 
@@ -144,9 +146,12 @@ export async function POST(req: NextRequest) {
     const tajweed = analyzeTajweed(transcription);
 
     // Weighted score: 70% text accuracy + 30% tajweed
+    // Without reference, cap score at 70 (can't verify accuracy)
     let finalScore = tajweed.score;
     if (reference) {
       finalScore = similarity * 70 + (tajweed.score / 100) * 30;
+    } else {
+      finalScore = Math.min(70, tajweed.score);
     }
 
     return NextResponse.json({

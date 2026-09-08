@@ -5,6 +5,7 @@ import { Mic, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTajweedCheck } from "@/hooks/use-tajweed-check";
 import { cn } from "@/lib/utils";
+import type { TajweedResult } from "@/types/tajweed";
 
 interface TajweedRecorderProps {
   verseKey: string;
@@ -12,21 +13,7 @@ interface TajweedRecorderProps {
   className?: string;
 }
 
-interface TajweedResult {
-  transcription?: string;
-  score?: number;
-  issues?: Array<{
-    rule: string;
-    severity: string;
-    message: string;
-    suggestion: string;
-  }>;
-  duration?: number;
-  words_per_minute?: number;
-  similarity?: number;
-  reference?: string;
-  error?: string;
-}
+const MAX_RECORDING_SECONDS = 120; // 2 minutes
 
 export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
@@ -83,9 +70,23 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
       setIsRecording(true);
       setRecordingTime(0);
 
-      // Start timer
+      // Start timer with auto-stop at max
       timerRef.current = setInterval(() => {
-        setRecordingTime((t) => t + 1);
+        setRecordingTime((t) => {
+          if (t + 1 >= MAX_RECORDING_SECONDS) {
+            // Auto-stop at max
+            if (mediaRecorderRef.current?.state === "recording") {
+              mediaRecorderRef.current.stop();
+            }
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+              timerRef.current = null;
+            }
+            setIsRecording(false);
+            return MAX_RECORDING_SECONDS;
+          }
+          return t + 1;
+        });
       }, 1000);
     } catch (error) {
       const msg =
@@ -116,6 +117,7 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
     reset();
     setAudioBlob(null);
     setRecordingTime(0);
+    setMicError(null);
   }, [reset]);
 
   const formatTime = (seconds: number) => {

@@ -25,6 +25,31 @@ import { TajweedRecorder } from "@/components/reader/TajweedRecorder";
 - **No credit card required**
 - **1000 requests/day free**
 
+## Troubleshooting
+
+### "Microphone access denied"
+- Click the lock icon in the browser address bar
+- Set Microphone to "Allow"
+- Refresh the page
+
+### "Model is loading. Please try again in 30 seconds."
+- First request after idle takes 20-30s (cold start)
+- Try again after 30 seconds
+- Subsequent requests are fast
+
+### "Request timed out"
+- Model is cold-starting (first request)
+- Try again — should work on second attempt
+
+### Score is always low for non-Arabic speakers
+- The checker compares your transcription against the reference text
+- If you're learning, focus on the "Your Recitation" section to see what Whisper heard
+- Score will improve as your pronunciation improves
+
+### "HF_API_KEY not set"
+- Make sure you added the env var in Vercel
+- Redeploy after adding the variable
+
 ## Cost
 - Hugging Face Inference API: **Free** (1000 req/day)
 - Vercel API Route: **Free** (within limits)

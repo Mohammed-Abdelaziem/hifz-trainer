@@ -1,20 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-
-interface TajweedResult {
-  transcription?: string;
-  score?: number;
-  issues?: Array<{
-    rule: string;
-    severity: string;
-    message: string;
-    suggestion: string;
-  }>;
-  similarity?: number;
-  reference?: string;
-  error?: string;
-}
+import type { TajweedResult } from "@/types/tajweed";
 
 interface UseTajweedCheck {
   isChecking: boolean;
