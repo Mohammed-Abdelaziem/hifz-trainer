@@ -14,6 +14,6 @@ export const useOnboardingStore = create<OnboardingState>()(
       completeOnboarding: () => set({ hasCompletedOnboarding: true }),
       resetOnboarding: () => set({ hasCompletedOnboarding: false }),
     }),
-    { name: "onboarding" }
+    { name: "onboarding", skipHydration: true }
   )
 );

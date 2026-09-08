@@ -71,6 +71,17 @@ describe("SM-2 schedule", () => {
     expect(out.intervalDays).toBe(12);
   });
 
+  it("HARD on first review yields 1 day", () => {
+    const out = schedule(NEW_MEMORY_STATE, "HARD", NOW);
+    expect(out.intervalDays).toBe(1);
+    expect(out.repetitionCount).toBe(1);
+  });
+
+  it("HARD on first review does not promote SABAQ to SABQI (interval < 1 day? no, interval=1)", () => {
+    const out = schedule(NEW_MEMORY_STATE, "HARD", NOW);
+    expect(out.intervalDays).toBe(1);
+  });
+
   it("EASY gives a 4-day head start on first success and applies easy bonus later", () => {
     const first = schedule(NEW_MEMORY_STATE, "EASY", NOW);
     expect(first.intervalDays).toBe(4);
@@ -93,6 +104,45 @@ describe("SM-2 schedule", () => {
     const huge = schedule(withPrev({ intervalDays: 500, easeFactor: 2.9, repetitionCount: 9, state: "MANZIL" }), "EASY", NOW);
     expect(huge.intervalDays).toBeLessThanOrEqual(365);
   });
+
+  it("SABQI + AGAIN stays SABQI (not demoted further)", () => {
+    const out = schedule(withPrev({ state: "SABQI", intervalDays: 10 }), "AGAIN", NOW);
+    expect(out.state).toBe("SABQI");
+  });
+
+  it("SABQI + HARD with interval < 21 stays SABQI", () => {
+    const out = schedule(withPrev({ state: "SABQI", intervalDays: 10, repetitionCount: 3 }), "HARD", NOW);
+    expect(out.state).toBe("SABQI");
+  });
+
+  it("EASY on SABQI promotes to MANZIL if interval >= 21", () => {
+    const out = schedule(
+      withPrev({ state: "SABQI", intervalDays: 20, repetitionCount: 4, easeFactor: 2.5 }),
+      "EASY",
+      NOW
+    );
+    expect(out.intervalDays).toBeGreaterThanOrEqual(21);
+    expect(out.state).toBe("MANZIL");
+  });
+
+  it("interval is capped at MAX_INTERVAL_DAYS (365)", () => {
+    const out = schedule(
+      withPrev({ intervalDays: 360, easeFactor: 2.9, repetitionCount: 10, state: "MANZIL" }),
+      "EASY",
+      NOW
+    );
+    expect(out.intervalDays).toBeLessThanOrEqual(365);
+  });
+
+  it("interval is rounded to 2 decimal places", () => {
+    const out = schedule(
+      withPrev({ intervalDays: 3.7, easeFactor: 2.0, repetitionCount: 2, state: "SABQI" }),
+      "GOOD",
+      NOW
+    );
+    const rounded = Math.round(out.intervalDays * 100) / 100;
+    expect(out.intervalDays).toBe(rounded);
+  });
 });
 
 describe("formatInterval / describeOutcome", () => {
@@ -103,9 +153,46 @@ describe("formatInterval / describeOutcome", () => {
     expect(formatInterval(45)).toBe("2 mo");
   });
 
+  it("formats exactly 1 day as singular", () => {
+    expect(formatInterval(1)).toBe("1 day");
+  });
+
+  it("formats year boundary", () => {
+    expect(formatInterval(365)).toBe("1.0 yr");
+    expect(formatInterval(400)).toBe("1.1 yr");
+  });
+
+  it("formats exactly 60 minutes as hours", () => {
+    expect(formatInterval(60 / 1440)).toBe("1 hr");
+  });
+
+  it("formats exactly 1440 minutes as days", () => {
+    expect(formatInterval(1)).toBe("1 day");
+  });
+
+  it("formats exactly 30 days as months", () => {
+    expect(formatInterval(30)).toBe("1 mo");
+  });
+
   it("describes lapse vs promotion outcomes", () => {
     expect(describeOutcome({ state: "SABQI", intervalDays: 10 / 1440 }, "AGAIN")).toContain("back to Sabqi");
     expect(describeOutcome({ state: "MANZIL", intervalDays: 30 }, "GOOD")).toContain("Manzil");
     expect(describeOutcome({ state: "SABQI", intervalDays: 6 }, "GOOD")).toMatch(/next in 6 days/);
+  });
+
+  it("describeOutcome HARD shows correct message", () => {
+    expect(describeOutcome({ state: "SABQI", intervalDays: 5 }, "HARD")).toContain("Hard");
+  });
+
+  it("describeOutcome SABAQ AGAIN shows retry message", () => {
+    expect(describeOutcome({ state: "SABAQ", intervalDays: 10 / 1440 }, "AGAIN")).toContain("retry");
+  });
+
+  it("describeOutcome EASY on MANZIL promotes", () => {
+    expect(describeOutcome({ state: "MANZIL", intervalDays: 30 }, "EASY")).toContain("Manzil");
+  });
+
+  it("describeOutcome EASY on non-MANZIL", () => {
+    expect(describeOutcome({ state: "SABQI", intervalDays: 5 }, "EASY")).toContain("Easy");
   });
 });

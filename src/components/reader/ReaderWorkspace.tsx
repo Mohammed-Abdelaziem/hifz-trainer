@@ -1,22 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Flame } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
-  Ayah,
   Grade,
   MemoryState,
-  QuranWord,
   SchedulerKind,
   SurahBundle,
-  WordTiming,
 } from "@/types/quran";
-import { AudioEngine } from "@/lib/audio/engine";
+import type { VerseTiming } from "@/lib/audio/full-surah";
+import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
-import { everyAyahUrl } from "@/lib/quran/timings";
+import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
 import {
   schedule,
   describeOutcome,
@@ -139,51 +137,33 @@ export function ReaderWorkspace({
   availableSurahs: { id: number; name_simple: string }[];
   isGuest?: boolean;
 }) {
-  const engine = useMemo(() => new AudioEngine(), []);
   const router = useRouter();
+  const hasAyahs = surah.ayahs.length > 0;
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const memoryStatesRef = useRef(new Map<string, MemorySnapshot>());
-  const [liveState, setLiveState] = useState<{
-    key: string;
-    words: QuranWord[];
-    audioUrl: string | null;
-    tafsir: string | null;
-  } | null>(null);
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "completed" | "failed">("idle");
-
-  const handleSWMessage = (event: MessageEvent) => {
-    const data = event.data;
-    if (data.type === "SYNC_STARTED") {
-      setSyncStatus("syncing");
-    } else if (data.type === "SYNC_COMPLETED") {
-      setSyncStatus("completed");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    } else if (data.type === "SYNC_FAILED") {
-      setSyncStatus("failed");
-      setTimeout(() => setSyncStatus("idle"), 3000);
-    }
-  };
-
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
-    navigator.serviceWorker.addEventListener("message", handleSWMessage);
-    return () => navigator.serviceWorker.removeEventListener("message", handleSWMessage);
-  }, []);
+  const swTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const helpOpen = useReaderStore((s) => s.helpOpen);
   const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
-
-  const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
-  const reciterId = useReaderStore((s) => s.reciterId);
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
+  const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
+  const reciterId = useReaderStore((s) => s.reciterId);
 
-  const hasAyahs = surah.ayahs.length > 0;
+  const [verseTimings, setVerseTimings] = useState<VerseTiming[]>([]);
 
-  const selected: Ayah | null = hasAyahs
-    ? (surah.ayahs.find((a) => a.verse_key === selectedVerseKey) ?? surah.ayahs[0])
-    : null;
+  const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
+  const engine = useAudioEngine({
+    surah,
+    selected,
+    hasAyahs,
+    onVerseChange: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+    availableSurahs,
+    surahUrl: (id) => `/reader/${id}`,
+  });
+  useAudioSettings(engine);
 
   useEffect(() => {
     if (!hasAyahs) return;
@@ -198,72 +178,47 @@ export function ReaderWorkspace({
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   useEffect(() => {
-    if (!hasAyahs || !selected) return;
-    let cancelled = false;
-    const url = `/api/ayah-data?verseKey=${encodeURIComponent(selected.verse_key)}&reciter=${reciterId}`;
-    console.log("[ReaderWorkspace] fetching ayah-data:", url);
-    fetch(url)
-      .then((r) => {
-        console.log("[ReaderWorkspace] ayah-data response:", r.status, r.statusText);
-        return r.ok ? r.json() : null;
-      })
-      .then((data: { words?: QuranWord[]; recitationUrl?: string | null; tafsir?: string | null } | null) => {
-        console.log("[ReaderWorkspace] ayah-data result:", {
-          hasWords: Boolean(data?.words?.length),
-          wordCount: data?.words?.length ?? 0,
-          recitationUrl: data?.recitationUrl ?? null,
-        });
-        if (!cancelled && data?.words?.length) {
-          setLiveState({
-            key: `${selected.verse_key}:${reciterId}`,
-            words: data.words,
-            audioUrl: data.recitationUrl ?? null,
-            tafsir: data.tafsir ?? null,
-          });
-        }
-      })
-      .catch((err) => console.error("[ReaderWorkspace] ayah-data fetch error:", err));
+    if (surahAudioMode && hasAyahs) {
+      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
+        setVerseTimings(timings);
+      });
+      const url = getSurahAudioUrl(surah.id, reciterId);
+      engine.load(url);
+    } else {
+      setVerseTimings([]);
+      engine.load(effectiveSelected.audio_url);
+    }
+  }, [surahAudioMode, reciterId, surah.id, surah.ayah_count, engine, effectiveSelected.audio_url, hasAyahs]);
+
+  useEffect(() => {
+    if (!surahAudioMode) {
+      engine.load(effectiveSelected.audio_url);
+    }
+  }, [engine, effectiveSelected.audio_url, surahAudioMode]);
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
+    const handleSWMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (data.type === "SYNC_STARTED") {
+        setSyncStatus("syncing");
+      } else if (data.type === "SYNC_COMPLETED") {
+        setSyncStatus("completed");
+        const t = setTimeout(() => setSyncStatus("idle"), 3000);
+        swTimeoutsRef.current.push(t);
+      } else if (data.type === "SYNC_FAILED") {
+        setSyncStatus("failed");
+        const t = setTimeout(() => setSyncStatus("idle"), 3000);
+        swTimeoutsRef.current.push(t);
+      }
+    };
+    navigator.serviceWorker.addEventListener("message", handleSWMessage);
     return () => {
-      cancelled = true;
+      navigator.serviceWorker.removeEventListener("message", handleSWMessage);
+      swTimeoutsRef.current.forEach(clearTimeout);
+      swTimeoutsRef.current = [];
     };
-  }, [hasAyahs, selected, reciterId]);
-
-  const live =
-    liveState && selected && liveState.key === `${selected.verse_key}:${reciterId}` ? liveState : null;
-
-  const effectiveSelected: Ayah = useMemo(() => {
-    if (!selected) return { ayah_number: 0, verse_key: "1:1", words: [], audio_url: "", timings: [], tafsir: "" };
-    if (!live) return selected;
-    let cursor = 300;
-    const timings: WordTiming[] = live.words.map((w) => {
-      const dur = Math.min(1800, Math.max(550, 380 + w.text_uthmani.length * 95));
-      const seg = { start_ms: cursor, end_ms: cursor + dur };
-      cursor = seg.end_ms + 130;
-      return seg;
-    });
-    const bestAudioUrl = everyAyahUrl(selected.verse_key);
-    console.log("[ReaderWorkspace] effectiveSelected computed:", {
-      verseKey: selected.verse_key,
-      source: live ? "live" : "fixture",
-      audio_url: bestAudioUrl,
-    });
-    return {
-      ...selected,
-      words: live.words,
-      audio_url: bestAudioUrl,
-      timings,
-      tafsir: selected.tafsir || live.tafsir || "",
-    };
-  }, [selected, live]);
-
-  useEffect(() => {
-    console.log("[ReaderWorkspace] engine.load() called:", effectiveSelected.audio_url);
-    engine.load(effectiveSelected.audio_url);
-  }, [engine, effectiveSelected.audio_url]);
-
-  useEffect(() => {
-    return () => engine.destroy();
-  }, [engine]);
+  }, []);
 
   const handleGrade = useCallback((grade: Grade) => {
     if (!selected) return;
@@ -300,24 +255,27 @@ export function ReaderWorkspace({
     }
 
     const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
-    const nextAyah = surah.ayahs[(idx + 1) % surah.ayahs.length];
-    if (nextAyah.verse_key !== selected.verse_key) {
+    if (idx + 1 < surah.ayahs.length) {
+      const nextAyah = surah.ayahs[idx + 1];
       selectAyah(nextAyah.verse_key);
       resetRevealed(nextAyah.verse_key);
       window.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      const surahIdx = availableSurahs.findIndex((s) => s.id === surah.id);
+      const nextSurah =
+        surahIdx >= 0 && surahIdx < availableSurahs.length - 1
+          ? availableSurahs[surahIdx + 1]
+          : null;
+      if (nextSurah) {
+        window.location.href = `/reader/${nextSurah.id}`;
+      }
     }
-  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, selectAyah, resetRevealed]);
+  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-      if (e.code === "Space" && !e.repeat) {
-        e.preventDefault();
-        if (engine.isPlaying()) engine.pause();
-        else engine.play();
-        return;
-      }
       if (e.key === "?") {
         e.preventDefault();
         setHelpOpen(!useReaderStore.getState().helpOpen);
@@ -329,7 +287,7 @@ export function ReaderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleGrade, engine, setHelpOpen]);
+  }, [handleGrade, setHelpOpen]);
 
   if (!hasAyahs) {
     return (
@@ -344,7 +302,7 @@ export function ReaderWorkspace({
   }
 
   return (
-    <AudioSyncProvider engine={engine} timings={effectiveSelected.timings}>
+    <AudioSyncProvider engine={engine} timings={effectiveSelected.timings} verseTimings={verseTimings}>
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
@@ -376,7 +334,10 @@ export function ReaderWorkspace({
                 {(() => {
                   const idx = availableSurahs.findIndex((s) => s.id === surah.id);
                   const prev = idx > 0 ? availableSurahs[idx - 1] : null;
-                  const next = idx >= 0 && idx < availableSurahs.length - 1 ? availableSurahs[idx + 1] : null;
+                  const next =
+                    idx >= 0 && idx < availableSurahs.length - 1
+                      ? availableSurahs[idx + 1]
+                      : null;
                   return (
                     <>
                       {prev && (
@@ -443,7 +404,11 @@ export function ReaderWorkspace({
 
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
           <div className="mx-auto flex max-w-4xl flex-col gap-2.5 p-3">
-            <AudioControlBar words={effectiveSelected.words} verseKey={selected!.verse_key} syncStatus={syncStatus} />
+            <AudioControlBar
+              words={effectiveSelected.words}
+              verseKey={selected!.verse_key}
+              syncStatus={syncStatus}
+            />
             <RatingBar verseKey={selected!.verse_key} onGrade={handleGrade} />
           </div>
         </div>

@@ -4,8 +4,23 @@ import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { QuranReader } from "@/components/quran/QuranReader";
 
 export const metadata: Metadata = {
-  title: "Read Quran — Hifz Trainer",
-  description: "Read, listen, and explore the Holy Quran with translations and tafsir.",
+  title: "Read Quran Online — Full Arabic Text with Translations",
+  description:
+    "Read, listen, and explore the Holy Quran with word-by-word Arabic text, English translations, and tafsir. Choose from 10 reciters including Mishary Alafasy and Abdul Basit.",
+  keywords: [
+    "read quran online",
+    "quran arabic text",
+    "quran translation",
+    "quran tafsir",
+    "listen to quran",
+    "quran reciters",
+  ],
+  openGraph: {
+    title: "Read Quran Online — Wholly Quran",
+    description:
+      "Read, listen, and explore the Holy Quran with word-by-word Arabic text, English translations, and tafsir.",
+    url: "https://whollyquran.me/quran",
+  },
 };
 
 type Props = {

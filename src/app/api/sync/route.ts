@@ -1,5 +1,4 @@
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { getSyncStatus, syncFullQuran } from "@/lib/server/quran-sync";
 import { bulkWarmAyahData } from "@/lib/server/ayah-data";
 
@@ -16,7 +15,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+    const user = await getSessionUser();
     if (!user) return Response.json({ ok: true, synced: 0 });
 
     const scope = new URL(req.url).searchParams.get("scope");

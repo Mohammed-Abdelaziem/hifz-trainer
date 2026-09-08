@@ -87,21 +87,13 @@ function toAbsoluteUrl(base: string, path: string): string {
 
 async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
   const apiUrl = `${QURAN_API_BASE}/recitations/${reciterId}/by_ayah/${verseKey}`;
-  console.log("[ayah-data] fetching recitation URL from:", apiUrl);
-  const res = await fetchJson<{ audio_files: { url: string }[] }>(apiUrl).catch((err) => {
-    console.error("[ayah-data] recitation fetch failed:", verseKey, String(err));
-    return null;
-  });
+  const res = await fetchJson<{ audio_files: { url: string }[] }>(apiUrl).catch(() => null);
   const relativeUrl = res?.audio_files?.[0]?.url ?? null;
   const url = relativeUrl ? toAbsoluteUrl(VERSES_CDN, relativeUrl) : null;
-  console.log("[ayah-data] recitation URL result:", { verseKey, relativeUrl, absoluteUrl: url });
   if (url) {
     try {
       const sanitized = sanitizeUrl(url);
-      if (!sanitized) {
-        console.log("[ayah-data] URL sanitize failed:", url);
-        return null;
-      }
+      if (!sanitized) return null;
       const db = await getDb();
       await db.recitationAudio.upsert({
         where: { verseKey_reciterId: { verseKey, reciterId } },
@@ -120,11 +112,9 @@ export async function getOrFetchAyahData(
   reciterId: number = DEFAULT_RECITER_ID
 ): Promise<AyahData> {
   if (!VALID_RECITER_IDS.has(reciterId)) reciterId = DEFAULT_RECITER_ID;
-  console.log("[ayah-data] getOrFetchAyahData:", { verseKey, reciterId });
 
   const db = await getDbWithTest();
   const row = await db.verse.findUnique({ where: { verseKey } });
-  console.log("[ayah-data] DB row:", { verseKey, exists: Boolean(row), wordsSource: row?.wordsSource });
 
   let words: QuranWord[] | null = null;
   if (row?.wordsSource === "quran" && row.wordsJson) {
@@ -160,14 +150,6 @@ export async function getOrFetchAyahData(
     cachedUrl ?? fetchAndCacheRecitationUrl(verseKey, reciterId),
     needsTafsir ? fetchTafsir(verseKey) : null,
   ]);
-
-  console.log("[ayah-data] Promise.all results:", {
-    verseKey,
-    hadCachedWords: Boolean(words),
-    gotFreshWords: Boolean(freshWords),
-    freshUrl,
-    hasTafsir: Boolean(tafsir),
-  });
 
   if (!words && freshWords) {
     words = freshWords.verse.words
@@ -209,7 +191,6 @@ export async function getOrFetchAyahData(
       tafsir,
       source: words ? "quran" : "synthetic",
     };
-    console.log("[ayah-data] returning (no DB row):", { verseKey, wordCount: result.words.length, recitationUrl: result.recitationUrl, source: result.source });
     return result;
   }
 
@@ -220,7 +201,6 @@ export async function getOrFetchAyahData(
     tafsir: row.tafsir ?? tafsir,
     source: words ? "quran" : "synthetic",
   };
-  console.log("[ayah-data] returning:", { verseKey, wordCount: result.words.length, recitationUrl: result.recitationUrl, source: result.source });
   return result;
 }
 

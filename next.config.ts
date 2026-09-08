@@ -8,18 +8,23 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=()",
+    value: "camera=(), microphone=self, geolocation=()",
   },
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' https://verses.quran.com https://api.quran.com data:",
-      "media-src 'self' https://verses.quran.com https://everyayah.com https://*.everyayah.com",
-      "connect-src 'self' https://api.quran.com https://verses.quran.com https://everyayah.com https://*.everyayah.com",
+      "media-src 'self' https://verses.quran.com https://audio.everyayah.com https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net https://server8.mp3quran.net",
+      "connect-src 'self' https://api.quran.com https://verses.quran.com https://audio.everyayah.com https://mp3quran.net https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
       "font-src 'self' https://fonts.gstatic.com",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
     ].join("; "),
   },
   ...(process.env.NODE_ENV === "production"

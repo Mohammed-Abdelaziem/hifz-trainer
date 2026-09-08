@@ -4,23 +4,17 @@ vi.mock("@/lib/server/auth", () => ({
   getSessionUser: vi.fn(),
 }));
 
-vi.mock("@/lib/server/guest", () => ({
-  isGuestSession: vi.fn(),
-}));
-
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
 }));
 
 import { GET } from "../route";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { getDb } from "@/lib/db";
 
 describe("/api/stats", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (isGuestSession as ReturnType<typeof vi.fn>).mockResolvedValue(false);
   });
 
   it("returns zeroed stats for unauthenticated users", async () => {

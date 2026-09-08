@@ -1,9 +1,9 @@
 import type { Howl } from "howler";
+import type { VerseTiming } from "./full-surah";
 
 type EngineMode = "idle" | "loading" | "howler" | "virtual";
 
 const WORD_CLIP_FALLBACK_MS = 900;
-const TAG = "[AudioEngine]";
 
 export class AudioEngine {
   private howl: Howl | null = null;
@@ -11,6 +11,7 @@ export class AudioEngine {
   private lastGoodUrl: string | null = null;
   private mode: EngineMode = "idle";
   private rateFactor = 1;
+  private volumeFactor = 1;
   private virtualPlaying = false;
   private anchorWall = 0;
   private anchorPos = 0;
@@ -19,86 +20,126 @@ export class AudioEngine {
   private clipResolve: (() => void) | null = null;
   private clipSeq = 0;
   private virtualClipTimer: ReturnType<typeof setTimeout> | null = null;
+  private endCallback: (() => void) | null = null;
+
+  private surahTimings: VerseTiming[] | null = null;
+  private currentVerseIndex = -1;
+  private verseChangeCallback: ((verseKey: string) => void) | null = null;
+
+  onEnd(callback: (() => void) | null) {
+    this.endCallback = callback;
+  }
+
+  onVerseChange(callback: ((verseKey: string) => void) | null) {
+    this.verseChangeCallback = callback;
+  }
+
+  setSurahTimings(timings: VerseTiming[]) {
+    this.surahTimings = timings;
+    this.currentVerseIndex = -1;
+  }
+
+  clearSurahTimings() {
+    this.surahTimings = null;
+    this.currentVerseIndex = -1;
+    this.verseChangeCallback = null;
+  }
+
+  private checkVerseChange() {
+    if (!this.surahTimings || this.surahTimings.length === 0) return;
+    const pos = this.nowMs();
+    let idx = -1;
+    for (let i = 0; i < this.surahTimings.length; i++) {
+      const t = this.surahTimings[i];
+      if (pos >= t.start_ms && pos < t.end_ms) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx === -1 && pos >= this.surahTimings[this.surahTimings.length - 1].start_ms) {
+      idx = this.surahTimings.length - 1;
+    }
+    if (idx !== -1 && idx !== this.currentVerseIndex) {
+      this.currentVerseIndex = idx;
+      const cb = this.verseChangeCallback;
+      if (cb) queueMicrotask(() => cb(this.surahTimings![idx].verseKey));
+    }
+  }
 
   async load(url: string) {
-    if (!url) {
-      console.log(TAG, "load() called with empty url — skipping");
-      return;
-    }
-    if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") {
-      console.log(TAG, "load() same url, mode=" + this.mode, "— skipping");
-      return;
-    }
+    if (!url) return;
+    if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") return;
     const previousUrl = this.url;
-    console.log(TAG, "load()", { url, previousUrl, mode: this.mode });
     this.softStop();
     this.unload();
     this.url = url;
     this.anchorPos = 0;
-    if (typeof window === "undefined") {
-      console.log(TAG, "load() SSR — aborting");
-      return;
-    }
+    if (typeof window === "undefined") return;
     this.mode = "loading";
     const myLoad = ++this.loadSeq;
     try {
       const { Howl: HowlCtor } = await import("howler");
-      console.log(TAG, "load() Howler imported, creating Howl for:", url);
+      if (this.loadSeq !== myLoad) return;
       const howl = new HowlCtor({
         src: [url],
         format: ["mp3"],
         html5: true,
         preload: true,
         rate: this.rateFactor,
+        volume: this.volumeFactor,
       });
       howl.once("end", () => {
-        if (this.loadSeq === myLoad) {
-          console.log(TAG, "playback ended, duration:", howl.duration());
-          this.anchorPos = Number(howl.duration() || 0) * 1000;
-          this.resolveClipIfCurrent(myLoad);
-          this.loadSeq++;
-        }
+        if (this.loadSeq !== myLoad) return;
+        this.anchorPos = Number(howl.duration() || 0) * 1000;
+        this.resolveClipIfCurrent(myLoad);
+        this.loadSeq++;
+        howl.off();
+        howl.unload();
+        this.howl = null;
+        this.mode = "idle";
+        this.currentVerseIndex = -1;
+        const cb = this.endCallback;
+        if (cb) queueMicrotask(() => cb());
       });
       howl.on("load", () => {
-        console.log(TAG, "Howl loaded OK, mode -> howler, url:", url);
+        if (this.loadSeq !== myLoad) return;
         this.mode = "howler";
         this.lastGoodUrl = url;
         howl.rate(this.rateFactor);
+        howl.volume(this.volumeFactor);
         if (this.pendingPlay) {
-          console.log(TAG, "pending play — playing now");
           this.pendingPlay = false;
           howl.play();
         }
       });
+      howl.on("play", () => {
+        if (this.loadSeq !== myLoad) return;
+        this.checkVerseChange();
+      });
       howl.on("loaderror", (_id, err) => {
-        if (this.loadSeq !== myLoad) {
-          console.log(TAG, "loaderror (stale loadSeq) — ignoring", { loadSeq: this.loadSeq, myLoad });
-          return;
-        }
-        console.warn(TAG, "loaderror:", { url, error: String(err), loadSeq: myLoad });
+        if (this.loadSeq !== myLoad) return;
+        console.warn("[AudioEngine] load failed:", url, String(err));
         if (previousUrl && previousUrl !== url) {
-          console.log(TAG, "falling back to previous url:", previousUrl);
           void this.load(previousUrl);
           return;
         }
-        console.log(TAG, "no fallback available, switching to virtual mode");
         this.mode = "virtual";
         if (this.pendingPlay) {
           this.pendingPlay = false;
           this.playVirtual();
         }
         if (this.clipResolve && !this.virtualClipTimer) {
+          const fallbackLoad = myLoad;
           this.virtualClipTimer = setTimeout(() => {
             this.virtualClipTimer = null;
-            this.resolveClipIfCurrent(this.loadSeq);
+            this.resolveClipIfCurrent(fallbackLoad);
           }, WORD_CLIP_FALLBACK_MS / this.rateFactor);
         }
       });
       this.howl = howl;
     } catch (err) {
-      console.error(TAG, "load() exception:", { url, error: String(err) });
+      console.warn("[AudioEngine] load exception:", url, String(err));
       if (previousUrl && previousUrl !== url) {
-        console.log(TAG, "exception fallback to previous url:", previousUrl);
         void this.load(previousUrl);
         return;
       }
@@ -144,13 +185,11 @@ export class AudioEngine {
   }
 
   play() {
-    console.log(TAG, "play() mode:", this.mode);
     if (this.mode === "howler" && this.howl) {
       if (!this.howl.playing()) this.howl.play();
     } else if (this.mode === "virtual") {
       this.playVirtual();
     } else {
-      console.log(TAG, "play() setting pendingPlay (howl not ready)");
       this.pendingPlay = true;
     }
   }
@@ -161,7 +200,6 @@ export class AudioEngine {
   }
 
   pause() {
-    console.log(TAG, "pause()");
     this.pendingPlay = false;
     if (this.mode === "howler" && this.howl) {
       this.howl.pause();
@@ -185,6 +223,7 @@ export class AudioEngine {
     }
     this.anchorPos = Math.max(0, ms);
     this.anchorWall = Date.now();
+    if (this.surahTimings) this.checkVerseChange();
   }
 
   setRate(rate: number) {
@@ -197,8 +236,18 @@ export class AudioEngine {
     if (this.howl) this.howl.rate(clamped);
   }
 
+  setVolume(vol: number) {
+    const clamped = Math.min(1, Math.max(0, vol));
+    this.volumeFactor = clamped;
+    if (this.howl) this.howl.volume(clamped);
+  }
+
   getRate() {
     return this.rateFactor;
+  }
+
+  getVolume() {
+    return this.volumeFactor;
   }
 
   isPlaying() {
@@ -234,7 +283,6 @@ export class AudioEngine {
 
   private softStop() {
     this.clearVirtualClipTimer();
-    this.pendingPlay = false;
     if (this.virtualPlaying) {
       this.virtualPlaying = false;
       this.anchorPos = this.virtualNow();
@@ -251,7 +299,10 @@ export class AudioEngine {
   }
 
   destroy() {
-    console.log(TAG, "destroy()");
+    this.endCallback = null;
+    this.verseChangeCallback = null;
+    this.surahTimings = null;
+    this.currentVerseIndex = -1;
     this.pause();
     this.unload();
     this.url = null;

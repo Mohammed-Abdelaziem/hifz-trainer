@@ -29,6 +29,21 @@ describe("quran/api — getSurahBundle", () => {
     expect(bundle!.ayahs.length).toBe(4);
   });
 
+  it("returns null for surah 0 (invalid)", async () => {
+    const bundle = await getSurahBundle(0);
+    expect(bundle).toBeNull();
+  });
+
+  it("returns null for negative surahId", async () => {
+    const bundle = await getSurahBundle(-1);
+    expect(bundle).toBeNull();
+  });
+
+  it("returns null for surahId > 114", async () => {
+    const bundle = await getSurahBundle(115);
+    expect(bundle).toBeNull();
+  });
+
   it("still returns fixture even if fetchChapterMeta fails", async () => {
     const origFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("network fail"));
@@ -146,6 +161,16 @@ describe("quran/api — getSurahBundle", () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+
+  it("returns null for surah 115 (beyond valid range)", async () => {
+    const bundle = await getSurahBundle(115);
+    expect(bundle).toBeNull();
+  });
+
+  it("returns null for surah -5 (negative)", async () => {
+    const bundle = await getSurahBundle(-5);
+    expect(bundle).toBeNull();
   });
 });
 

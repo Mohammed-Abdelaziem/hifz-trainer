@@ -3,15 +3,28 @@ import { MushafGrid } from "@/components/analytics/MushafGrid";
 import { ReviewActivity } from "@/components/analytics/ReviewActivity";
 import { SchedulerCompare } from "@/components/analytics/SchedulerCompare";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 
 export const metadata: Metadata = {
-  title: "Memory Heatmap — Hifz Trainer",
+  title: "Memory Heatmap — Track Your Quran Memorization Progress",
+  description:
+    "Visualize your Quran memorization strength with an interactive mushaf heatmap. Track review activity, compare SM2 vs FSRS schedulers, and monitor long-term retention.",
+  keywords: [
+    "quran memorization tracker",
+    "hifz progress heatmap",
+    "quran review analytics",
+    "spaced repetition stats",
+  ],
+  openGraph: {
+    title: "Quran Memorization Heatmap — Wholly Quran",
+    description:
+      "Interactive heatmap showing your Quran memorization strength across all 114 surahs.",
+    url: "https://whollyquran.me/analytics",
+  },
 };
 
 export default async function AnalyticsPage() {
-  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-  const isGuest = !user && guest;
+  const user = await getSessionUser();
+  const isGuest = !user;
   return (
     <div className="mx-auto max-w-5xl flex-1 space-y-6 px-4 py-8">
       <header className="mb-2">

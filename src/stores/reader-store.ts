@@ -13,7 +13,10 @@ interface ReaderSettings {
   showRoots: boolean;
   fontSizePx: number;
   speed: number;
+  volume: number;
   reciterId: number;
+  continuousPlay: boolean;
+  surahAudioMode: boolean;
 }
 
 interface ReaderSessionState {
@@ -34,7 +37,10 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   toggleRoots: () => void;
   setFontSize: (px: number) => void;
   setSpeed: (x: number) => void;
+  setVolume: (v: number) => void;
   setReciterId: (id: number) => void;
+  setContinuousPlay: (on: boolean) => void;
+  setSurahAudioMode: (on: boolean) => void;
   selectAyah: (verseKey: string) => void;
   revealWord: (wordId: string) => void;
   revealAll: (wordIds: string[]) => void;
@@ -55,7 +61,10 @@ const DEFAULT_SETTINGS = {
   showRoots: false,
   fontSizePx: 32,
   speed: 1,
+  volume: 1,
   reciterId: DEFAULT_RECITER_ID,
+  continuousPlay: false,
+  surahAudioMode: false,
 };
 
 export const useReaderStore = create<ReaderStore>()(
@@ -79,7 +88,10 @@ export const useReaderStore = create<ReaderStore>()(
       setFontSize: (fontSizePx) =>
         set({ fontSizePx: Math.min(56, Math.max(22, fontSizePx)) }),
       setSpeed: (speed) => set({ speed: Math.min(1.5, Math.max(0.5, speed)) }),
+      setVolume: (volume) => set({ volume: Math.min(1, Math.max(0, volume)) }),
       setReciterId: (reciterId) => set({ reciterId }),
+      setContinuousPlay: (continuousPlay) => set({ continuousPlay }),
+      setSurahAudioMode: (surahAudioMode) => set({ surahAudioMode }),
 
       selectAyah: (selectedVerseKey) =>
         set({
@@ -138,7 +150,10 @@ export const useReaderStore = create<ReaderStore>()(
         showRoots: s.showRoots,
         fontSizePx: s.fontSizePx,
         speed: s.speed,
+        volume: s.volume,
         reciterId: s.reciterId,
+        continuousPlay: s.continuousPlay,
+        surahAudioMode: s.surahAudioMode,
       }),
     }
   )

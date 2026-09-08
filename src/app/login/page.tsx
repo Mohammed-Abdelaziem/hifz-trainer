@@ -1,16 +1,18 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { AuthForms } from "@/components/auth/AuthForms";
 
 export const metadata: Metadata = {
-  title: "Sign in — Hifz Trainer",
+  title: "Sign In",
+  description:
+    "Sign in to Wholly Quran to track your Quran memorization progress, review schedules, and analytics.",
+  robots: { index: false },
 };
 
 export default async function LoginPage() {
-  const [user, guest] = await Promise.all([getSessionUser(), isGuestSession()]);
-  if (user || guest) redirect("/");
+  const user = await getSessionUser();
+  if (user) redirect("/");
 
   return (
     <div className="mx-auto flex max-w-5xl flex-1 flex-col items-center justify-center px-4 py-14">

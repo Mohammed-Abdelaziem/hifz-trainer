@@ -3,20 +3,23 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, WifiOff } from "lucide-react";
+import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, PenLine, Settings, WifiOff } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
+import { SearchBar } from "@/components/search/SearchBar";
 
 const LINKS = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/quran", label: "Quran", icon: BookOpen },
   { href: "/reader/1", label: "Hifz", icon: BookMarked },
   { href: "/analytics", label: "Heatmap", icon: Map },
+  { href: "/blog", label: "Blog", icon: PenLine },
+  { href: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function SiteHeader({ user, isGuest }: { user?: { email: string } | null; isGuest?: boolean }) {
   const pathname = usePathname();
-  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" ? !navigator.onLine : false);
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setOffline(false);
@@ -59,6 +62,9 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
             );
           })}
         </nav>
+        <div className="hidden w-48 md:block">
+          <SearchBar />
+        </div>
         {user || isGuest ? (
           <>
             <div className="flex items-center gap-2 border-l border-stone-200 pl-3 dark:border-stone-700">

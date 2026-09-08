@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Pause, Play, Square, WholeWord, ListMusic } from "lucide-react";
+import { Pause, Play, Square, WholeWord, ListMusic, Repeat, Volume2, VolumeX, Disc } from "lucide-react";
 import type { QuranWord } from "@/types/quran";
 import { useAudioSyncContext, usePlayback } from "@/hooks/use-audio-sync";
 import { useReaderStore } from "@/stores/reader-store";
@@ -23,6 +23,8 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
 
   const speed = useReaderStore((s) => s.speed);
   const setSpeed = useReaderStore((s) => s.setSpeed);
+  const volume = useReaderStore((s) => s.volume);
+  const setVolume = useReaderStore((s) => s.setVolume);
   const loopA = useReaderStore((s) => s.loopA);
   const loopB = useReaderStore((s) => s.loopB);
   const setLoopA = useReaderStore((s) => s.setLoopA);
@@ -33,6 +35,10 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   const setForcedActiveIndex = useReaderStore((s) => s.setForcedActiveIndex);
   const reciterId = useReaderStore((s) => s.reciterId);
   const setReciterId = useReaderStore((s) => s.setReciterId);
+  const continuousPlay = useReaderStore((s) => s.continuousPlay);
+  const setContinuousPlay = useReaderStore((s) => s.setContinuousPlay);
+  const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
+  const setSurahAudioMode = useReaderStore((s) => s.setSurahAudioMode);
 
   const seqRunningRef = useRef(false);
   const seqGenRef = useRef(0);
@@ -49,6 +55,10 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   useEffect(() => {
     engine.setRate(speed);
   }, [engine, speed]);
+
+  useEffect(() => {
+    engine.setVolume(volume);
+  }, [engine, volume]);
 
   async function runSequence(list: QuranWord[]) {
     const gen = ++seqGenRef.current;
@@ -78,17 +88,11 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
     seqRunningRef.current = false;
     seqGenRef.current++;
     engine.stop();
-    engine.abortClips();
     setForcedActiveIndex(null);
     setSeqActive(false);
   }
 
   function handleTogglePlay() {
-    console.log("[AudioControlBar] toggle play:", {
-      playbackMode,
-      engineMode: engine.getMode(),
-      isPlaying: engine.isPlaying(),
-    });
     if (playbackMode === "word") {
       if (seqRunningRef.current) stopSequence();
       else void runSequence(words.filter((w) => w.text_uthmani.trim().length > 0));
@@ -140,6 +144,33 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
             {isWord ? <WholeWord className="h-4 w-4" /> : <ListMusic className="h-4 w-4" />}
             {isWord ? "WbW" : "Full"}
           </Button>
+          <Button
+            size="sm"
+            variant={surahAudioMode ? "default" : "outline"}
+            onClick={() => {
+              stopSequence();
+              setSurahAudioMode(!surahAudioMode);
+            }}
+            aria-label={surahAudioMode ? "Switch to verse mode" : "Switch to full surah mode"}
+            className="gap-1.5"
+            title={surahAudioMode ? "Playing full surah" : "Play entire surah continuously"}
+          >
+            <Disc className="h-4 w-4" />
+            {surahAudioMode ? "Surah" : "Verse"}
+          </Button>
+          {!surahAudioMode && (
+            <Button
+              size="sm"
+              variant={continuousPlay ? "default" : "outline"}
+              onClick={() => setContinuousPlay(!continuousPlay)}
+              aria-label={continuousPlay ? "Disable continuous play" : "Enable continuous play"}
+              className="gap-1.5"
+              title={continuousPlay ? "Playing continuously" : "Keep playing through verses"}
+            >
+              <Repeat className="h-4 w-4" />
+              {continuousPlay ? "On" : "Off"}
+            </Button>
+          )}
           {syncStatus && syncStatus !== "idle" && (
             <span className="ml-2 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
               {syncStatus === "syncing" && <span className="animate-spin">⟳</span>}
@@ -215,6 +246,25 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           onValueChange={(v) => setSpeed(v[0])}
           className="flex-1"
           aria-label="Playback speed"
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setVolume(volume === 0 ? 1 : 0)}
+          className="text-stone-500 hover:text-stone-700 dark:text-stone-400 dark:hover:text-stone-200"
+          aria-label={volume === 0 ? "Unmute" : "Mute"}
+        >
+          {volume === 0 ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+        <Slider
+          value={[volume]}
+          min={0}
+          max={1}
+          step={0.05}
+          onValueChange={(v) => setVolume(v[0])}
+          className="w-16"
+          aria-label="Volume"
         />
       </div>
 

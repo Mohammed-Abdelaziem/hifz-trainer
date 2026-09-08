@@ -1,6 +1,5 @@
 import { GRADES, type Grade } from "@/types/quran";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { recordReview } from "@/lib/server/hifz-service";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +31,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
-    if (!user) return Response.json({ ok: true, guest: true });
+    const user = await getSessionUser();
+    if (!user) return Response.json({ ok: true });
     const data = await recordReview({
       userId: user.id,
       verseKey,

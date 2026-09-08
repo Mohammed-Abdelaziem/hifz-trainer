@@ -4,23 +4,17 @@ vi.mock("@/lib/server/auth", () => ({
   getSessionUser: vi.fn(),
 }));
 
-vi.mock("@/lib/server/guest", () => ({
-  isGuestSession: vi.fn(),
-}));
-
 vi.mock("@/lib/server/hifz-service", () => ({
   buildMemoryMap: vi.fn(),
 }));
 
 import { GET } from "../route";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { buildMemoryMap } from "@/lib/server/hifz-service";
 
 describe("/api/memory-map", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (isGuestSession as ReturnType<typeof vi.fn>).mockResolvedValue(false);
   });
 
   it("returns empty verses for unauthenticated users", async () => {

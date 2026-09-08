@@ -1,5 +1,4 @@
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { getDb } from "@/lib/db";
 import { MAX_RETENTION, MIN_RETENTION } from "@/lib/srs/fsrs";
 
@@ -8,7 +7,7 @@ export const dynamic = "force-dynamic";
 const VALID_SCHEDULERS = new Set(["sm2", "fsrs"]);
 
 export async function GET() {
-  const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+  const user = await getSessionUser();
   if (!user) return Response.json({ scheduler: "sm2", requestRetention: 0.9 });
   return Response.json({
     scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
@@ -18,7 +17,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+    const user = await getSessionUser();
     if (!user) return Response.json({ ok: true, scheduler: "sm2", requestRetention: 0.9 });
 
     const body = (await req.json().catch(() => null)) as

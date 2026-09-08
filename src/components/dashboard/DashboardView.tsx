@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { GoalRing, StreakCard } from "./StatsCards";
 import { TaskQueueTabs } from "./TaskQueueTabs";
 import { SyncButton } from "./SyncButton";
+import { WeeklyChartWrapper } from "./WeeklyChartWrapper";
 
 function SchedulerControls({ active, retention }: { active: SchedulerKind; retention: number }) {
   const queryClient = useQueryClient();
@@ -150,6 +151,10 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
           <div className="mb-4 grid gap-4 md:grid-cols-2">
             <GoalRing streak={queue.streak} />
             <StreakCard streak={queue.streak} />
+          </div>
+
+          <div className="mb-4">
+            <WeeklyChartWrapper />
           </div>
 
           <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-200">
