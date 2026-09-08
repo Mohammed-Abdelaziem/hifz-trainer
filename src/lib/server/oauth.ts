@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDbWithTest } from "@/lib/db";
 import { createSession } from "./auth";
@@ -32,8 +32,8 @@ export async function validateOAuthState(state: string | null): Promise<boolean>
   const jar = await cookies();
   const stored = jar.get(OAUTH_STATE_COOKIE)?.value;
   jar.delete(OAUTH_STATE_COOKIE);
-  if (!stored || stored !== state) return false;
-  return true;
+  if (!stored || stored.length !== state.length) return false;
+  return timingSafeEqual(Buffer.from(stored), Buffer.from(state));
 }
 
 // ── Google OAuth ──────────────────────────────────────────────

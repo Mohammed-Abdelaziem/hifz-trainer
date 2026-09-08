@@ -32,7 +32,7 @@ export async function POST(req: Request) {
 
   try {
     const user = await getSessionUser();
-    if (!user) return Response.json({ ok: true });
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const data = await recordReview({
       userId: user.id,
       verseKey,

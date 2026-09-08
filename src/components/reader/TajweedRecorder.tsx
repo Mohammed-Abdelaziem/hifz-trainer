@@ -43,6 +43,10 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
   const startRecording = useCallback(async () => {
     setMicError(null);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setMicError("Microphone access is not supported in this browser.");
+        return;
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
       // Find supported MIME type

@@ -16,7 +16,7 @@ const EMPTY_QUEUE = {
 export async function GET() {
   try {
     const user = await getSessionUser();
-    if (!user) return Response.json(EMPTY_QUEUE);
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const queue = await buildDailyQueue(user.id);
     return Response.json(queue);
   } catch (err) {

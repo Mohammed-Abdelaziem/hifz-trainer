@@ -17,7 +17,7 @@ describe("/api/reviews", () => {
     vi.clearAllMocks();
   });
 
-  it("returns ok for unauthenticated users (no-op)", async () => {
+  it("returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const req = new Request("http://localhost/api/reviews", {
       method: "POST",
@@ -25,8 +25,9 @@ describe("/api/reviews", () => {
       body: JSON.stringify({ verseKey: "1:1", grade: "GOOD", durationMs: 5000 }),
     });
     const res = await POST(req);
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.ok).toBe(true);
+    expect(data.error).toBe("Unauthorized");
     expect(recordReview).not.toHaveBeenCalled();
   });
 

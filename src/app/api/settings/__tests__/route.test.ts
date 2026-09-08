@@ -17,12 +17,12 @@ describe("/api/settings", () => {
     vi.clearAllMocks();
   });
 
-  it("GET returns defaults for unauthenticated users", async () => {
+  it("GET returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const res = await GET();
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.scheduler).toBe("sm2");
-    expect(data.requestRetention).toBe(0.9);
+    expect(data.error).toBe("Unauthorized");
   });
 
   it("GET returns actual settings for authenticated users", async () => {
@@ -40,7 +40,7 @@ describe("/api/settings", () => {
     expect(data.scheduler).toBe("sm2");
   });
 
-  it("POST returns ok for unauthenticated users (no-op)", async () => {
+  it("POST returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const req = new Request("http://localhost/api/settings", {
       method: "POST",
@@ -48,8 +48,9 @@ describe("/api/settings", () => {
       body: JSON.stringify({ scheduler: "fsrs" }),
     });
     const res = await POST(req);
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.ok).toBe(true);
+    expect(data.error).toBe("Unauthorized");
   });
 
   it("POST validates scheduler value", async () => {

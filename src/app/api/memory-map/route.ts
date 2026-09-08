@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const user = await getSessionUser();
-    if (!user) return Response.json({ verses: [] });
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const verses = await buildMemoryMap(user.id);
     return Response.json({ verses });
   } catch (err) {

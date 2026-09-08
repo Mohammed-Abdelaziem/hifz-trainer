@@ -47,16 +47,15 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
 
   // Check account lockout
   if (user.lockedUntil && user.lockedUntil > new Date()) {
-    const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60_000);
-    return { error: `Account locked. Try again in ${minutesLeft} minute${minutesLeft > 1 ? "s" : ""}.` };
+    return { error: "Account is temporarily locked. Please try again later." };
   }
 
   if (!(await verifyPassword(creds.password, user.passwordHash))) {
     const { locked, remainingAttempts } = await recordFailedLogin(creds.email);
     if (locked) {
-      return { error: "Too many failed attempts. Account locked for 15 minutes." };
+      return { error: "Account is temporarily locked. Please try again later." };
     }
-    return { error: `Incorrect email or password. ${remainingAttempts} attempt${remainingAttempts !== 1 ? "s" : ""} remaining.` };
+    return { error: "Incorrect email or password." };
   }
 
   // Successful login — reset failed attempts and revoke old sessions

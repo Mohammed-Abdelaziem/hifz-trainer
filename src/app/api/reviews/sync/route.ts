@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user) return Response.json({ ok: true, synced: 0, failed: 0, results: [] });
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = await req.json().catch(() => null) as { reviews?: Array<{ verseKey: string; grade: string; durationMs?: number }> } | null;
     if (!body?.reviews || !Array.isArray(body.reviews)) {
