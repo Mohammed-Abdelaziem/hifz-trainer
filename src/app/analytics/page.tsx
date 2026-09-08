@@ -6,7 +6,21 @@ import { getSessionUser } from "@/lib/server/auth";
 import { isGuestSession } from "@/lib/server/guest";
 
 export const metadata: Metadata = {
-  title: "Memory Heatmap — Hifz Trainer",
+  title: "Memory Heatmap — Track Your Quran Memorization Progress",
+  description:
+    "Visualize your Quran memorization strength with an interactive mushaf heatmap. Track review activity, compare SM2 vs FSRS schedulers, and monitor long-term retention.",
+  keywords: [
+    "quran memorization tracker",
+    "hifz progress heatmap",
+    "quran review analytics",
+    "spaced repetition stats",
+  ],
+  openGraph: {
+    title: "Quran Memorization Heatmap — Wholly Quran",
+    description:
+      "Interactive heatmap showing your Quran memorization strength across all 114 surahs.",
+    url: "https://whollyquran.com/analytics",
+  },
 };
 
 export default async function AnalyticsPage() {

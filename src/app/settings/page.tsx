@@ -5,7 +5,10 @@ import { isGuestSession } from "@/lib/server/guest";
 import { SettingsView } from "@/components/settings/SettingsView";
 
 export const metadata: Metadata = {
-  title: "Settings — Hifz Trainer",
+  title: "Settings",
+  description:
+    "Manage your Wholly Quran account settings: scheduler preference, retention rate, and daily memorization target.",
+  robots: { index: false },
 };
 
 export default async function SettingsPage() {

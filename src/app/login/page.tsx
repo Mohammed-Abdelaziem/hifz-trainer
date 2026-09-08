@@ -5,7 +5,10 @@ import { isGuestSession } from "@/lib/server/guest";
 import { AuthForms } from "@/components/auth/AuthForms";
 
 export const metadata: Metadata = {
-  title: "Sign in — Hifz Trainer",
+  title: "Sign In",
+  description:
+    "Sign in to Wholly Quran to track your Quran memorization progress, review schedules, and analytics.",
+  robots: { index: false },
 };
 
 export default async function LoginPage() {

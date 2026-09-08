@@ -7,12 +7,43 @@ import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
 
 type Props = PageProps<'/reader/[surahId]'>;
 
+const REVELATION_LABEL: Record<string, string> = {
+  makkah: "Meccan",
+  madinah: "Medinan",
+};
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   try {
     const { surahId } = await params;
     const surah = await getSurahBundle(Number(surahId));
     if (!surah) return { title: "Surah not found" };
-    return { title: `${surah.name_simple} — Hifz Trainer` };
+
+    const revelation = REVELATION_LABEL[surah.revelation_place] ?? surah.revelation_place;
+    const title = `${surah.name_simple} (${surah.name_arabic}) — Surah ${surah.id}`;
+    const description = `Read and memorize Surah ${surah.name_simple}, the ${surah.english_name} (${revelation}). ${surah.ayah_count} ayahs with word-by-word Arabic text, English translation, and spaced-repetition memorization tools.`;
+
+    return {
+      title,
+      description,
+      keywords: [
+        `surah ${surah.name_simple.toLowerCase()}`,
+        `surah ${surah.id} quran`,
+        `${surah.english_name.toLowerCase()} quran`,
+        "read quran",
+        "memorize quran",
+        "quran hifz",
+        "spaced repetition quran",
+      ],
+      openGraph: {
+        title: `${surah.name_simple} — Wholly Quran`,
+        description,
+        url: `https://whollyquran.com/reader/${surah.id}`,
+      },
+      twitter: {
+        title: `${surah.name_simple} — Wholly Quran`,
+        description,
+      },
+    };
   } catch {
     return { title: "Hifz Trainer" };
   }

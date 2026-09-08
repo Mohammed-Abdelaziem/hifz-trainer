@@ -9,6 +9,7 @@ import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { GuestProvider } from "@/components/auth/GuestContext";
 import { getSessionUser } from "@/lib/server/auth";
 import { isGuestSession } from "@/lib/server/guest";
+import { JsonLd } from "@/components/seo/JsonLd";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -56,12 +57,21 @@ export const metadata: Metadata = {
     title: "Hifz Trainer — Memorize the Quran with Spaced Repetition",
     description:
       "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking.",
+    images: [
+      {
+        url: "https://whollyquran.com/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition",
+        width: 1200,
+        height: 630,
+        alt: "Wholly Quran — Quran Memorization Platform",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Hifz Trainer — Memorize the Quran",
     description:
       "Free Quran memorization platform with spaced-repetition, word-by-word reader, and tajweed checker.",
+    images: ["https://whollyquran.com/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition"],
   },
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg" },
@@ -81,6 +91,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} ${scheherazade.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <JsonLd />
         <Providers>
           <GuestProvider isGuest={isGuest}>
             <OnboardingTour />
