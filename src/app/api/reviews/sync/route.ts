@@ -2,6 +2,9 @@ import { getSessionUser } from "@/lib/server/auth";
 import { isGuestSession } from "@/lib/server/guest";
 import { recordReview } from "@/lib/server/hifz-service";
 
+const VALID_GRADES = ["AGAIN", "HARD", "GOOD", "EASY"];
+const MAX_BATCH_SIZE = 100;
+
 export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
@@ -14,10 +17,15 @@ export async function POST(req: Request) {
       return Response.json({ error: "reviews array required" }, { status: 400 });
     }
 
+    if (body.reviews.length > MAX_BATCH_SIZE) {
+      return Response.json({ error: `Batch size exceeds maximum of ${MAX_BATCH_SIZE}` }, { status: 400 });
+    }
+
     const results = [];
 
     for (const review of body.reviews) {
       if (!review.verseKey || !review.grade) continue;
+      if (!VALID_GRADES.includes(review.grade)) continue;
 
       try {
         const result = await recordReview({
