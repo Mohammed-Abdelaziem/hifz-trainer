@@ -28,11 +28,44 @@ const scheherazade = Scheherazade_New({
 });
 
 export const metadata: Metadata = {
-  title: "Hifz Trainer — Quran Memorization Platform",
+  title: {
+    default: "Hifz Trainer — Memorize the Quran with Spaced Repetition",
+    template: "%s | Wholly Quran",
+  },
   description:
-    "Spaced-repetition driven Quran memorization: Sabaq intake, Sabqi recent review, Manzil long-term rotation.",
+    "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking. Start your hifz journey today.",
+  keywords: [
+    "quran memorization",
+    "hifz trainer",
+    "learn quran",
+    "tajweed",
+    "quran app",
+    "memorize quran",
+    "spaced repetition quran",
+    "quran reader",
+    "online quran",
+    "free quran app",
+  ],
+  authors: [{ name: "Wholly Quran" }],
+  creator: "Wholly Quran",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    url: "https://whollyquran.com",
+    siteName: "Wholly Quran",
+    title: "Hifz Trainer — Memorize the Quran with Spaced Repetition",
+    description:
+      "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Hifz Trainer — Memorize the Quran",
+    description:
+      "Free Quran memorization platform with spaced-repetition, word-by-word reader, and tajweed checker.",
+  },
   manifest: "/manifest.webmanifest",
   icons: { icon: "/icon.svg" },
+  metadataBase: new URL("https://whollyquran.com"),
 };
 
 export const viewport: Viewport = {
