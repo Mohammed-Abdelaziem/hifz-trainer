@@ -5,8 +5,8 @@ export const runtime = "edge";
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl;
-  const title = searchParams.get("title") ?? "Wholly Quran";
-  const subtitle = searchParams.get("subtitle") ?? "Quran Memorization Platform";
+  const title = (searchParams.get("title") ?? "Wholly Quran").slice(0, 200);
+  const subtitle = (searchParams.get("subtitle") ?? "Quran Memorization Platform").slice(0, 200);
 
   return new ImageResponse(
     (

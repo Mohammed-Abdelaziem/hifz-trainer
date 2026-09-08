@@ -7,6 +7,8 @@ export const maxDuration = 300;
 
 export async function GET() {
   try {
+    const user = await getSessionUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     return Response.json(await getSyncStatus());
   } catch {
     return Response.json({ error: "Failed to read sync status" }, { status: 500 });
@@ -16,7 +18,7 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
-    if (!user) return Response.json({ ok: true, synced: 0 });
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const scope = new URL(req.url).searchParams.get("scope");
     if (scope === "words") {

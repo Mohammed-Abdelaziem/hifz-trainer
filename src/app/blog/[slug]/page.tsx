@@ -95,6 +95,17 @@ function renderMarkdown(content: string): string {
     (block) => `<ul class="my-2 ml-6 list-disc space-y-1">${block.trim()}</ul>`
   );
 
+  // Catch any orphaned li elements and wrap them
+  html = html.replace(
+    /(<li[^>]*>.*<\/li>\n?)+/gm,
+    (block) => {
+      if (block.includes('list-decimal')) {
+        return `<ol class="my-2 ml-6 list-decimal space-y-1">${block.trim()}</ol>`;
+      }
+      return `<ul class="my-2 ml-6 list-disc space-y-1">${block.trim()}</ul>`;
+    }
+  );
+
   // Horizontal rule
   html = html.replace(/^---+$/gm, '<hr class="my-6 border-stone-200 dark:border-stone-700" />');
 

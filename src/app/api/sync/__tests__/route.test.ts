@@ -23,6 +23,7 @@ describe("/api/sync", () => {
   });
 
   it("GET returns sync status", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1" });
     (getSyncStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       syncedAt: new Date("2026-08-31T00:00:00Z"),
@@ -34,7 +35,7 @@ describe("/api/sync", () => {
     expect(data.count).toBe(114);
   });
 
-  it("POST returns ok:synced:0 for unauthenticated users", async () => {
+  it("POST returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const req = new Request("http://localhost/api/sync", {
       method: "POST",
@@ -42,9 +43,9 @@ describe("/api/sync", () => {
       body: JSON.stringify({}),
     });
     const res = await POST(req);
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.ok).toBe(true);
-    expect(data.synced).toBe(0);
+    expect(data.error).toBe("Unauthorized");
   });
 
   it("POST syncs for authenticated users", async () => {

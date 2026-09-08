@@ -45,8 +45,8 @@ export function middleware(request: NextRequest) {
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  // CSRF protection: reject cross-origin POST/PUT/DELETE to API routes
-  if (pathname.startsWith("/api/") && (method === "POST" || method === "PUT" || method === "DELETE")) {
+  // CSRF protection: reject cross-origin POST/PUT/DELETE
+  if (method === "POST" || method === "PUT" || method === "DELETE") {
     if (!isSameOrigin(request)) {
       return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
     }

@@ -17,7 +17,7 @@ const securityHeaders = [
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' https://verses.quran.com https://api.quran.com data: https://*.googleusercontent.com https://avatars.githubusercontent.com",
-      "media-src 'self' https://verses.quran.com https://audio.everyayah.com https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net https://server8.mp3quran.net",
+      "media-src 'self' https://verses.quran.com https://audio.everyayah.com https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
       "connect-src 'self' https://api.quran.com https://verses.quran.com https://audio.everyayah.com https://mp3quran.net https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net https://accounts.google.com https://oauth2.googleapis.com https://github.com https://api.github.com https://githubusercontent.com",
       "font-src 'self' https://fonts.gstatic.com",
       "base-uri 'self'",

@@ -17,7 +17,7 @@ describe("/api/reviews/sync", () => {
     vi.clearAllMocks();
   });
 
-  it("POST returns ok:synced:0 for unauthenticated users", async () => {
+  it("POST returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const req = new Request("http://localhost/api/reviews/sync", {
       method: "POST",
@@ -25,9 +25,9 @@ describe("/api/reviews/sync", () => {
       body: JSON.stringify({ reviews: [{ verseKey: "1:1", grade: "GOOD" }] }),
     });
     const res = await POST(req);
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.ok).toBe(true);
-    expect(data.synced).toBe(0);
+    expect(data.error).toBe("Unauthorized");
     expect(recordReview).not.toHaveBeenCalled();
   });
 

@@ -17,14 +17,12 @@ describe("/api/stats", () => {
     vi.clearAllMocks();
   });
 
-  it("returns zeroed stats for unauthenticated users", async () => {
+  it("returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const res = await GET();
+    expect(res.status).toBe(401);
     const data = await res.json();
-    expect(data.totalReviews).toBe(0);
-    expect(data.activeDays).toBe(0);
-    expect(data.grades.AGAIN).toBe(0);
-    expect(data.schedulerCompare.buckets).toHaveLength(5);
+    expect(data.error).toBe("Unauthorized");
   });
 
   it("returns real stats for authenticated users", async () => {
