@@ -29,7 +29,7 @@ vi.stubGlobal(
     ondataavailable: ((e: BlobEvent) => void) | null = null;
     onstop: (() => void) | null = null;
     stream: MediaStream;
-    constructor(stream: MediaStream, _opts?: MediaRecorderOptions) {
+    constructor(stream: MediaStream) {
       this.stream = stream;
       mockMediaRecorderInstance = this as unknown as typeof mockMediaRecorderInstance;
       mockMediaRecorderInstance.start = vi.fn(() => {

@@ -57,7 +57,7 @@ function calculateSimilarity(text1: string, text2: string): number {
 
 function analyzeTajweed(transcription: string) {
   const issues: Array<{ rule: string; severity: string; message: string; suggestion: string }> = [];
-  let score = 100;
+  const score = 100;
 
   // Check for ghunnah markers (نْ, مْ, tanween) — correct if present
   const hasGhunnah = /[\u064B-\u064D]/.test(transcription) || /نْ|مْ/.test(transcription);
@@ -114,7 +114,7 @@ async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string)
   });
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
+    await response.json().catch(() => ({}));
     // Handle model loading (503)
     if (response.status === 503) {
       throw new Error("Model is loading. Please try again in 30 seconds.");

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useCallback } from "react";
 import { AudioEngine } from "@/lib/audio/engine";
-import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
+import { fetchVerseTimings } from "@/lib/audio/full-surah";
 import type { Ayah, SurahBundle } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 

@@ -54,6 +54,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
 
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAudioLoading(true);
       void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
         setVerseTimings(timings);

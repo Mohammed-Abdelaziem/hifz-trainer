@@ -185,6 +185,7 @@ export function ReaderWorkspace({
       const url = getSurahAudioUrl(surah.id, reciterId);
       engine.load(url);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setVerseTimings([]);
       engine.load(effectiveSelected.audio_url);
     }
@@ -267,10 +268,10 @@ export function ReaderWorkspace({
           ? availableSurahs[surahIdx + 1]
           : null;
       if (nextSurah) {
-        window.location.href = `/reader/${nextSurah.id}`;
+        router.push(`/reader/${nextSurah.id}`);
       }
     }
-  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs]);
+  }, [selected, scheduler, requestRetention, isGuest, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs, router]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
