@@ -12,7 +12,7 @@ import {
   revokeAllSessions,
 } from "@/lib/server/auth";
 import { ensureDemoUser, getOrCreateUser } from "@/lib/server/hifz-service";
-import { getGoogleAuthUrl, getGitHubAuthUrl } from "@/lib/server/oauth";
+import { getGoogleAuthUrl, getGitHubAuthUrl, createOAuthState } from "@/lib/server/oauth";
 import { getDbWithTest } from "@/lib/db";
 
 export interface AuthState {
@@ -105,11 +105,13 @@ export async function signOutAction(): Promise<void> {
 }
 
 export async function googleSignInAction(): Promise<void> {
-  const url = getGoogleAuthUrl();
+  const state = await createOAuthState();
+  const url = getGoogleAuthUrl(state);
   redirect(url);
 }
 
 export async function githubSignInAction(): Promise<void> {
-  const url = getGitHubAuthUrl();
+  const state = await createOAuthState();
+  const url = getGitHubAuthUrl(state);
   redirect(url);
 }
