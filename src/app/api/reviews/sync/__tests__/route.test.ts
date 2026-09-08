@@ -4,23 +4,17 @@ vi.mock("@/lib/server/auth", () => ({
   getSessionUser: vi.fn(),
 }));
 
-vi.mock("@/lib/server/guest", () => ({
-  isGuestSession: vi.fn(),
-}));
-
 vi.mock("@/lib/server/hifz-service", () => ({
   recordReview: vi.fn(),
 }));
 
 import { POST } from "../route";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { recordReview } from "@/lib/server/hifz-service";
 
 describe("/api/reviews/sync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (isGuestSession as ReturnType<typeof vi.fn>).mockResolvedValue(false);
   });
 
   it("POST returns ok:synced:0 for unauthenticated users", async () => {

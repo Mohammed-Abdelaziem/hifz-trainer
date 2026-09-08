@@ -1,6 +1,5 @@
 import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +29,7 @@ function bucketIndex(intervalDays: number): number {
 
 export async function GET() {
   try {
-    const [user] = await Promise.all([getSessionUser(), isGuestSession()]);
+    const user = await getSessionUser();
     if (!user) {
       return Response.json({
         totalReviews: 0,

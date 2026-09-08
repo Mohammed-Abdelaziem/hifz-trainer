@@ -15,41 +15,95 @@ function checkRateLimit(key: string, limit: number, windowMs: number): boolean {
   return true;
 }
 
+function isSameOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get("origin");
+  const host = request.headers.get("host");
+  if (!origin || !host) return true; // same-origin or non-CORS request
+  try {
+    const originHost = new URL(origin).host;
+    return originHost === host;
+  } catch {
+    return false;
+  }
+}
+
 const AUTH_ROUTES = ["/login", "/signup"];
 const AUTH_ACTION_ROUTES = ["/login", "/"];
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60_000;
 
+const API_WRITE_LIMIT = 30;
+const API_READ_LIMIT = 60;
+const API_EXPENSIVE_LIMIT = 10;
+const API_WINDOW_MS = 60_000;
+
+const EXPENSIVE_API_ROUTES = ["/api/tajweed", "/api/sync"];
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
 
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+
+  // CSRF protection: reject cross-origin POST/PUT/DELETE to API routes
+  if (pathname.startsWith("/api/") && (method === "POST" || method === "PUT" || method === "DELETE")) {
+    if (!isSameOrigin(request)) {
+      return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
+    }
+  }
+
+  // Auth rate limiting
   const isAuthPage = AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
   const isAuthAction =
     method === "POST" &&
     AUTH_ACTION_ROUTES.some((r) => pathname === r);
 
-  if (!isAuthPage && !isAuthAction) {
-    return NextResponse.next();
+  if (isAuthPage || isAuthAction) {
+    const key = `auth:${ip}`;
+    const allowed = checkRateLimit(key, RATE_LIMIT, WINDOW_MS);
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429, headers: { "Retry-After": "60" } }
+      );
+    }
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const key = `auth:${ip}`;
-  const allowed = checkRateLimit(key, RATE_LIMIT, WINDOW_MS);
+  // API rate limiting
+  if (pathname.startsWith("/api/")) {
+    const isExpensive = EXPENSIVE_API_ROUTES.some((r) => pathname.startsWith(r));
+    const isWrite = method === "POST" || method === "PUT" || method === "DELETE";
 
-  if (!allowed) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again later." },
-      {
-        status: 429,
-        headers: { "Retry-After": "60" },
+    if (isExpensive) {
+      const key = `api-expensive:${ip}`;
+      if (!checkRateLimit(key, API_EXPENSIVE_LIMIT, API_WINDOW_MS)) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Please try again later." },
+          { status: 429, headers: { "Retry-After": "60" } }
+        );
       }
-    );
+    } else if (isWrite) {
+      const key = `api-write:${ip}`;
+      if (!checkRateLimit(key, API_WRITE_LIMIT, API_WINDOW_MS)) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Please try again later." },
+          { status: 429, headers: { "Retry-After": "60" } }
+        );
+      }
+    } else {
+      const key = `api-read:${ip}`;
+      if (!checkRateLimit(key, API_READ_LIMIT, API_WINDOW_MS)) {
+        return NextResponse.json(
+          { error: "Rate limit exceeded. Please try again later." },
+          { status: 429, headers: { "Retry-After": "60" } }
+        );
+      }
+    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/login", "/signup", "/"],
+  matcher: ["/login", "/signup", "/api/:path*"],
 };

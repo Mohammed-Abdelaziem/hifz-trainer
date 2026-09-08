@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
-import { isGuestSession } from "@/lib/server/guest";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
 
 type Props = PageProps<'/reader/[surahId]'>;
@@ -51,11 +50,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function ReaderPage(props: Props) {
   let user = null;
-  let isGuest = false;
   try {
-    const [u, g] = await Promise.all([getSessionUser(), isGuestSession()]);
-    user = u;
-    isGuest = !u && g;
+    user = await getSessionUser();
   } catch {
     // DB unavailable — continue as anonymous
   }
@@ -90,9 +86,9 @@ export default async function ReaderPage(props: Props) {
       key={id}
       surah={surah}
       initialVerseKey={initialVerseKey}
-      scheduler={isGuest ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
-      requestRetention={isGuest ? 0.9 : (user?.requestRetention ?? 0.9)}
-      isGuest={isGuest}
+      scheduler={!user ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
+      requestRetention={!user ? 0.9 : (user?.requestRetention ?? 0.9)}
+      isGuest={!user}
       availableSurahs={navItems}
     />
   );

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getSessionUser } from "@/lib/server/auth";
 
 const HF_API_URL = "https://api-inference.huggingface.co/models/openai/whisper-small";
 function getApiKey(): string | undefined {
@@ -118,7 +119,7 @@ async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string)
     if (response.status === 503) {
       throw new Error("Model is loading. Please try again in 30 seconds.");
     }
-    throw new Error(`Whisper API error: ${response.status} ${JSON.stringify(error)}`);
+    throw new Error("Transcription failed");
   }
 
   const result = await response.json();
@@ -127,6 +128,11 @@ async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string)
 
 export async function POST(req: Request) {
   try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
+
     const formData = await req.formData();
     const audioFile = formData.get("audio") as File;
     const verseKey = (formData.get("verseKey") as string) || "1:1";
@@ -138,6 +144,12 @@ export async function POST(req: Request) {
     // Validate file size (max 10MB)
     if (audioFile.size > 10 * 1024 * 1024) {
       return NextResponse.json({ error: "Audio file too large. Max 10MB." }, { status: 400 });
+    }
+
+    // Validate MIME type
+    const ALLOWED_TYPES = ["audio/webm", "audio/webm;codecs=opus", "audio/mp4", "audio/wav", "audio/ogg"];
+    if (audioFile.type && !ALLOWED_TYPES.includes(audioFile.type)) {
+      return NextResponse.json({ error: "Unsupported audio format" }, { status: 400 });
     }
 
     const audioBuffer = await audioFile.arrayBuffer();
@@ -166,8 +178,10 @@ export async function POST(req: Request) {
     });
   } catch (error) {
     console.error("[Tajweed API Error]:", error);
+    const message = error instanceof Error ? error.message : "Failed to analyze recitation";
+    const isUserFacing = message.includes("loading") || message.includes("No audio");
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Failed to analyze recitation" },
+      { error: isUserFacing ? message : "Failed to analyze recitation" },
       { status: 500 }
     );
   }

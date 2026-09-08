@@ -1,5 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
+vi.mock("@/lib/server/auth", () => ({
+  getSessionUser: vi.fn().mockResolvedValue({ id: "test-user", email: "test@test.com" }),
+}));
+
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
