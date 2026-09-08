@@ -12,6 +12,7 @@ import {
   revokeAllSessions,
 } from "@/lib/server/auth";
 import { ensureDemoUser, getOrCreateUser } from "@/lib/server/hifz-service";
+import { getGoogleAuthUrl, getGitHubAuthUrl } from "@/lib/server/oauth";
 import { getDbWithTest } from "@/lib/db";
 
 export interface AuthState {
@@ -101,4 +102,14 @@ export async function guestSignInAction(): Promise<void> {
 export async function signOutAction(): Promise<void> {
   await destroySession();
   redirect("/login");
+}
+
+export async function googleSignInAction(): Promise<void> {
+  const url = getGoogleAuthUrl();
+  redirect(url);
+}
+
+export async function githubSignInAction(): Promise<void> {
+  const url = getGitHubAuthUrl();
+  redirect(url);
 }
