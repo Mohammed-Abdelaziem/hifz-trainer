@@ -51,7 +51,7 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   }
 
   if (!(await verifyPassword(creds.password, user.passwordHash))) {
-    const { locked, remainingAttempts } = await recordFailedLogin(creds.email);
+    const { locked } = await recordFailedLogin(creds.email);
     if (locked) {
       return { error: "Account is temporarily locked. Please try again later." };
     }

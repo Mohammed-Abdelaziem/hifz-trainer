@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { formatMs } from "@/lib/utils";
 
-export function QuranAudioBar({ surahId, ayahCount }: { surahId: number; ayahCount: number }) {
+export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { surahId: number; ayahCount: number }) {
   const { engine } = useAudioSyncContext();
   const positionMs = usePlayback((p) => p.positionMs);
   const playing = usePlayback((p) => p.playing);
