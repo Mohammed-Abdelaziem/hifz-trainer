@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTajweedCheck } from "@/hooks/use-tajweed-check";
@@ -30,28 +30,50 @@ interface TajweedResult {
 
 export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecorderProps) {
   const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [micError, setMicError] = useState<string | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { isChecking, result, checkRecitation, reset } = useTajweedCheck();
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // Call onResult when result changes
+  useEffect(() => {
+    if (result && onResult) {
+      onResult(result);
+    }
+  }, [result, onResult]);
+
   const startRecording = useCallback(async () => {
+    setMicError(null);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: "audio/webm;codecs=opus",
-      });
+
+      // Find supported MIME type
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/webm")
+        ? "audio/webm"
+        : "audio/mp4";
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
 
       chunksRef.current = [];
       mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunksRef.current.push(e.data);
-        }
+        if (e.data.size > 0) chunksRef.current.push(e.data);
       };
 
       mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+        const blob = new Blob(chunksRef.current, { type: mimeType });
         setAudioBlob(blob);
         stream.getTracks().forEach((track) => track.stop());
       };
@@ -59,8 +81,18 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
       mediaRecorderRef.current = mediaRecorder;
       mediaRecorder.start();
       setIsRecording(true);
+      setRecordingTime(0);
+
+      // Start timer
+      timerRef.current = setInterval(() => {
+        setRecordingTime((t) => t + 1);
+      }, 1000);
     } catch (error) {
-      console.error("Failed to start recording:", error);
+      const msg =
+        error instanceof DOMException && error.name === "NotAllowedError"
+          ? "Microphone access denied. Please allow mic access."
+          : "Could not start recording. Check your microphone.";
+      setMicError(msg);
     }
   }, []);
 
@@ -68,6 +100,10 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
   }, [isRecording]);
 
@@ -75,6 +111,18 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
     if (!audioBlob) return;
     await checkRecitation(audioBlob, verseKey);
   }, [audioBlob, verseKey, checkRecitation]);
+
+  const handleReset = useCallback(() => {
+    reset();
+    setAudioBlob(null);
+    setRecordingTime(0);
+  }, [reset]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   const getScoreColor = (score: number) => {
     if (score >= 90) return "text-green-600 dark:text-green-400";
@@ -85,67 +133,66 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
 
   return (
     <div className={cn("space-y-4", className)}>
+      {/* Error display */}
+      {micError && (
+        <p className="text-sm text-red-600 dark:text-red-400">{micError}</p>
+      )}
+
+      {/* Recording controls */}
       <div className="flex items-center gap-2">
         {!isRecording ? (
-          <Button
-            onClick={startRecording}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
+          <Button onClick={startRecording} variant="outline" size="sm" className="gap-2">
             <Mic className="h-4 w-4" />
             Record
           </Button>
         ) : (
-          <Button
-            onClick={stopRecording}
-            variant="destructive"
-            size="sm"
-            className="gap-2"
-          >
+          <Button onClick={stopRecording} variant="destructive" size="sm" className="gap-2">
             <Square className="h-4 w-4" />
             Stop
           </Button>
         )}
 
-        {audioBlob && !isRecording && (
-          <Button
-            onClick={handleCheck}
-            variant="default"
-            size="sm"
-            disabled={isChecking}
-            className="gap-2"
-          >
+        {isRecording && (
+          <span className="flex items-center gap-1.5 text-sm text-red-600 dark:text-red-400">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
+            {formatTime(recordingTime)}
+          </span>
+        )}
+
+        {audioBlob && !isRecording && !result && (
+          <Button onClick={handleCheck} variant="default" size="sm" disabled={isChecking} className="gap-2">
             {isChecking ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing...
+              </>
             ) : (
               "Check Recitation"
             )}
           </Button>
         )}
 
-        {result && (
-          <Button onClick={reset} variant="ghost" size="sm">
+        {(result || audioBlob) && !isRecording && (
+          <Button onClick={handleReset} variant="ghost" size="sm">
             Reset
           </Button>
         )}
       </div>
 
+      {/* Results */}
       {result && (
         <div className="rounded-lg border border-stone-200 bg-white p-4 dark:border-stone-800 dark:bg-stone-900">
           {result.error ? (
-            <p className="text-sm text-red-600 dark:text-red-400">
-              {result.error}
-            </p>
+            <p className="text-sm text-red-600 dark:text-red-400">{result.error}</p>
           ) : (
             <>
               <div className="mb-3">
                 <span className={cn("text-2xl font-bold", getScoreColor(result.score || 0))}>
                   {result.score}/100
                 </span>
-                {result.similarity && (
+                {result.similarity != null && (
                   <span className="ml-3 text-sm text-stone-500">
-                    {result.similarity}% similar to reference
+                    {result.similarity}% accuracy
                   </span>
                 )}
               </div>
@@ -155,7 +202,7 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
                   <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
                     Your Recitation:
                   </p>
-                  <p dir="rtl" className="font-quran text-lg">
+                  <p dir="rtl" className="font-quran text-lg leading-relaxed">
                     {result.transcription}
                   </p>
                 </div>
@@ -188,7 +235,7 @@ export function TajweedRecorder({ verseKey, onResult, className }: TajweedRecord
                   <p className="text-xs font-medium text-stone-500 dark:text-stone-400">
                     Reference:
                   </p>
-                  <p dir="rtl" className="font-quran text-lg">
+                  <p dir="rtl" className="font-quran text-lg leading-relaxed">
                     {result.reference}
                   </p>
                 </div>

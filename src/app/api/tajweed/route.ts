@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const HF_API_URL = "https://api-inference.huggingface.co/models/openai/whisper-small";
-const HF_API_KEY = process.env.HF_API_KEY; // Free tier key from huggingface.co/settings/tokens
+const HF_API_KEY = process.env.HF_API_KEY;
 
-// Reference Quran text for comparison
 const REFERENCE_TEXTS: Record<string, string> = {
   "1:1": "بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ",
   "1:2": "الْحَمْدُ لِلَّهِ رَبِّ الْعَـٰلَمِينَ",
@@ -32,46 +31,51 @@ function calculateSimilarity(text1: string, text2: string): number {
   const norm1 = normalizeArabic(text1);
   const norm2 = normalizeArabic(text2);
   if (!norm1 || !norm2) return 0;
-  const chars1 = new Set(norm1);
-  const chars2 = new Set(norm2);
-  const intersection = new Set([...chars1].filter((c) => chars2.has(c)));
-  const union = new Set([...chars1, ...chars2]);
-  return union.size === 0 ? 0 : intersection.size / union.size;
+
+  // Use longest common subsequence ratio for better Arabic text comparison
+  const len1 = norm1.length;
+  const len2 = norm2.length;
+  if (len1 === 0 && len2 === 0) return 1;
+
+  // LCS dynamic programming
+  const dp: number[][] = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      if (norm1[i - 1] === norm2[j - 1]) {
+        dp[i][j] = dp[i - 1][j - 1] + 1;
+      } else {
+        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+      }
+    }
+  }
+  const lcsLen = dp[len1][len2];
+  return lcsLen / Math.max(len1, len2);
 }
 
-function analyzeTajweed(transcription: string, duration: number) {
+function analyzeTajweed(transcription: string) {
   const issues: Array<{ rule: string; severity: string; message: string; suggestion: string }> = [];
   let score = 100;
 
-  const words = transcription.split(/\s+/);
-  const avgWordDuration = duration / Math.max(words.length, 1);
-
-  if (avgWordDuration < 0.3) {
-    issues.push({
-      rule: "Elongation (Madd)",
-      severity: "warning",
-      message: "Recitation may be too fast. Elongations need proper duration.",
-      suggestion: "Slow down and extend vowel sounds.",
-    });
-    score -= 10;
-  } else if (avgWordDuration > 2.0) {
-    issues.push({
-      rule: "Elongation (Madd)",
-      severity: "info",
-      message: "Recitation may be too slow.",
-      suggestion: "Maintain a natural pace while keeping elongations correct.",
-    });
-    score -= 5;
+  // Check for ghunnah markers (نْ, مْ, tanween) — correct if present
+  const hasGhunnah = /[\u064B-\u064D]/.test(transcription) || /نْ|مْ/.test(transcription);
+  if (hasGhunnah) {
+    // Good — user pronounced nasalization
   }
 
-  const qalqalahLetters = ["ب", "ج", "د", "ط", "ظ"];
+  // Check for common letter substitutions
+  const words = transcription.split(/\s+/);
   for (const word of words) {
-    if (word && qalqalahLetters.includes(word.slice(-1))) {
+    // Qalqalah only applies when STOPPING on these letters (word-final position)
+    // and only when the letter has sukun (no vowel). Since we can't detect sukun
+    // from transcription alone, we only flag it as a reminder, not a penalty.
+    const qalqalahLetters = ["ب", "ج", "د", "ط", "ظ"];
+    const lastChar = word.slice(-1);
+    if (qalqalahLetters.includes(lastChar)) {
       issues.push({
         rule: "Echo (Qalqalah)",
         severity: "info",
-        message: `Qalqalah letter detected at end of word. Ensure bouncing sound.`,
-        suggestion: "Apply qalqalah when stopping on this letter.",
+        message: `Word ends with "${lastChar}". If stopping here, apply qalqalah.`,
+        suggestion: "When pausing on this letter, produce a slight bouncing sound.",
       });
     }
   }
@@ -79,21 +83,36 @@ function analyzeTajweed(transcription: string, duration: number) {
   return { score: Math.max(0, Math.min(100, score)), issues };
 }
 
-async function transcribeWithWhisper(audioBuffer: ArrayBuffer): Promise<string> {
+async function transcribeWithWhisper(audioBuffer: ArrayBuffer, mimeType: string): Promise<string> {
   if (!HF_API_KEY) {
     throw new Error("HF_API_KEY not set. Get free token at huggingface.co/settings/tokens");
   }
+
+  // Map MIME types to Whisper-supported formats
+  const formatMap: Record<string, string> = {
+    "audio/webm": "audio/webm",
+    "audio/webm;codecs=opus": "audio/webm",
+    "audio/mp4": "audio/mp4",
+    "audio/wav": "audio/wav",
+    "audio/ogg": "audio/ogg",
+  };
+  const contentType = formatMap[mimeType] || "audio/webm";
 
   const response = await fetch(HF_API_URL, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${HF_API_KEY}`,
+      "Content-Type": contentType,
     },
     body: audioBuffer,
   });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
+    // Handle model loading (503)
+    if (response.status === 503) {
+      throw new Error("Model is loading. Please try again in 30 seconds.");
+    }
     throw new Error(`Whisper API error: ${response.status} ${JSON.stringify(error)}`);
   }
 
@@ -111,33 +130,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "No audio file provided" }, { status: 400 });
     }
 
-    // Convert File to ArrayBuffer
+    // Validate file size (max 10MB)
+    if (audioFile.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "Audio file too large. Max 10MB." }, { status: 400 });
+    }
+
     const audioBuffer = await audioFile.arrayBuffer();
+    const transcription = await transcribeWithWhisper(audioBuffer, audioFile.type);
 
-    // Transcribe with Whisper
-    const transcription = await transcribeWithWhisper(audioBuffer);
-
-    // Get duration (estimate from file size, or use a default)
-    const duration = audioFile.size / 16000; // rough estimate for webm
-
-    // Compare with reference
     const reference = REFERENCE_TEXTS[verseKey] || "";
     const similarity = reference ? calculateSimilarity(transcription, reference) : 0;
 
-    // Analyze tajweed
-    const tajweed = analyzeTajweed(transcription, duration);
+    const tajweed = analyzeTajweed(transcription);
 
-    // Adjust score based on similarity
+    // Weighted score: 70% text accuracy + 30% tajweed
     let finalScore = tajweed.score;
     if (reference) {
-      finalScore = (tajweed.score + similarity * 100) / 2;
+      finalScore = similarity * 70 + (tajweed.score / 100) * 30;
     }
 
     return NextResponse.json({
       transcription,
       score: Math.round(finalScore * 10) / 10,
       issues: tajweed.issues,
-      duration: Math.round(duration * 10) / 10,
       similarity: reference ? Math.round(similarity * 1000) / 10 : null,
       reference: reference || null,
     });

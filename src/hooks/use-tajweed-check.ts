@@ -11,8 +11,6 @@ interface TajweedResult {
     message: string;
     suggestion: string;
   }>;
-  duration?: number;
-  words_per_minute?: number;
   similarity?: number;
   reference?: string;
   error?: string;
@@ -25,6 +23,8 @@ interface UseTajweedCheck {
   reset: () => void;
 }
 
+const TIMEOUT_MS = 60000; // 60 seconds
+
 export function useTajweedCheck(): UseTajweedCheck {
   const [isChecking, setIsChecking] = useState(false);
   const [result, setResult] = useState<TajweedResult | null>(null);
@@ -34,6 +34,9 @@ export function useTajweedCheck(): UseTajweedCheck {
       setIsChecking(true);
       setResult(null);
 
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
       try {
         const formData = new FormData();
         formData.append("audio", audioBlob, "recitation.webm");
@@ -42,16 +45,27 @@ export function useTajweedCheck(): UseTajweedCheck {
         const response = await fetch("/api/tajweed", {
           method: "POST",
           body: formData,
+          signal: controller.signal,
         });
 
+        clearTimeout(timeoutId);
+
         if (!response.ok) {
-          throw new Error("Failed to check recitation");
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || `Request failed (${response.status})`);
         }
 
         const data = await response.json();
         setResult(data);
       } catch (error) {
-        setResult({ error: "Failed to analyze recitation" });
+        clearTimeout(timeoutId);
+        if (error instanceof DOMException && error.name === "AbortError") {
+          setResult({ error: "Request timed out. The model may be loading — try again." });
+        } else {
+          setResult({
+            error: error instanceof Error ? error.message : "Failed to analyze recitation",
+          });
+        }
       } finally {
         setIsChecking(false);
       }
