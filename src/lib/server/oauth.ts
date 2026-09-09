@@ -101,7 +101,7 @@ export function getGitHubAuthUrl(state: string): string {
   if (!process.env.GITHUB_CLIENT_ID) throw new Error("GITHUB_CLIENT_ID not set");
   const params = new URLSearchParams({
     client_id: process.env.GITHUB_CLIENT_ID,
-    redirect_uri: `${getBaseUrl()}/api/auth/callback?provider=github`,
+    redirect_uri: `${getBaseUrl()}/api/auth/callback/github`,
     scope: "read:user user:email",
     state,
   });
