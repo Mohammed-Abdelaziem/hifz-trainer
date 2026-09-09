@@ -112,7 +112,7 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
         <div>
           <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Assalamu alaykum</h1>
           <p className="mt-1 text-sm text-stone-500 dark:text-stone-400">
-            Your Hifz session is ready — new intake, consolidation and rotation in one queue.
+            Your daily review queue — Sabaq (new), Sabqi (recent), Manzil (long-term).
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -157,15 +157,31 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
             <WeeklyChartWrapper />
           </div>
 
-          <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/20 dark:text-amber-200">
-            <Clock className="h-4 w-4 shrink-0" />
-            <span>
-              Today&apos;s plan:{" "}
-              <strong>{queue.sabaq.length}</strong> sabaq ·{" "}
-              <strong>{queue.sabqi.length}</strong> sabqi ·{" "}
-              <strong>{queue.manzil.length}</strong> manzil — about{" "}
-              <strong>{queue.estimatedMinutes} minutes</strong>.
-            </span>
+          <div className="mb-4 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+            <div className="mb-2 flex items-center gap-2">
+              <Clock className="h-4 w-4 text-amber-600" />
+              <h3 className="text-sm font-semibold">Today&apos;s Plan</h3>
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                ~{queue.estimatedMinutes} min
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/20">
+                <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{queue.sabaq.length}</p>
+                <p className="text-xs font-medium text-amber-600 dark:text-amber-500">Sabaq</p>
+                <p className="text-[10px] text-stone-500 dark:text-stone-400">New memorisation</p>
+              </div>
+              <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/20">
+                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{queue.sabqi.length}</p>
+                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-500">Sabqi</p>
+                <p className="text-[10px] text-stone-500 dark:text-stone-400">Recent review</p>
+              </div>
+              <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-950/20">
+                <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{queue.manzil.length}</p>
+                <p className="text-xs font-medium text-sky-600 dark:text-sky-500">Manzil</p>
+                <p className="text-[10px] text-stone-500 dark:text-stone-400">Long-term rotation</p>
+              </div>
+            </div>
           </div>
 
           <TaskQueueTabs queue={queue} />

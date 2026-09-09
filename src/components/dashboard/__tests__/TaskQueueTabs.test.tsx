@@ -25,26 +25,26 @@ const queue: DailyQueue = {
 };
 
 describe("TaskQueueTabs", () => {
-  it("defaults to Sabqi and lists its items with deep links", () => {
+  it("defaults to Sabaq and shows its empty state", () => {
     render(<TaskQueueTabs queue={queue} />);
-    const link = screen.getByRole("link", { name: /112:2/ });
+    expect(screen.getByText(/No new verses to learn/)).toBeInTheDocument();
+  });
+
+  it("switches to Sabqi and lists its items with deep links", async () => {
+    const user = userEvent.setup();
+    render(<TaskQueueTabs queue={queue} />);
+
+    await user.click(screen.getByRole("tab", { name: /Sabqi/ }));
+    const link = await screen.findByRole("link", { name: /112:2/ });
     expect(link).toHaveAttribute("href", "/reader/112?verse=112:2");
     expect(screen.getByText(/overdue 1h/)).toBeInTheDocument();
   });
 
-  it("shows an empty state for buckets without tasks", async () => {
+  it("shows an empty state for Manzil bucket", async () => {
     const user = userEvent.setup();
     render(<TaskQueueTabs queue={queue} />);
 
     await user.click(screen.getByRole("tab", { name: /Manzil/ }));
-    expect(await screen.findByText(/Nothing due in Manzil/)).toBeInTheDocument();
-  });
-
-  it("switches to Sabaq bucket on click", async () => {
-    const user = userEvent.setup();
-    render(<TaskQueueTabs queue={queue} />);
-
-    await user.click(screen.getByRole("tab", { name: /Sabaq/ }));
-    expect(await screen.findByText(/Nothing due in Sabaq/)).toBeInTheDocument();
+    expect(await screen.findByText(/No long-term verses due/)).toBeInTheDocument();
   });
 });

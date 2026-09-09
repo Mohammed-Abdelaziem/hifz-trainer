@@ -3,16 +3,52 @@
 import { useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
-import { ArrowUpRight, BookOpen } from "lucide-react";
+import { ArrowUpRight, BookOpen, ArrowRight } from "lucide-react";
 import type { DailyQueue, QueueItem } from "@/types/srs";
 import { cn, formatDueIn } from "@/lib/utils";
 
-type Bucket = "sabqi" | "sabaq" | "manzil";
+type Bucket = "sabaq" | "sabqi" | "manzil";
 
-const TABS: { key: Bucket; label: string; hint: string; accent: string }[] = [
-  { key: "sabqi", label: "Sabqi", hint: "Recent review (7–14 days)", accent: "text-emerald-700 dark:text-emerald-400" },
-  { key: "sabaq", label: "Sabaq", hint: "New intake & relearning", accent: "text-amber-700 dark:text-amber-400" },
-  { key: "manzil", label: "Manzil", hint: "Long-term rotation", accent: "text-sky-700 dark:text-sky-400" },
+const TABS: {
+  key: Bucket;
+  label: string;
+  arabic: string;
+  description: string;
+  detail: string;
+  accent: string;
+  bgColor: string;
+  borderColor: string;
+}[] = [
+  {
+    key: "sabaq",
+    label: "Sabaq",
+    arabic: "سَبَق",
+    description: "New memorisation",
+    detail: "Verses you're learning for the first time or re-learning after forgetting. Start here every session.",
+    accent: "text-amber-700 dark:text-amber-400",
+    bgColor: "bg-amber-50 dark:bg-amber-950/20",
+    borderColor: "border-amber-200 dark:border-amber-800/60",
+  },
+  {
+    key: "sabqi",
+    label: "Sabqi",
+    arabic: "سَبْقِي",
+    description: "Recent review",
+    detail: "Verses memorised in the last 7–14 days. Quick daily check to strengthen fresh memory before it fades.",
+    accent: "text-emerald-700 dark:text-emerald-400",
+    bgColor: "bg-emerald-50 dark:bg-emerald-950/20",
+    borderColor: "border-emerald-200 dark:border-emerald-800/60",
+  },
+  {
+    key: "manzil",
+    label: "Manzil",
+    arabic: "مَنْزِل",
+    description: "Long-term rotation",
+    detail: "Verses you already know well. Spaced review every few weeks to keep them strong long-term.",
+    accent: "text-sky-700 dark:text-sky-400",
+    bgColor: "bg-sky-50 dark:bg-sky-950/20",
+    borderColor: "border-sky-200 dark:border-sky-800/60",
+  },
 ];
 
 function QueueRow({ item }: { item: QueueItem }) {
@@ -52,10 +88,10 @@ function toArabicAyah(n: number): string {
 }
 
 export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {
-  const [active, setActive] = useState<Bucket>("sabqi");
+  const [active, setActive] = useState<Bucket>("sabaq");
   const counts: Record<Bucket, number> = {
-    sabqi: queue.sabqi.length,
     sabaq: queue.sabaq.length,
+    sabqi: queue.sabqi.length,
     manzil: queue.manzil.length,
   };
   const items = queue[active];
@@ -63,7 +99,19 @@ export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {
 
   return (
     <section>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      {/* Flow indicator */}
+      <div className="mb-4 flex items-center justify-center gap-1 text-[11px] text-stone-400 dark:text-stone-500">
+        {TABS.map((t, i) => (
+          <span key={t.key} className="flex items-center gap-1">
+            <span className={cn("font-medium", t.accent)}>{t.label}</span>
+            {i < TABS.length - 1 && <ArrowRight className="h-3 w-3" />}
+          </span>
+        ))}
+        <span className="ml-1">— verses flow from left to right as they strengthen</span>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-3 flex flex-wrap gap-2">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -71,33 +119,56 @@ export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {
             aria-selected={active === t.key}
             role="tab"
             className={cn(
-              "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+              "cursor-pointer rounded-xl border px-4 py-2.5 text-left transition-all",
               active === t.key
-                ? "border-stone-900 bg-stone-900 text-white dark:border-amber-600 dark:bg-amber-600"
-                : "border-stone-200 bg-white text-stone-600 hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-300"
+                ? cn("shadow-sm", t.bgColor, t.borderColor)
+                : "border-stone-200 bg-white hover:border-stone-300 dark:border-stone-700 dark:bg-stone-900 dark:hover:border-stone-600"
             )}
           >
-            {t.label}
-            <span
-              className={cn(
-                "rounded-full px-1.5 text-xs tabular-nums",
-                active === t.key
-                  ? "bg-white/20 text-white"
-                  : counts[t.key] > 0
+            <span className="flex items-center gap-2">
+              <span className={cn("text-sm font-semibold", active === t.key ? t.accent : "text-stone-700 dark:text-stone-200")}>
+                {t.label}
+              </span>
+              <span className="font-quran text-xs text-stone-400 dark:text-stone-500" dir="rtl">
+                {t.arabic}
+              </span>
+              <span
+                className={cn(
+                  "rounded-full px-1.5 py-0.5 text-xs tabular-nums",
+                  counts[t.key] > 0
                     ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
                     : "bg-stone-100 text-stone-500 dark:bg-stone-800 dark:text-stone-400"
-              )}
-            >
-              {counts[t.key]}
+                )}
+              >
+                {counts[t.key]}
+              </span>
             </span>
+            {active === t.key && (
+              <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">
+                {t.description}
+              </p>
+            )}
           </button>
         ))}
-        <span className={cn("ml-auto hidden text-xs font-medium sm:block", meta.accent)}>
-          {meta.hint}
-        </span>
       </div>
 
-      <div className="min-h-[120px] rounded-xl border border-stone-200 bg-white p-2 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+      {/* Detail card */}
+      <div className={cn("rounded-xl border p-4 shadow-sm dark:bg-stone-900", meta.borderColor, meta.bgColor)}>
+        <div className="mb-2 flex items-baseline gap-2">
+          <span className={cn("font-quran text-lg", meta.accent)} dir="rtl">
+            {meta.arabic}
+          </span>
+          <span className={cn("text-sm font-semibold", meta.accent)}>
+            {meta.label} — {meta.description}
+          </span>
+        </div>
+        <p className="text-xs text-stone-500 dark:text-stone-400">
+          {meta.detail}
+        </p>
+      </div>
+
+      {/* Queue list */}
+      <div className="mt-3 min-h-[120px] rounded-xl border border-stone-200 bg-white p-2 shadow-sm dark:border-stone-800 dark:bg-stone-900">
         <AnimatePresence mode="wait">
           <motion.div
             key={active}
@@ -110,7 +181,9 @@ export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {
               <div className="flex h-[96px] flex-col items-center justify-center gap-1 text-center">
                 <BookOpen className="h-5 w-5 text-stone-300 dark:text-stone-600" />
                 <p className="text-sm text-stone-500">
-                  Nothing due in {meta.label} — {meta.hint.toLowerCase()}
+                  {active === "sabaq" && "No new verses to learn right now. Great job staying on top!"}
+                  {active === "sabqi" && "No recent verses due for review. They'll appear here as you memorise new ones."}
+                  {active === "manzil" && "No long-term verses due. They'll appear here as your sabqi verses mature."}
                 </p>
               </div>
             ) : (

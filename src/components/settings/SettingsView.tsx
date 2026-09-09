@@ -96,7 +96,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
                 SRS Algorithm
               </label>
               <p className="mb-3 text-xs text-stone-500 dark:text-stone-400">
-                SM-2 is simpler and proven. FSRS uses machine learning for more accurate scheduling.
+                Controls when each verse is scheduled for review. Both work with Sabaq/Sabqi/Manzil.
               </p>
               <div className="flex gap-2">
                 <Button
@@ -116,6 +116,20 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
                   <Badge variant="success" className="ml-2">Recommended</Badge>
                 </Button>
               </div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+                <div className="rounded-lg bg-stone-50 p-2.5 dark:bg-stone-800/50">
+                  <p className="font-medium text-stone-700 dark:text-stone-200">SM-2 (Classic)</p>
+                  <p className="mt-0.5 text-stone-500 dark:text-stone-400">
+                    Simple rules-based system. Predictable intervals. Good for consistent daily routines.
+                  </p>
+                </div>
+                <div className="rounded-lg bg-stone-50 p-2.5 dark:bg-stone-800/50">
+                  <p className="font-medium text-stone-700 dark:text-stone-200">FSRS (Recommended)</p>
+                  <p className="mt-0.5 text-stone-500 dark:text-stone-400">
+                    Uses machine learning to adapt to your memory. Fewer reviews with same retention.
+                  </p>
+                </div>
+              </div>
             </div>
 
             {scheduler === "fsrs" && (
@@ -124,7 +138,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
                   Target Retention: {(retention * 100).toFixed(0)}%
                 </label>
                 <p className="mb-3 text-xs text-stone-500 dark:text-stone-400">
-                  Higher retention means more frequent reviews. {MIN_RETENTION * 100}%–{MAX_RETENTION * 100}% range.
+                  How much of each verse you want to remember at review time. Higher = more frequent reviews.
                 </p>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-stone-400">{(MIN_RETENTION * 100).toFixed(0)}%</span>
