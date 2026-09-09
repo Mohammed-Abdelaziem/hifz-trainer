@@ -68,7 +68,7 @@ export async function exchangeGoogleCode(code: string): Promise<{
       code,
       client_id: process.env.GOOGLE_CLIENT_ID,
       client_secret: process.env.GOOGLE_CLIENT_SECRET,
-      redirect_uri: `${getBaseUrl()}/api/auth/callback/google`,
+    redirect_uri: `${getBaseUrl()}/api/auth/callback?provider=google`,
       grant_type: "authorization_code",
     }),
   });
@@ -101,7 +101,7 @@ export function getGitHubAuthUrl(state: string): string {
   if (!process.env.GITHUB_CLIENT_ID) throw new Error("GITHUB_CLIENT_ID not set");
   const params = new URLSearchParams({
     client_id: process.env.GITHUB_CLIENT_ID,
-    redirect_uri: `${getBaseUrl()}/api/auth/callback/github`,
+    redirect_uri: `${getBaseUrl()}/api/auth/callback?provider=github`,
     scope: "read:user user:email",
     state,
   });
@@ -127,7 +127,7 @@ export async function exchangeGitHubCode(code: string): Promise<{
       client_id: process.env.GITHUB_CLIENT_ID,
       client_secret: process.env.GITHUB_CLIENT_SECRET,
       code,
-      redirect_uri: `${getBaseUrl()}/api/auth/callback/github`,
+      redirect_uri: `${getBaseUrl()}/api/auth/callback?provider=github`,
     }),
   });
 
