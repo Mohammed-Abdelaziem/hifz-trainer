@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import {
   validateOAuthState,
-  exchangeGoogleCode,
   exchangeGitHubCode,
   findOrCreateOAuthUser,
   getBaseUrl,
@@ -12,17 +11,15 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   const error = searchParams.get("error");
   const state = searchParams.get("state");
-  const provider = searchParams.get("provider");
 
   const baseUrl = getBaseUrl();
 
-  if (error || !code || !provider) {
+  if (error || !code) {
     return NextResponse.redirect(
       new URL(`/login?error=${encodeURIComponent(error || "Missing code")}`, baseUrl)
     );
   }
 
-  // Validate state parameter (CSRF protection)
   const validState = await validateOAuthState(state);
   if (!validState) {
     return NextResponse.redirect(
@@ -31,22 +28,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    let profile: { email: string; name: string; picture?: string };
-
-    if (provider === "google") {
-      profile = await exchangeGoogleCode(code);
-    } else if (provider === "github") {
-      profile = await exchangeGitHubCode(code);
-    } else {
-      return NextResponse.redirect(
-        new URL("/login?error=Unknown+provider", baseUrl)
-      );
-    }
-
-    await findOrCreateOAuthUser(provider, profile);
+    const profile = await exchangeGitHubCode(code);
+    await findOrCreateOAuthUser("github", profile);
     return NextResponse.redirect(new URL("/", baseUrl));
   } catch (err) {
-    console.error(`[OAuth ${provider}] callback error:`, err);
+    console.error("[OAuth github] callback error:", err);
     return NextResponse.redirect(
       new URL("/login?error=Authentication+failed", baseUrl)
     );
