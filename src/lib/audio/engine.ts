@@ -1,5 +1,6 @@
 import type { Howl } from "howler";
 import type { VerseTiming } from "./full-surah";
+import { SPEED_MIN, SPEED_MAX, VOLUME_MIN, VOLUME_MAX } from "@/lib/constants";
 
 type EngineMode = "idle" | "loading" | "howler" | "virtual";
 
@@ -227,7 +228,7 @@ export class AudioEngine {
   }
 
   setRate(rate: number) {
-    const clamped = Math.min(1.5, Math.max(0.5, rate));
+    const clamped = Math.min(SPEED_MAX, Math.max(SPEED_MIN, rate));
     if (this.virtualPlaying) {
       this.anchorPos = this.virtualNow();
       this.anchorWall = Date.now();
@@ -237,7 +238,7 @@ export class AudioEngine {
   }
 
   setVolume(vol: number) {
-    const clamped = Math.min(1, Math.max(0, vol));
+    const clamped = Math.min(VOLUME_MAX, Math.max(VOLUME_MIN, vol));
     this.volumeFactor = clamped;
     if (this.howl) this.howl.volume(clamped);
   }

@@ -1,9 +1,9 @@
 import type { QuranWord } from "@/types/quran";
-import { getDb, getDbWithTest } from "@/lib/db";
+import { getDb, getDbWithTest, sanitizeUrl, toAbsoluteUrl } from "@/lib/db";
 import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
+import { fetchJson } from "@/lib/server/fetch-json";
+import { QURAN_API_BASE, VERSES_CDN, API_TIMEOUT_MEDIUM_MS } from "@/lib/constants";
 
-const QURAN_API_BASE = "https://api.quran.com/api/v4";
-const VERSES_CDN = "https://verses.quran.com/";
 const TAFSIR_RESOURCE_ID = 169;
 
 export interface AyahData {
@@ -24,7 +24,8 @@ function stripHtml(html: string): string {
 
 async function fetchTafsir(verseKey: string): Promise<string | null> {
   const res = await fetchJson<{ tafsir?: { text?: string } }>(
-    `${QURAN_API_BASE}/tafsirs/${TAFSIR_RESOURCE_ID}/by_ayah/${verseKey}`
+    `${QURAN_API_BASE}/tafsirs/${TAFSIR_RESOURCE_ID}/by_ayah/${verseKey}`,
+    { timeout: API_TIMEOUT_MEDIUM_MS, retries: 1 }
   ).catch(() => null);
   const raw = res?.tafsir?.text;
   return raw ? stripHtml(raw) : null;
@@ -39,36 +40,6 @@ interface QcWord {
   transliteration: { text: string } | null;
 }
 
-async function fetchJson<T>(url: string, retries = 1): Promise<T> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        signal: AbortSignal.timeout(12_000),
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return (await res.json()) as T;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-  throw lastErr;
-}
-
-function sanitizeUrl(url: string | null): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null;
-    }
-    return url;
-  } catch {
-    return null;
-  }
-}
-
 async function getCachedRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
   const db = await getDb();
   const cached = await db.recitationAudio.findUnique({
@@ -77,17 +48,9 @@ async function getCachedRecitationUrl(verseKey: string, reciterId: number): Prom
   return sanitizeUrl(cached?.url ?? null);
 }
 
-function toAbsoluteUrl(base: string, path: string): string {
-  try {
-    return new URL(path, base).toString();
-  } catch {
-    return path;
-  }
-}
-
 async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): Promise<string | null> {
   const apiUrl = `${QURAN_API_BASE}/recitations/${reciterId}/by_ayah/${verseKey}`;
-  const res = await fetchJson<{ audio_files: { url: string }[] }>(apiUrl).catch(() => null);
+  const res = await fetchJson<{ audio_files: { url: string }[] }>(apiUrl, { timeout: API_TIMEOUT_MEDIUM_MS, retries: 1 }).catch(() => null);
   const relativeUrl = res?.audio_files?.[0]?.url ?? null;
   const url = relativeUrl ? toAbsoluteUrl(VERSES_CDN, relativeUrl) : null;
   if (url) {
@@ -145,7 +108,8 @@ export async function getOrFetchAyahData(
     words
       ? null
       : fetchJson<{ verse: { words: QcWord[] } }>(
-          `${QURAN_API_BASE}/verses/by_key/${verseKey}?words=true&word_fields=text_uthmani`
+          `${QURAN_API_BASE}/verses/by_key/${verseKey}?words=true&word_fields=text_uthmani`,
+          { timeout: API_TIMEOUT_MEDIUM_MS, retries: 1 }
         ),
     cachedUrl ?? fetchAndCacheRecitationUrl(verseKey, reciterId),
     needsTafsir ? fetchTafsir(verseKey) : null,

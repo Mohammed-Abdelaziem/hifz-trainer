@@ -2,6 +2,7 @@ import type { SurahBundle, Ayah, QuranWord } from "@/types/quran";
 import { getDb } from "@/lib/db";
 import { FIXTURE_SURAHS } from "./fixtures";
 import { everyAyahUrl, synthTimings } from "./timings";
+import { QURAN_API_BASE, VERSES_CDN } from "@/lib/constants";
 
 interface SurahNavItem {
   id: number;
@@ -9,8 +10,6 @@ interface SurahNavItem {
   name_simple: string;
   ayah_count: number;
 }
-
-const QURAN_API_BASE = "https://api.quran.com/api/v4";
 
 async function fetchChapterMeta(
   surahId: number
@@ -147,7 +146,7 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
           audio_url: w.audio_url
             ? w.audio_url.startsWith("http")
               ? w.audio_url
-              : `https://verses.quran.com/${w.audio_url}`
+              : `${VERSES_CDN}${w.audio_url}`
             : undefined,
         }));
 

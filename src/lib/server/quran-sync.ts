@@ -1,7 +1,8 @@
 import { getDbWithTest, sanitizeUrl } from "@/lib/db";
 import { everyAyahUrl } from "@/lib/quran/timings";
+import { fetchJson } from "@/lib/server/fetch-json";
+import { QURAN_API_BASE, API_TIMEOUT_LONG_MS } from "@/lib/constants";
 
-const QURAN_API_BASE = "https://api.quran.com/api/v4";
 const TOTAL_PAGES = 604;
 const CONCURRENCY = 12;
 const UPSERT_CHUNK = 300;
@@ -13,26 +14,6 @@ export interface SyncReport {
   failedPages: number[];
   durationMs: number;
   error?: string;
-}
-
-async function fetchJson<T>(url: string, retries = 2): Promise<T> {
-  let lastErr: unknown;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      const res = await fetch(url, {
-        signal: AbortSignal.timeout(20_000),
-        headers: { Accept: "application/json" },
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status} for ${url}`);
-      return (await res.json()) as T;
-    } catch (err) {
-      lastErr = err;
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
-      }
-    }
-  }
-  throw lastErr;
 }
 
 interface ChapterMeta {
@@ -83,7 +64,8 @@ export async function syncFullQuran(): Promise<SyncReport> {
 
   try {
     const chaptersRes = await fetchJson<{ chapters: ChapterMeta[] }>(
-      `${QURAN_API_BASE}/chapters?language=en`
+      `${QURAN_API_BASE}/chapters?language=en`,
+      { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
     );
 
     for (const c of chaptersRes.chapters) {
@@ -112,7 +94,8 @@ export async function syncFullQuran(): Promise<SyncReport> {
 
     const settled = await mapWithConcurrency(pageNumbers, CONCURRENCY, async (page) => {
       const res = await fetchJson<{ verses: PageVerse[] }>(
-        `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&per_page=50`
+        `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&per_page=50`,
+        { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
       );
       return res.verses;
     });
@@ -128,7 +111,8 @@ export async function syncFullQuran(): Promise<SyncReport> {
     for (const page of failedPages.splice(0)) {
       try {
         const res = await fetchJson<{ verses: PageVerse[] }>(
-          `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&per_page=50`
+          `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&per_page=50`,
+          { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
         );
         collected.push(...res.verses);
       } catch {

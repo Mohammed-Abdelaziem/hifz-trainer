@@ -10,6 +10,7 @@ import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
 import { useReaderStore } from "@/stores/reader-store";
+import { FONT_SIZE_MIN, FONT_SIZE_MAX } from "@/lib/constants";
 import { Select } from "@/components/ui/select";
 import { QuranAudioBar } from "@/components/reader/QuranAudioBar";
 import { TafsirDrawer } from "@/components/reader/TafsirDrawer";
@@ -187,8 +188,8 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
               <label className="text-xs text-stone-500 dark:text-stone-400">Size:</label>
               <input
                 type="range"
-                min={22}
-                max={56}
+                min={FONT_SIZE_MIN}
+                max={FONT_SIZE_MAX}
                 value={fontSizePx}
                 onChange={(e) => useReaderStore.getState().setFontSize(Number(e.target.value))}
                 className="w-20"

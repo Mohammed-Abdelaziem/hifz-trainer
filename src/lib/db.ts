@@ -58,6 +58,14 @@ export function sanitizeUrl(url: string | null | undefined): string | null {
   }
 }
 
+export function toAbsoluteUrl(base: string, path: string): string {
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return path;
+  }
+}
+
 async function testConnection(db: PrismaClient): Promise<void> {
   if (globalForPrisma.connectionTested) return;
   try {

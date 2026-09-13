@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { MIN_RETENTION, MAX_RETENTION } from "@/lib/srs/fsrs";
+import { DAILY_TARGET_MIN, DAILY_TARGET_MAX } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -176,16 +177,16 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
               Your dashboard progress ring tracks completion toward this goal.
             </p>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-stone-400">5</span>
+              <span className="text-xs text-stone-400">{DAILY_TARGET_MIN}</span>
               <Slider
                 value={[dailyTarget]}
-                min={5}
-                max={50}
+                min={DAILY_TARGET_MIN}
+                max={DAILY_TARGET_MAX}
                 step={1}
                 onValueChange={(v) => setDailyTarget(v[0])}
                 className="flex-1"
               />
-              <span className="text-xs text-stone-400">50</span>
+              <span className="text-xs text-stone-400">{DAILY_TARGET_MAX}</span>
             </div>
             <p className="mt-2 text-center text-sm font-medium text-stone-700 dark:text-stone-300">
               {dailyTarget} reviews / day

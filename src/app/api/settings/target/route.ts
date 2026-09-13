@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { getDb } from "@/lib/db";
+import { DAILY_TARGET_MIN, DAILY_TARGET_MAX } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +16,8 @@ export async function POST(req: Request) {
     if (raw === undefined) return Response.json({ error: "Nothing to update" }, { status: 400 });
 
     const count = Number(raw);
-    if (!Number.isInteger(count) || count < 5 || count > 50) {
-      return Response.json({ error: "dailyTargetCount must be between 5 and 50" }, { status: 400 });
+    if (!Number.isInteger(count) || count < DAILY_TARGET_MIN || count > DAILY_TARGET_MAX) {
+      return Response.json({ error: `dailyTargetCount must be between ${DAILY_TARGET_MIN} and ${DAILY_TARGET_MAX}` }, { status: 400 });
     }
 
     const db = await getDb();

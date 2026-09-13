@@ -4,6 +4,15 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { LayoutMode, MaskMode, PlaybackMode } from "@/types/quran";
 import { DEFAULT_RECITER_ID } from "@/lib/quran/reciters";
+import {
+  FONT_SIZE_MIN,
+  FONT_SIZE_MAX,
+  FONT_SIZE_DEFAULT,
+  SPEED_MIN,
+  SPEED_MAX,
+  VOLUME_MIN,
+  VOLUME_MAX,
+} from "@/lib/constants";
 
 interface ReaderSettings {
   maskMode: MaskMode;
@@ -59,7 +68,7 @@ const DEFAULT_SETTINGS = {
   playbackMode: "continuous" as PlaybackMode,
   showTranslation: false,
   showRoots: false,
-  fontSizePx: 32,
+  fontSizePx: FONT_SIZE_DEFAULT,
   speed: 1,
   volume: 1,
   reciterId: DEFAULT_RECITER_ID,
@@ -86,9 +95,9 @@ export const useReaderStore = create<ReaderStore>()(
       toggleTranslation: () => set((s) => ({ showTranslation: !s.showTranslation })),
       toggleRoots: () => set((s) => ({ showRoots: !s.showRoots })),
       setFontSize: (fontSizePx) =>
-        set({ fontSizePx: Math.min(56, Math.max(22, fontSizePx)) }),
-      setSpeed: (speed) => set({ speed: Math.min(1.5, Math.max(0.5, speed)) }),
-      setVolume: (volume) => set({ volume: Math.min(1, Math.max(0, volume)) }),
+        set({ fontSizePx: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, fontSizePx)) }),
+      setSpeed: (speed) => set({ speed: Math.min(SPEED_MAX, Math.max(SPEED_MIN, speed)) }),
+      setVolume: (volume) => set({ volume: Math.min(VOLUME_MAX, Math.max(VOLUME_MIN, volume)) }),
       setReciterId: (reciterId) => set({ reciterId }),
       setContinuousPlay: (continuousPlay) => set({ continuousPlay }),
       setSurahAudioMode: (surahAudioMode) => set({ surahAudioMode }),

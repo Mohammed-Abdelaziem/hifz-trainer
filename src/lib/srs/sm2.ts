@@ -1,4 +1,5 @@
 import type { Grade, MemoryState } from "@/types/quran";
+import { DAY_MS } from "@/lib/constants";
 
 export const GRADE_QUALITY: Record<Grade, number> = {
   AGAIN: 2,
@@ -28,8 +29,6 @@ export const NEW_MEMORY_STATE: Sm2Input = {
   repetitionCount: 0,
   state: "SABAQ",
 };
-
-const DAY_MS = 86_400_000;
 
 export function schedule(prev: Sm2Input, grade: Grade, now = new Date()): Sm2Outcome {
   const q = GRADE_QUALITY[grade];

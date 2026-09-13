@@ -1,6 +1,7 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { getDb } from "@/lib/db";
 import { MAX_RETENTION, MIN_RETENTION } from "@/lib/srs/fsrs";
+import { DEFAULT_RETENTION } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +13,7 @@ export async function GET() {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     return Response.json({
       scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
-      requestRetention: user.requestRetention ?? 0.9,
+      requestRetention: user.requestRetention ?? DEFAULT_RETENTION,
     });
   } catch (err) {
     console.error("[/api/settings]", err);

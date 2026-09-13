@@ -1,6 +1,5 @@
 import type { MemoryState } from "@/types/quran";
-
-const DAY_MS = 86_400_000;
+import { DAY_MS } from "@/lib/constants";
 
 export function stabilityScore(
   state: MemoryState | null,

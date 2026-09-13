@@ -1,6 +1,7 @@
 import type { Grade, MemoryState, SchedulerKind } from "@/types/quran";
 import type { DailyQueue, MemoryCell, QueueItem, StreakInfo } from "@/types/srs";
 import { getDb, getDbWithTest, sanitizeUrl } from "@/lib/db";
+import { DAY_MS, DEFAULT_RETENTION } from "@/lib/constants";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 import {
   GRADE_QUALITY,
@@ -95,8 +96,7 @@ function computeStreak(
   if (!last) {
     streak = 1;
   } else {
-    const dayMs = 86_400_000;
-    const diff = Math.round((today.getTime() - last.getTime()) / dayMs);
+    const diff = Math.round((today.getTime() - last.getTime()) / DAY_MS);
     if (diff === 0) streak = Math.max(1, streak);
     else if (diff === 1) streak += 1;
     else streak = 1;
@@ -157,7 +157,7 @@ export async function recordReview(params: {
       repetitionCount: existing?.repetitionCount ?? 0,
       lapses: existing?.lapses ?? 0,
     };
-    const out = scheduleFsrs(prevFsrs, params.grade, now, user.requestRetention ?? 0.9);
+    const out = scheduleFsrs(prevFsrs, params.grade, now, user.requestRetention ?? DEFAULT_RETENTION);
     intervalDays = out.intervalDays;
     dueDate = out.dueDate;
     difficulty = out.difficulty;
@@ -337,7 +337,7 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     manzil: buckets.MANZIL,
     estimatedMinutes: Math.ceil(totalItems * 1.5),
     scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
-    requestRetention: user.requestRetention ?? 0.9,
+    requestRetention: user.requestRetention ?? DEFAULT_RETENTION,
     streak: {
       current: user.currentStreak,
       longest: user.longestStreak,

@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/server/auth";
+import { DAY_MS } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,7 @@ export async function GET() {
     const logs = await db.reviewLog.findMany({
       where: {
         userId: user.id,
-        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+        createdAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
       },
       select: {
         createdAt: true,

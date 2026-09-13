@@ -37,7 +37,7 @@ const API_READ_LIMIT = 60;
 const API_EXPENSIVE_LIMIT = 10;
 const API_WINDOW_MS = 60_000;
 
-const EXPENSIVE_API_ROUTES = ["/api/tajweed", "/api/sync"];
+const EXPENSIVE_API_ROUTES = ["/api/sync"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
