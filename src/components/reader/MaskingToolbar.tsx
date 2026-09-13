@@ -1,7 +1,7 @@
 "use client";
 
 import { EyeOff, LetterText, Layers, ScanEye, Type } from "lucide-react";
-import type { LayoutMode, MaskMode } from "@/types/quran";
+import type { BlurScope, LayoutMode, MaskMode } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,11 @@ const MASK_MODES: { value: MaskMode; label: string; icon: typeof Type }[] = [
   { value: "BLUR", label: "Blurred", icon: ScanEye },
   { value: "FIRST_LETTER", label: "First Letters", icon: LetterText },
   { value: "REVEAL", label: "Tap Reveal", icon: EyeOff },
+];
+
+const BLUR_SCOPES: { value: BlurScope; label: string }[] = [
+  { value: "word", label: "Per Word" },
+  { value: "ayah", label: "Full Ayah" },
 ];
 
 const LAYOUT_MODES: { value: LayoutMode; label: string }[] = [
@@ -82,11 +87,13 @@ function ToggleChip({
 
 export function MaskingToolbar() {
   const maskMode = useReaderStore((s) => s.maskMode);
+  const blurScope = useReaderStore((s) => s.blurScope);
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const showTranslation = useReaderStore((s) => s.showTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
   const setMaskMode = useReaderStore((s) => s.setMaskMode);
+  const setBlurScope = useReaderStore((s) => s.setBlurScope);
   const setLayoutMode = useReaderStore((s) => s.setLayoutMode);
   const toggleTranslation = useReaderStore((s) => s.toggleTranslation);
   const toggleRoots = useReaderStore((s) => s.toggleRoots);
@@ -95,6 +102,9 @@ export function MaskingToolbar() {
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
       <Segmented options={MASK_MODES} value={maskMode} onChange={setMaskMode} />
+      {maskMode === "BLUR" && (
+        <Segmented options={BLUR_SCOPES} value={blurScope} onChange={setBlurScope} />
+      )}
       <Segmented options={LAYOUT_MODES} value={layoutMode} onChange={setLayoutMode} />
       <ToggleChip active={showTranslation} onClick={toggleTranslation}>
         Translation

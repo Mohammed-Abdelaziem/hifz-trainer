@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { LayoutMode, MaskMode, PlaybackMode } from "@/types/quran";
+import type { BlurScope, LayoutMode, MaskMode, PlaybackMode } from "@/types/quran";
 import { DEFAULT_RECITER_ID } from "@/lib/quran/reciters";
 import {
   FONT_SIZE_MIN,
@@ -16,6 +16,7 @@ import {
 
 interface ReaderSettings {
   maskMode: MaskMode;
+  blurScope: BlurScope;
   layoutMode: LayoutMode;
   playbackMode: PlaybackMode;
   showTranslation: boolean;
@@ -40,6 +41,7 @@ interface ReaderSessionState {
 
 interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setMaskMode: (m: MaskMode) => void;
+  setBlurScope: (s: BlurScope) => void;
   setLayoutMode: (m: LayoutMode) => void;
   setPlaybackMode: (m: PlaybackMode) => void;
   toggleTranslation: () => void;
@@ -64,6 +66,7 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
 
 const DEFAULT_SETTINGS = {
   maskMode: "BLUR" as MaskMode,
+  blurScope: "word" as BlurScope,
   layoutMode: "FLOW" as LayoutMode,
   playbackMode: "continuous" as PlaybackMode,
   showTranslation: false,
@@ -89,6 +92,7 @@ export const useReaderStore = create<ReaderStore>()(
       forcedActiveIndex: null,
 
       setMaskMode: (maskMode) => set({ maskMode }),
+      setBlurScope: (blurScope) => set({ blurScope }),
       setLayoutMode: (layoutMode) => set({ layoutMode }),
       setPlaybackMode: (playbackMode) =>
         set({ playbackMode, forcedActiveIndex: null, loopA: null, loopB: null }),
@@ -153,6 +157,7 @@ export const useReaderStore = create<ReaderStore>()(
       skipHydration: true,
       partialize: (s) => ({
         maskMode: s.maskMode,
+        blurScope: s.blurScope,
         layoutMode: s.layoutMode,
         playbackMode: s.playbackMode,
         showTranslation: s.showTranslation,

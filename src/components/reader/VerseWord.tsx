@@ -12,6 +12,7 @@ interface VerseWordProps {
   active: boolean;
   showTranslation: boolean;
   showRoots: boolean;
+  ayahScoped: boolean;
   onReveal: () => void;
 }
 
@@ -29,13 +30,12 @@ export const VerseWord = memo(function VerseWord({
   active,
   showTranslation,
   showRoots,
+  ayahScoped,
   onReveal,
 }: VerseWordProps) {
-  const masked =
-    mode !== "FULL" && !revealed;
+  const masked = mode !== "FULL" && !revealed;
 
   let display = word.text_uthmani;
-  if (masked && mode === "BLUR") display = word.text_uthmani;
   if (masked && mode === "FIRST_LETTER") display = firstLetterPrompt(word.text_uthmani);
 
   return (
@@ -46,7 +46,7 @@ export const VerseWord = memo(function VerseWord({
       className={cn(
         "relative mx-[0.12em] inline-flex cursor-default flex-col items-center align-bottom",
         masked && "cursor-pointer",
-        masked && mode === "BLUR" && "blur-[6px] transition-[filter] duration-300",
+        masked && mode === "BLUR" && !ayahScoped && "blur-[6px] transition-[filter] duration-300",
         masked && mode === "REVEAL" && "text-transparent decoration-dotted underline underline-offset-8 decoration-stone-400 dark:decoration-stone-600",
         active &&
           "rounded-md bg-amber-200/80 px-1 shadow-sm ring-1 ring-amber-400/60 dark:bg-amber-500/30 dark:ring-amber-500/40"

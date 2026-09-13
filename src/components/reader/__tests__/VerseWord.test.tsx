@@ -20,6 +20,7 @@ function baseProps(mode: Props["mode"], revealed = false): Props {
     active: false,
     showTranslation: false,
     showRoots: false,
+    ayahScoped: false,
     onReveal: vi.fn(),
   };
 }

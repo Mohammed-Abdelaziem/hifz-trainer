@@ -21,11 +21,13 @@ function AyahMarker({ number }: { number: number }) {
 function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number }) {
   const ayah = surah.ayahs[ayahIndex];
   const maskMode = useReaderStore((s) => s.maskMode);
+  const blurScope = useReaderStore((s) => s.blurScope);
   const showTranslation = useReaderStore((s) => s.showTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
   const revealedWords = useReaderStore((s) => s.revealedWords);
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
   const revealWord = useReaderStore((s) => s.revealWord);
+  const revealAll = useReaderStore((s) => s.revealAll);
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const live = useLiveWords();
 
@@ -33,6 +35,9 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
   const activeIndex = usePlayback((p) => (isSelected ? p.activeIndex : -1));
   const words =
     live && live.verseKey === ayah.verse_key ? live.words : ayah.words;
+
+  const ayahScoped = maskMode === "BLUR" && blurScope === "ayah";
+  const allRevealed = ayahScoped && words.every((w) => revealedWords.has(w.id));
 
   return (
     <div
@@ -46,21 +51,40 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
       )}
     >
       <p dir="rtl" lang="ar" className="text-right leading-[2.3]">
-          {words.map((word, i) => (
-            <VerseWord
-              key={word.id}
-              word={word}
-              mode={maskMode}
-              revealed={revealedWords.has(word.id)}
-              active={i === activeIndex}
-              showTranslation={showTranslation && isSelected}
-              showRoots={showRoots && isSelected}
-              onReveal={() => {
+          {ayahScoped && !allRevealed ? (
+            <span
+              onClick={(e) => {
+                e.stopPropagation();
                 if (!isSelected) selectAyah(ayah.verse_key);
-                revealWord(word.id);
+                revealAll(words.map((w) => w.id));
               }}
-            />
-          ))}
+              className="inline cursor-pointer blur-[6px] transition-[filter] duration-300 hover:blur-[3px]"
+              title="Tap to reveal entire verse"
+            >
+              {words.map((word) => (
+                <span key={word.id} className="mx-[0.12em]">
+                  {word.text_uthmani}
+                </span>
+              ))}
+            </span>
+          ) : (
+            words.map((word, i) => (
+              <VerseWord
+                key={word.id}
+                word={word}
+                mode={maskMode}
+                revealed={revealedWords.has(word.id)}
+                active={i === activeIndex}
+                showTranslation={showTranslation && isSelected}
+                showRoots={showRoots && isSelected}
+                ayahScoped={ayahScoped}
+                onReveal={() => {
+                  if (!isSelected) selectAyah(ayah.verse_key);
+                  revealWord(word.id);
+                }}
+              />
+            ))
+          )}
           <span className={cn(isSelected && "ring-2 ring-amber-400 rounded-full")}>
             <AyahMarker number={ayah.ayah_number} />
           </span>
@@ -71,9 +95,13 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
 
 function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
   const maskMode = useReaderStore((s) => s.maskMode);
+  const blurScope = useReaderStore((s) => s.blurScope);
   const revealedWords = useReaderStore((s) => s.revealedWords);
   const revealWord = useReaderStore((s) => s.revealWord);
+  const revealAll = useReaderStore((s) => s.revealAll);
   const selectAyah = useReaderStore((s) => s.selectAyah);
+
+  const ayahScoped = maskMode === "BLUR" && blurScope === "ayah";
 
   return (
     <div
@@ -82,30 +110,50 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
       style={{ textAlign: "justify", textAlignLast: "center" }}
       className="leading-[2.6]"
     >
-      {ayahs.map((ayah) => (
-        <span key={ayah.verse_key}>
-          {ayah.words.map((word) => (
-            <Fragment key={word.id}>
-              <VerseWord
-                word={word}
-                mode={maskMode}
-                revealed={revealedWords.has(word.id)}
-                active={false}
-                showTranslation={false}
-                showRoots={false}
-                onReveal={() => revealWord(word.id)}
-              />{" "}
-            </Fragment>
-          ))}
-          <button
-            onClick={() => selectAyah(ayah.verse_key)}
-            title={`Select ${ayah.verse_key}`}
-            className="cursor-pointer align-middle"
-          >
-            <AyahMarker number={ayah.ayah_number} />
-          </button>{" "}
-        </span>
-      ))}
+      {ayahs.map((ayah) => {
+        const allRevealed = ayahScoped && ayah.words.every((w) => revealedWords.has(w.id));
+        return (
+          <span key={ayah.verse_key}>
+            {ayahScoped && !allRevealed ? (
+              <span
+                onClick={() => {
+                  revealAll(ayah.words.map((w) => w.id));
+                }}
+                className="inline cursor-pointer blur-[6px] transition-[filter] duration-300 hover:blur-[3px]"
+                title={`Tap to reveal ${ayah.verse_key}`}
+              >
+                {ayah.words.map((w) => (
+                  <span key={w.id} className="mx-[0.12em]">
+                    {w.text_uthmani}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              ayah.words.map((word) => (
+                <Fragment key={word.id}>
+                  <VerseWord
+                    word={word}
+                    mode={maskMode}
+                    revealed={revealedWords.has(word.id)}
+                    active={false}
+                    showTranslation={false}
+                    showRoots={false}
+                    ayahScoped={ayahScoped}
+                    onReveal={() => revealWord(word.id)}
+                  />{" "}
+                </Fragment>
+              ))
+            )}
+            <button
+              onClick={() => selectAyah(ayah.verse_key)}
+              title={`Select ${ayah.verse_key}`}
+              className="cursor-pointer align-middle"
+            >
+              <AyahMarker number={ayah.ayah_number} />
+            </button>{" "}
+          </span>
+        );
+      })}
     </div>
   );
 }

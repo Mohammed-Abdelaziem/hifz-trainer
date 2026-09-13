@@ -1,4 +1,5 @@
 export type MaskMode = "FULL" | "BLUR" | "FIRST_LETTER" | "REVEAL";
+export type BlurScope = "ayah" | "word";
 
 export type LayoutMode = "FLOW" | "MUSHAF";
 
