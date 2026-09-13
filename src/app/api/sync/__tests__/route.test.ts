@@ -35,6 +35,15 @@ describe("/api/sync", () => {
     expect(data.count).toBe(114);
   });
 
+  it("GET returns 500 when getSyncStatus throws", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1" });
+    (getSyncStatus as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("sync error"));
+    const res = await GET();
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Failed to read sync status");
+  });
+
   it("POST returns 401 for unauthenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     const req = new Request("http://localhost/api/sync", {
@@ -65,5 +74,20 @@ describe("/api/sync", () => {
     expect(data.ok).toBe(true);
     expect(data.synced).toBe(5);
     expect(syncFullQuran).toHaveBeenCalled();
+  });
+
+  it("POST returns 500 when syncFullQuran throws", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+    (syncFullQuran as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("sync crash"));
+
+    const req = new Request("http://localhost/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Sync failed");
   });
 });

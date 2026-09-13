@@ -37,7 +37,10 @@ export async function GET() {
     since.setHours(0, 0, 0, 0);
 
     const logs = await db.reviewLog.findMany({
-      where: { userId: user.id },
+      where: {
+        userId: user.id,
+        createdAt: { gte: new Date(Date.now() - 30 * 86_400_000) },
+      },
       select: {
         createdAt: true,
         grade: true,

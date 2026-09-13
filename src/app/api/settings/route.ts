@@ -7,12 +7,17 @@ export const dynamic = "force-dynamic";
 const VALID_SCHEDULERS = new Set(["sm2", "fsrs"]);
 
 export async function GET() {
-  const user = await getSessionUser();
-  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
-  return Response.json({
-    scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
-    requestRetention: user.requestRetention ?? 0.9,
-  });
+  try {
+    const user = await getSessionUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({
+      scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
+      requestRetention: user.requestRetention ?? 0.9,
+    });
+  } catch (err) {
+    console.error("[/api/settings]", err);
+    return Response.json({ error: "Failed to load settings" }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {

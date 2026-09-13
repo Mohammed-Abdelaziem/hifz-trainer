@@ -73,6 +73,7 @@ export function SearchBar() {
           }}
           onFocus={() => setOpen(true)}
           placeholder="Search verses..."
+          aria-label="Search verses"
           className="w-full bg-transparent text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
         />
         {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-stone-400" />}

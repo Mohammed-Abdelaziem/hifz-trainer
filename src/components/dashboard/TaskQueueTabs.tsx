@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUpRight, BookOpen, ArrowRight } from "lucide-react";
 import type { DailyQueue, QueueItem } from "@/types/srs";
-import { cn, formatDueIn } from "@/lib/utils";
+import { cn, formatDueIn, toArabicDigits } from "@/lib/utils";
 
 type Bucket = "sabaq" | "sabqi" | "manzil";
 
@@ -58,7 +58,7 @@ function QueueRow({ item }: { item: QueueItem }) {
       className="group flex items-center gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors hover:border-stone-200 hover:bg-stone-50 dark:hover:border-stone-700 dark:hover:bg-stone-800/60"
     >
       <span className="font-quran text-xl leading-none" dir="rtl" lang="ar">
-        ﴿{toArabicAyah(item.ayahNumber)}﴾
+        ﴿{toArabicDigits(item.ayahNumber)}﴾
       </span>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">
@@ -80,11 +80,6 @@ function QueueRow({ item }: { item: QueueItem }) {
       <ArrowUpRight className="h-4 w-4 shrink-0 text-stone-300 transition-transform group-hover:translate-x-0.5 group-hover:text-amber-600 dark:text-stone-600" />
     </Link>
   );
-}
-
-function toArabicAyah(n: number): string {
-  const digits = ["٠", "١", "٢", "٣", "٤", "٥", "٦", "٧", "٨", "٩"];
-  return String(n).split("").map((d) => digits[Number(d)] ?? d).join("");
 }
 
 export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {

@@ -58,6 +58,6 @@ export async function GET(req: Request) {
     return Response.json({ results, query: q });
   } catch (err) {
     console.error("[/api/search]", err);
-    return Response.json({ results: [], query: "" });
+    return Response.json({ error: "Search failed" }, { status: 500 });
   }
 }

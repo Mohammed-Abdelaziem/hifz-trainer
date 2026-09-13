@@ -10,7 +10,8 @@ export async function GET() {
     const user = await getSessionUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     return Response.json(await getSyncStatus());
-  } catch {
+  } catch (err) {
+    console.error("[/api/sync]", err);
     return Response.json({ error: "Failed to read sync status" }, { status: 500 });
   }
 }
@@ -31,7 +32,8 @@ export async function POST(req: Request) {
 
     const report = await syncFullQuran();
     return Response.json(report, { status: report.ok ? 200 : 502 });
-  } catch {
+  } catch (err) {
+    console.error("[/api/sync]", err);
     return Response.json({ error: "Sync failed" }, { status: 500 });
   }
 }

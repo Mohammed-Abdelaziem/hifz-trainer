@@ -29,11 +29,12 @@ describe("/api/queue", () => {
     expect(data.error).toBe("Unauthorized");
   });
 
-  it("returns empty queue when DB throws", async () => {
+  it("returns 500 when getSessionUser throws", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db down"));
     const res = await GET();
+    expect(res.status).toBe(500);
     const data = await res.json();
-    expect(data.sabaq).toEqual([]);
+    expect(data.error).toBe("Failed to load queue");
   });
 
   it("returns actual queue for authenticated users", async () => {
@@ -56,11 +57,12 @@ describe("/api/queue", () => {
     expect(buildDailyQueue).toHaveBeenCalledWith("u1");
   });
 
-  it("returns empty queue when buildDailyQueue throws", async () => {
+  it("returns 500 when buildDailyQueue throws", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
     (buildDailyQueue as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db fail"));
     const res = await GET();
+    expect(res.status).toBe(500);
     const data = await res.json();
-    expect(data.sabaq).toEqual([]);
+    expect(data.error).toBe("Failed to load queue");
   });
 });

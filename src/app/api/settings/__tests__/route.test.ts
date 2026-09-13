@@ -33,6 +33,14 @@ describe("/api/settings", () => {
     expect(data.requestRetention).toBe(0.85);
   });
 
+  it("GET returns 500 when getSessionUser throws", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("auth crash"));
+    const res = await GET();
+    expect(res.status).toBe(500);
+    const data = await res.json();
+    expect(data.error).toBe("Failed to load settings");
+  });
+
   it("GET normalizes non-fsrs scheduler to sm2", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1", scheduler: "other", requestRetention: 0.9 });
     const res = await GET();

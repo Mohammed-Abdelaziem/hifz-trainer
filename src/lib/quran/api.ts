@@ -3,7 +3,7 @@ import { getDb } from "@/lib/db";
 import { FIXTURE_SURAHS } from "./fixtures";
 import { everyAyahUrl, synthTimings } from "./timings";
 
-export interface SurahNavItem {
+interface SurahNavItem {
   id: number;
   name_arabic: string;
   name_simple: string;

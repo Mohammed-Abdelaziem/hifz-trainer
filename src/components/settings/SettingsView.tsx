@@ -42,11 +42,15 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
         throw new Error(data?.error ?? "Failed to save");
       }
       if (dailyTarget !== (user?.dailyTargetCount ?? 10)) {
-        await fetch("/api/settings/target", {
+        const targetRes = await fetch("/api/settings/target", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ dailyTargetCount: dailyTarget }),
         });
+        if (!targetRes.ok) {
+          const data = await targetRes.json().catch(() => null);
+          throw new Error(data?.error ?? "Failed to save daily target");
+        }
       }
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);

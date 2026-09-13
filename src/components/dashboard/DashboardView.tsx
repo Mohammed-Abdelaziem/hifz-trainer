@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Clock, Sparkles } from "lucide-react";
@@ -17,13 +17,12 @@ import { WeeklyChartWrapper } from "./WeeklyChartWrapper";
 function SchedulerControls({ active, retention }: { active: SchedulerKind; retention: number }) {
   const queryClient = useQueryClient();
   const [retentionDraft, setRetentionDraft] = useState(Math.round(retention * 100));
-  const [lastSeenRetention, setLastSeenRetention] = useState(retention);
   const [saving, setSaving] = useState(false);
 
-  if (lastSeenRetention !== retention) {
-    setLastSeenRetention(retention);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRetentionDraft(Math.round(retention * 100));
-  }
+  }, [retention]);
 
   async function patch(payload: Record<string, unknown>) {
     setSaving(true);

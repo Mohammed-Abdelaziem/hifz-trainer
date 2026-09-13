@@ -1,7 +1,6 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { randomBytes } from "node:crypto";
 import {
   createSession,
   destroySession,
@@ -11,7 +10,6 @@ import {
   resetFailedLogins,
   revokeAllSessions,
 } from "@/lib/server/auth";
-import { ensureDemoUser, getOrCreateUser } from "@/lib/server/hifz-service";
 import { getGoogleAuthUrl, getGitHubAuthUrl, createOAuthState } from "@/lib/server/oauth";
 import { getDbWithTest } from "@/lib/db";
 
@@ -80,15 +78,6 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
     ? await db.user.update({ where: { id: existing.id }, data: { passwordHash, lastPasswordChangedAt: new Date() } })
     : await db.user.create({ data: { email: creds.email, passwordHash, lastPasswordChangedAt: new Date() } });
 
-  await createSession(user.id, true);
-  redirect("/");
-}
-
-export async function demoSignInAction(): Promise<void> {
-  const demoEmail = `demo-${randomBytes(8).toString("hex")}@hifz.local`;
-  const demoPassword = randomBytes(16).toString("hex");
-  await ensureDemoUser(demoEmail, await hashPassword(demoPassword));
-  const user = await getOrCreateUser(demoEmail);
   await createSession(user.id, true);
   redirect("/");
 }

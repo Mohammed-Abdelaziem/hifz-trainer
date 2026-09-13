@@ -3,16 +3,6 @@ import { getSessionUser } from "@/lib/server/auth";
 
 export const dynamic = "force-dynamic";
 
-const EMPTY_QUEUE = {
-  sabaq: [],
-  sabqi: [],
-  manzil: [],
-  estimatedMinutes: 0,
-  scheduler: "sm2" as const,
-  requestRetention: 0.9,
-  streak: { current: 0, longest: 0, dailyTargetCount: 5, todayReviewed: 0 },
-};
-
 export async function GET() {
   try {
     const user = await getSessionUser();
@@ -21,6 +11,6 @@ export async function GET() {
     return Response.json(queue);
   } catch (err) {
     console.error("[/api/queue]", err);
-    return Response.json(EMPTY_QUEUE);
+    return Response.json({ error: "Failed to load queue" }, { status: 500 });
   }
 }

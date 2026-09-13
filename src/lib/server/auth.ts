@@ -1,7 +1,6 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import type { User } from "../../../generated/prisma";
 import { getDbWithTest } from "@/lib/db";
 
@@ -162,8 +161,4 @@ export async function resetFailedLogins(userId: string): Promise<void> {
   });
 }
 
-export async function requirePageUser(): Promise<User> {
-  const user = await getSessionUser();
-  if (!user) redirect("/login");
-  return user;
-}
+

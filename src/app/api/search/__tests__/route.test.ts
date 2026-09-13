@@ -150,11 +150,12 @@ describe("/api/search", () => {
     );
   });
 
-  it("returns empty results on DB failure", async () => {
+  it("returns 500 on DB failure", async () => {
     (getDb as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db down"));
     const res = await GET(makeRequest("test"));
+    expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.results).toEqual([]);
+    expect(body.error).toBe("Search failed");
   });
 
   it("trims query whitespace", async () => {
