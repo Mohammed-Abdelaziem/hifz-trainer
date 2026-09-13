@@ -151,7 +151,7 @@ export default async function BlogPostPage({ params }: Props) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd).replace(/</g, "\\u003c").replace(/>/g, "\\u003e") }}
       />
 
       <article className="mx-auto max-w-3xl flex-1 px-4 py-12">

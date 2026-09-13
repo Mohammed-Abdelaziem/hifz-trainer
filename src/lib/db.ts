@@ -58,11 +58,11 @@ export function sanitizeUrl(url: string | null | undefined): string | null {
   }
 }
 
-export function toAbsoluteUrl(base: string, path: string): string {
+export function toAbsoluteUrl(base: string, path: string): string | null {
   try {
     return new URL(path, base).toString();
   } catch {
-    return path;
+    return null;
   }
 }
 

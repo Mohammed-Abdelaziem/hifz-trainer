@@ -21,6 +21,10 @@ export async function POST(req: Request) {
     const user = await getSessionUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
+    if (user.role !== "admin") {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const scope = new URL(req.url).searchParams.get("scope");
     if (scope === "words") {
       const limitRaw = Number(new URL(req.url).searchParams.get("limit") ?? "");
@@ -31,7 +35,10 @@ export async function POST(req: Request) {
     }
 
     const report = await syncFullQuran();
-    return Response.json(report, { status: report.ok ? 200 : 502 });
+    return Response.json(
+      { ok: report.ok, surahs: report.surahs, verses: report.verses, failedPages: report.failedPages, durationMs: report.durationMs },
+      { status: report.ok ? 200 : 502 }
+    );
   } catch (err) {
     console.error("[/api/sync]", err);
     return Response.json({ error: "Sync failed" }, { status: 500 });

@@ -25,13 +25,18 @@ export async function POST(req: Request) {
     for (const review of body.reviews) {
       if (!review.verseKey || !review.grade) continue;
       if (!VALID_GRADES.includes(review.grade)) continue;
+      if (!/^\d{1,3}:\d{1,3}$/.test(review.verseKey)) continue;
+
+      const durationMs = typeof review.durationMs === "number" && Number.isFinite(review.durationMs) && review.durationMs >= 0 && review.durationMs <= 3600000
+        ? review.durationMs
+        : undefined;
 
       try {
         const result = await recordReview({
           userId: user.id,
           verseKey: review.verseKey,
           grade: review.grade as "AGAIN" | "HARD" | "GOOD" | "EASY",
-          durationMs: review.durationMs,
+          durationMs,
         });
         results.push({ verseKey: review.verseKey, ok: true, result: result.result });
       } catch {

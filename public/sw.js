@@ -212,16 +212,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   if (isReviewApi(url) && request.method === "POST") {
-    event.respondWith(
-      networkFirst(
-        request,
-        DATA_CACHE,
-        new Response(JSON.stringify({ offline: true, queued: true }), {
-          status: 503,
-          headers: { "Content-Type": "application/json" },
-        })
-      )
-    );
+    event.respondWith(fetch(request));
     return;
   }
 

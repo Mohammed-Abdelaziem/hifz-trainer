@@ -57,11 +57,14 @@ describe("/api/sync", () => {
     expect(data.error).toBe("Unauthorized");
   });
 
-  it("POST syncs for authenticated users", async () => {
-    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+  it("POST syncs for authenticated admin users", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1", role: "admin" });
     (syncFullQuran as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
-      synced: 5,
+      surahs: 114,
+      verses: 6236,
+      failedPages: [],
+      durationMs: 12345,
     });
 
     const req = new Request("http://localhost/api/sync", {
@@ -72,12 +75,24 @@ describe("/api/sync", () => {
     const res = await POST(req);
     const data = await res.json();
     expect(data.ok).toBe(true);
-    expect(data.synced).toBe(5);
+    expect(data.surahs).toBe(114);
     expect(syncFullQuran).toHaveBeenCalled();
   });
 
+  it("POST returns 403 for non-admin users", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1", role: "user" });
+
+    const req = new Request("http://localhost/api/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(403);
+  });
+
   it("POST returns 500 when syncFullQuran throws", async () => {
-    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1", role: "admin" });
     (syncFullQuran as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("sync crash"));
 
     const req = new Request("http://localhost/api/sync", {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Lock } from "lucide-react";
 import { MIN_RETENTION, MAX_RETENTION } from "@/lib/srs/fsrs";
 import { DAILY_TARGET_MIN, DAILY_TARGET_MAX } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,13 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [pwSaving, setPwSaving] = useState(false);
+  const [pwSaved, setPwSaved] = useState(false);
+  const [pwError, setPwError] = useState<string | null>(null);
 
   async function handleSave() {
     setSaving(true);
@@ -59,6 +66,37 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handlePasswordChange() {
+    setPwSaving(true);
+    setPwError(null);
+    setPwSaved(false);
+    try {
+      const fd = new FormData();
+      fd.set("oldPassword", oldPassword);
+      fd.set("newPassword", newPassword);
+      fd.set("confirmPassword", confirmPassword);
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        body: fd,
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Failed to change password");
+      }
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setPwSaved(true);
+      setOldPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setPwSaved(false), 3000);
+    } catch (e: unknown) {
+      setPwError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setPwSaving(false);
     }
   }
 
@@ -193,6 +231,78 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
             </p>
           </CardContent>
         </Card>
+
+        {!isGuest && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Lock className="h-4 w-4" />
+                Change Password
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                  Current Password
+                </label>
+                <input
+                  type="password"
+                  value={oldPassword}
+                  onChange={(e) => setOldPassword(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
+                  autoComplete="current-password"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                  New Password
+                </label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
+                  autoComplete="new-password"
+                />
+                <p className="mt-1 text-[11px] text-stone-400">
+                  12+ chars, at least 3 of: uppercase, lowercase, digit, symbol
+                </p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                  Confirm New Password
+                </label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
+                  autoComplete="new-password"
+                />
+              </div>
+              {pwError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{pwError}</p>
+              )}
+              {pwSaved && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                  Password changed. You&apos;ve been signed in on this device.
+                </p>
+              )}
+              <Button
+                onClick={handlePasswordChange}
+                disabled={pwSaving || !oldPassword || !newPassword || !confirmPassword}
+                variant="outline"
+              >
+                {pwSaving ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Lock className="mr-2 h-4 w-4" />
+                )}
+                Update Password
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

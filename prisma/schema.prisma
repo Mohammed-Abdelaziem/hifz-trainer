@@ -21,6 +21,7 @@ model User {
   lastPasswordChangedAt  DateTime?
   failedLoginAttempts    Int       @default(0)
   lockedUntil            DateTime?
+  role                   String    @default("user")
 
   sessions     Session[]
   memoryStates UserMemoryState[]

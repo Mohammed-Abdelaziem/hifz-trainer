@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       userId: user.id,
       verseKey,
       grade: grade as Grade,
-      durationMs: typeof durationMs === "number" ? durationMs : undefined,
+      durationMs: typeof durationMs === "number" && Number.isFinite(durationMs) && durationMs >= 0 && durationMs <= 3600000 ? durationMs : undefined,
     });
     return Response.json({ ok: true, ...data });
   } catch (err) {

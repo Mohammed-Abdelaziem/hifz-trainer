@@ -1,3 +1,7 @@
+function safeStringify(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e");
+}
+
 export function JsonLd() {
   const webAppSchema = {
     "@context": "https://schema.org",
@@ -42,7 +46,7 @@ export function JsonLd() {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schemas) }}
+      dangerouslySetInnerHTML={{ __html: safeStringify(schemas) }}
     />
   );
 }

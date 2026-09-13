@@ -171,7 +171,7 @@ export async function syncFullQuran(): Promise<SyncReport> {
       verses: 0,
       failedPages,
       durationMs: Date.now() - startedAt,
-      error: err instanceof Error ? err.message : "Unknown sync failure",
+      error: "Sync failed",
     };
   }
 }
