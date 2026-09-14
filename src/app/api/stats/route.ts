@@ -8,10 +8,12 @@ export const INTERVAL_BUCKETS = ["≤1d", "1–3d", "3–7d", "7–21d", ">21d"]
 
 export interface ReviewStats {
   totalReviews: number;
+  totalReads: number;
   activeDays: number;
+  readDays: number;
   avgDurationMs: number;
   grades: Record<string, number>;
-  perDay: { date: string; count: number }[];
+  perDay: { date: string; count: number; reads: number }[];
   schedulerCompare: {
     buckets: string[];
     sm2: number[];
@@ -37,26 +39,38 @@ export async function GET() {
     since.setDate(since.getDate() - 29);
     since.setHours(0, 0, 0, 0);
 
-    const logs = await db.reviewLog.findMany({
-      where: {
-        userId: user.id,
-        createdAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
-      },
-      select: {
-        createdAt: true,
-        grade: true,
-        reviewDurationMs: true,
-        intervalDays: true,
-        scheduler: true,
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const [logs, reads] = await Promise.all([
+      db.reviewLog.findMany({
+        where: {
+          userId: user.id,
+          createdAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
+        },
+        select: {
+          createdAt: true,
+          grade: true,
+          reviewDurationMs: true,
+          intervalDays: true,
+          scheduler: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+      db.readingLog.findMany({
+        where: {
+          userId: user.id,
+          createdAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
+        },
+        select: {
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    ]);
 
-    const perDayMap = new Map<string, number>();
+    const perDayMap = new Map<string, { count: number; reads: number }>();
     for (let i = 0; i < 30; i++) {
       const d = new Date(since);
       d.setDate(d.getDate() + i);
-      perDayMap.set(d.toISOString().slice(0, 10), 0);
+      perDayMap.set(d.toISOString().slice(0, 10), { count: 0, reads: 0 });
     }
 
     const grades: Record<string, number> = { AGAIN: 0, HARD: 0, GOOD: 0, EASY: 0 };
@@ -70,7 +84,7 @@ export async function GET() {
     for (const log of logs) {
       const key = log.createdAt.toISOString().slice(0, 10);
       if (perDayMap.has(key)) {
-        perDayMap.set(key, (perDayMap.get(key) ?? 0) + 1);
+        perDayMap.get(key)!.count += 1;
         recentCount += 1;
         durationSum += log.reviewDurationMs;
         grades[log.grade] = (grades[log.grade] ?? 0) + 1;
@@ -84,12 +98,21 @@ export async function GET() {
       }
     }
 
+    for (const read of reads) {
+      const key = read.createdAt.toISOString().slice(0, 10);
+      if (perDayMap.has(key)) {
+        perDayMap.get(key)!.reads += 1;
+      }
+    }
+
     const stats: ReviewStats = {
       totalReviews: logs.length,
-      activeDays: [...perDayMap.values()].filter((c) => c > 0).length,
+      totalReads: reads.length,
+      activeDays: [...perDayMap.values()].filter((d) => d.count > 0).length,
+      readDays: [...perDayMap.values()].filter((d) => d.reads > 0).length,
       avgDurationMs: recentCount > 0 ? Math.round(durationSum / recentCount) : 0,
       grades,
-      perDay: [...perDayMap.entries()].map(([date, count]) => ({ date, count })),
+      perDay: [...perDayMap.entries()].map(([date, d]) => ({ date, count: d.count, reads: d.reads })),
       schedulerCompare: {
         buckets: [...INTERVAL_BUCKETS],
         sm2: sm2Buckets,

@@ -14,31 +14,37 @@ const TOTAL_PAGES = 604;
 
 type GridMode = "pages" | "surahs";
 
-function aggregate(cells: MemoryCell[]): { score: number | null; total: number; tracked: number } {
+function aggregate(cells: MemoryCell[]): { score: number | null; total: number; tracked: number; read: number } {
   const trackedCells = cells.filter((c) => c.stability !== null);
-  if (trackedCells.length === 0) return { score: null, total: cells.length, tracked: 0 };
+  const readCells = cells.filter((c) => c.readCount > 0 && c.stability === null);
+  if (trackedCells.length === 0) return { score: null, total: cells.length, tracked: 0, read: readCells.length };
   const avg =
     trackedCells.reduce((sum, c) => sum + (c.stability ?? 0), 0) / trackedCells.length;
   return {
     score: Math.round(avg),
     total: cells.length,
     tracked: trackedCells.length,
+    read: readCells.length,
   };
 }
 
 function Cell({
   score,
+  readCount,
   label,
   sublabel,
   large,
   href,
 }: {
   score: number | null;
+  readCount?: number;
   label: string;
   sublabel?: string;
   large?: boolean;
   href?: string;
 }) {
+  const isRead = (!score && score !== 0) && (readCount ?? 0) > 0;
+  const bgColor = isRead ? "#bae6fd" : stabilityColor(score);
   const body = (
     <motion.div
       initial={{ opacity: 0 }}
@@ -50,7 +56,7 @@ function Cell({
         href && "cursor-pointer"
       )}
       style={{
-        backgroundColor: stabilityColor(score),
+        backgroundColor: bgColor,
         color: score !== null && score >= 60 ? "#fff" : undefined,
         outline: score !== null && score < 20 ? "2px solid #fecaca" : "none",
       }}
@@ -95,17 +101,21 @@ export function MushafGrid() {
     const verses = data?.verses ?? [];
     const counts = { SABAQ: 0, SABQI: 0, MANZIL: 0 };
     let tracked = 0;
+    let readOnly = 0;
     let sum = 0;
     for (const v of verses) {
       if (v.state && v.stability !== null) {
         counts[v.state] += 1;
         tracked += 1;
         sum += v.stability;
+      } else if (v.readCount > 0) {
+        readOnly += 1;
       }
     }
     return {
       ...counts,
-      untracked: verses.length - tracked,
+      readOnly,
+      untracked: verses.length - tracked - readOnly,
       avgStability: tracked > 0 ? Math.round(sum / tracked) : null,
     };
   }, [data]);
@@ -148,6 +158,9 @@ export function MushafGrid() {
             </span>
           ))}
           <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
+            <span className="h-3 w-3 rounded-sm bg-sky-200" /> Read only
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
             <span className="h-3 w-3 rounded-sm bg-stone-300" /> Not started
           </span>
         </div>
@@ -162,14 +175,16 @@ export function MushafGrid() {
               const cells = bySurah.get(n) ?? [];
               const agg = aggregate(cells);
               const name = cells[0]?.surahName ?? `Surah ${n}`;
+              const readCount = cells.reduce((sum, c) => sum + c.readCount, 0);
               return (
                 <Cell
                   key={n}
                   large
                   score={agg.score}
+                  readCount={readCount}
                   label={String(n)}
-                  href={agg.tracked > 0 ? `/reader/${n}` : undefined}
-                  sublabel={`${name}${agg.tracked ? ` · ${agg.tracked}/${agg.total} verses · stability ${agg.score}` : " · not started"}`}
+                  href={agg.tracked > 0 || agg.read > 0 ? `/reader/${n}` : undefined}
+                  sublabel={`${name}${agg.tracked ? ` · ${agg.tracked}/${agg.total} verses · stability ${agg.score}` : agg.read > 0 ? ` · ${agg.read} read` : " · not started"}`}
                 />
               );
             })}
@@ -183,23 +198,25 @@ export function MushafGrid() {
                 <Cell
                   key={n}
                   score={agg.score}
+                  readCount={cells.reduce((sum, c) => sum + c.readCount, 0)}
                   label={`Page ${n}`}
                   href={
-                    agg.tracked > 0 && cells[0]
+                    agg.tracked > 0 || agg.read > 0 && cells[0]
                       ? `/reader/${cells[0].surahId}?verse=${cells[0].verseKey}`
                       : undefined
                   }
-                  sublabel={agg.tracked ? `${agg.tracked}/${agg.total} verses · stability ${agg.score}` : "not started"}
+                  sublabel={agg.tracked ? `${agg.tracked}/${agg.total} verses · stability ${agg.score}` : agg.read > 0 ? `${agg.read} read` : "not started"}
                 />
               );
             })}
           </div>
         )}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-4 text-center sm:grid-cols-4 dark:border-stone-800">
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-4 text-center sm:grid-cols-5 dark:border-stone-800">
           <Stat value={stats.SABAQ} label="Sabaq" accentClass="text-amber-600" />
           <Stat value={stats.SABQI} label="Sabqi" accentClass="text-emerald-600" />
           <Stat value={stats.MANZIL} label="Manzil" accentClass="text-sky-600" />
+          <Stat value={stats.readOnly} label="Read only" accentClass="text-sky-500" />
           <Stat
             value={stats.avgStability !== null ? `${stats.avgStability}%` : "—"}
             label="Avg stability"

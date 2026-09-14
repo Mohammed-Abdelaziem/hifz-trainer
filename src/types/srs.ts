@@ -5,6 +5,7 @@ export interface StreakInfo {
   longest: number;
   dailyTargetCount: number;
   todayReviewed: number;
+  todayRead: number;
 }
 
 export interface QueueItem {
@@ -37,6 +38,7 @@ export interface MemoryCell {
   intervalDays: number;
   dueAt: string | null;
   stability: number | null;
+  readCount: number;
 }
 
 export interface MemoryMapPayload {

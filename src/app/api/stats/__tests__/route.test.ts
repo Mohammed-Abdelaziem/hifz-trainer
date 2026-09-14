@@ -34,6 +34,9 @@ describe("/api/stats", () => {
           { createdAt: new Date("2026-08-29T10:00:00Z"), grade: "AGAIN", reviewDurationMs: 2000, intervalDays: 1, scheduler: "fsrs" },
         ]),
       },
+      readingLog: {
+        findMany: vi.fn().mockResolvedValue([]),
+      },
     };
     (getDb as ReturnType<typeof vi.fn>).mockResolvedValue(db);
 

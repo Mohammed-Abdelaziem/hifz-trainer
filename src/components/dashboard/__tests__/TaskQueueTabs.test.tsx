@@ -21,7 +21,7 @@ const queue: DailyQueue = {
   estimatedMinutes: 2,
   scheduler: "sm2",
   requestRetention: 0.9,
-  streak: { current: 1, longest: 1, dailyTargetCount: 10, todayReviewed: 0 },
+  streak: { current: 1, longest: 1, dailyTargetCount: 10, todayReviewed: 0, todayRead: 0 },
 };
 
 describe("TaskQueueTabs", () => {

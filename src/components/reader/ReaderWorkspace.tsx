@@ -177,6 +177,27 @@ export function ReaderWorkspace({
     resetRevealed(target);
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
+  const readTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastReadVerseRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!selected || isGuest) return;
+    const verseKey = selected.verse_key;
+    if (lastReadVerseRef.current === verseKey) return;
+    lastReadVerseRef.current = verseKey;
+    if (readTimerRef.current) clearTimeout(readTimerRef.current);
+    readTimerRef.current = setTimeout(() => {
+      fetch("/api/reading", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verseKey }),
+      }).catch(() => {});
+    }, 2000);
+    return () => {
+      if (readTimerRef.current) clearTimeout(readTimerRef.current);
+    };
+  }, [selected, isGuest]);
+
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {
       void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {

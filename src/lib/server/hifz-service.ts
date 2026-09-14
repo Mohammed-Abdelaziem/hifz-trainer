@@ -86,11 +86,15 @@ export async function ensureDemoUser(email: string, passwordHash: string) {
 }
 
 function computeStreak(
-  user: { currentStreak: number; longestStreak: number; lastActiveDate: Date | null },
+  user: { currentStreak: number; longestStreak: number; lastActiveDate: Date | null; lastReadDate: Date | null },
   now: Date
-): { currentStreak: number; longestStreak: number; lastActiveDate: Date } {
+): { currentStreak: number; longestStreak: number; lastActiveDate: Date; lastReadDate: Date } {
   const today = startOfDay(now);
-  const last = user.lastActiveDate ? startOfDay(user.lastActiveDate) : null;
+  const lastReview = user.lastActiveDate ? startOfDay(user.lastActiveDate) : null;
+  const lastRead = user.lastReadDate ? startOfDay(user.lastReadDate) : null;
+  const last = lastReview && lastRead
+    ? new Date(Math.max(lastReview.getTime(), lastRead.getTime()))
+    : lastReview ?? lastRead;
   let streak = user.currentStreak;
 
   if (!last) {
@@ -106,6 +110,7 @@ function computeStreak(
     currentStreak: streak,
     longestStreak: Math.max(user.longestStreak, streak),
     lastActiveDate: now,
+    lastReadDate: now,
   };
 }
 
@@ -235,6 +240,13 @@ export async function recordReview(params: {
     },
   });
 
+  const todayRead = await db.readingLog.count({
+    where: {
+      userId: params.userId,
+      createdAt: { gte: startOfDay(now) },
+    },
+  });
+
   return {
     result: {
       verseKey: params.verseKey,
@@ -251,12 +263,50 @@ export async function recordReview(params: {
       longest: streakFields.longestStreak,
       dailyTargetCount: user.dailyTargetCount,
       todayReviewed,
+      todayRead,
     },
   };
 }
 
 function surahName(surahId: number): string {
   return FIXTURE_SURAHS[surahId]?.name_simple ?? `Surah ${surahId}`;
+}
+
+export async function recordReading(params: {
+  userId: string;
+  verseKey: string;
+  durationMs?: number;
+}): Promise<void> {
+  const db = await getDb();
+  const now = new Date();
+
+  await db.$transaction([
+    db.readingLog.create({
+      data: {
+        userId: params.userId,
+        verseKey: params.verseKey,
+        durationMs: Math.round(params.durationMs ?? 0),
+      },
+    }),
+    db.userMemoryState.upsert({
+      where: { userId_verseKey: { userId: params.userId, verseKey: params.verseKey } },
+      create: {
+        userId: params.userId,
+        verseKey: params.verseKey,
+        state: "SABAQ",
+        lastReadAt: now,
+        readCount: 1,
+      },
+      update: {
+        lastReadAt: now,
+        readCount: { increment: 1 },
+      },
+    }),
+    db.user.update({
+      where: { id: params.userId },
+      data: { lastReadDate: now },
+    }),
+  ]);
 }
 
 export async function buildMemoryMap(userId: string): Promise<MemoryCell[]> {
@@ -291,6 +341,7 @@ export async function buildMemoryMap(userId: string): Promise<MemoryCell[]> {
         ms?.dueDate ?? null,
         now
       ),
+      readCount: ms?.readCount ?? 0,
     };
   });
 }
@@ -331,6 +382,10 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     where: { userId, createdAt: { gte: startOfDay(new Date()) } },
   });
 
+  const todayRead = await db.readingLog.count({
+    where: { userId, createdAt: { gte: startOfDay(new Date()) } },
+  });
+
   return {
     sabaq: buckets.SABAQ,
     sabqi: buckets.SABQI,
@@ -343,6 +398,7 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
       longest: user.longestStreak,
       dailyTargetCount: user.dailyTargetCount,
       todayReviewed,
+      todayRead,
     },
   };
 }

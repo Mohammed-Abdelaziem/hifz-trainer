@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { Clock, Sparkles } from "lucide-react";
+import { Clock, Sparkles, BookOpen } from "lucide-react";
 import { useQueue } from "@/hooks/use-srs-data";
 import type { SchedulerKind } from "@/types/quran";
 import { Card } from "@/components/ui/card";
@@ -151,6 +151,19 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
             <GoalRing streak={queue.streak} />
             <StreakCard streak={queue.streak} />
           </div>
+
+          {queue.streak.todayRead > 0 && (
+            <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-800 dark:bg-sky-950/20">
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-sky-600 dark:text-sky-400" />
+                <h3 className="text-sm font-semibold text-sky-700 dark:text-sky-300">Reading Activity</h3>
+              </div>
+              <p className="mt-1 text-xs text-sky-600 dark:text-sky-400">
+                You&apos;ve read <strong>{queue.streak.todayRead}</strong> verse{queue.streak.todayRead === 1 ? "" : "s"} today.
+                Reading counts toward your streak even without grading.
+              </p>
+            </div>
+          )}
 
           <div className="mb-4">
             <WeeklyChartWrapper />

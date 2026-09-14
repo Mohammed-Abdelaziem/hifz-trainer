@@ -22,10 +22,12 @@ model User {
   failedLoginAttempts    Int       @default(0)
   lockedUntil            DateTime?
   role                   String    @default("user")
+  lastReadDate           DateTime?
 
   sessions     Session[]
   memoryStates UserMemoryState[]
   reviewLogs   ReviewLog[]
+  readingLogs  ReadingLog[]
 }
 
 model Session {
@@ -87,6 +89,8 @@ model UserMemoryState {
   stability       Float?
   dueDate         DateTime  @default(now())
   lastReviewedAt  DateTime?
+  lastReadAt      DateTime?
+  readCount       Int       @default(0)
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
@@ -122,6 +126,19 @@ model ReviewLog {
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([verseKey])
+}
+
+model ReadingLog {
+  id         String   @id @default(cuid())
+  userId     String
+  verseKey   String
+  durationMs Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
   @@index([verseKey])
