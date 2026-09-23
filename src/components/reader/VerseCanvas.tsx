@@ -41,6 +41,7 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
 
   return (
     <div
+      data-verse={ayah.verse_key}
       onClick={() => !isSelected && selectAyah(ayah.verse_key)}
       className={cn(
         "group relative cursor-pointer rounded-xl border border-transparent px-4 py-3 transition-colors",
@@ -163,8 +164,6 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
 
-  const playing = usePlayback((p) => p.playing);
-
   const selectedIndex = surah.ayahs.findIndex((a) => a.verse_key === selectedVerseKey);
   const [visibleCount, setVisibleCount] = useState(() =>
     Math.min(surah.ayahs.length, Math.max(CHUNK, (selectedIndex < 0 ? 0 : selectedIndex) + 5))
@@ -195,11 +194,12 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
   }, [visibleCount, surah.ayahs.length]);
 
   useEffect(() => {
-    if (!playing || layoutMode !== "FLOW" || !selectedVerseKey) return;
-    document
-      .querySelector('[data-active="true"]')
-      ?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
-  }, [playing, layoutMode, selectedVerseKey]);
+    if (!selectedVerseKey) return;
+    const el = document.querySelector(`[data-verse="${selectedVerseKey}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    }
+  }, [selectedVerseKey]);
 
   const visibleAyahs = surah.ayahs.slice(0, visibleCount);
   const remaining = surah.ayahs.length - visibleCount;

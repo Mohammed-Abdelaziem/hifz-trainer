@@ -196,7 +196,8 @@ export function ReaderWorkspace({
     return () => {
       if (readTimerRef.current) clearTimeout(readTimerRef.current);
     };
-  }, [selected, isGuest]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected?.verse_key, isGuest]);
 
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {
@@ -281,7 +282,14 @@ export function ReaderWorkspace({
       const nextAyah = surah.ayahs[idx + 1];
       selectAyah(nextAyah.verse_key);
       resetRevealed(nextAyah.verse_key);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-verse="${nextAyah.verse_key}"]`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        } else {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }
+      });
     } else {
       const surahIdx = availableSurahs.findIndex((s) => s.id === surah.id);
       const nextSurah =
