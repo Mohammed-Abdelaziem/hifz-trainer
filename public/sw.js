@@ -1,4 +1,4 @@
-const VERSION = "hifz-v1";
+const VERSION = "hifz-v2";
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const DATA_CACHE = `${VERSION}-data`;

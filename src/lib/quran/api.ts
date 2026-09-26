@@ -11,31 +11,53 @@ interface SurahNavItem {
   ayah_count: number;
 }
 
+const MIN_SURAH = 1;
+const MAX_SURAH = 114;
+
+export function isValidSurahId(surahId: number): boolean {
+  return Number.isInteger(surahId) && surahId >= MIN_SURAH && surahId <= MAX_SURAH;
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
 async function fetchChapterMeta(
   surahId: number
 ): Promise<{ name_arabic: string; name_simple: string; english_name: string } | null> {
-  try {
-    const res = await fetch(`${QURAN_API_BASE}/chapters/${surahId}?language=en`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(2500),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as {
-      chapter?: {
-        name_arabic: string;
-        name_simple: string;
-        translated_name?: { name: string };
+  return withRetry(async () => {
+    try {
+      const res = await fetch(`${QURAN_API_BASE}/chapters/${surahId}?language=en`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(6000),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as {
+        chapter?: {
+          name_arabic: string;
+          name_simple: string;
+          translated_name?: { name: string };
+        };
       };
-    };
-    if (!json.chapter) return null;
-    return {
-      name_arabic: json.chapter.name_arabic,
-      name_simple: json.chapter.name_simple,
-      english_name: json.chapter.translated_name?.name ?? json.chapter.name_simple,
-    };
-  } catch {
-    return null;
-  }
+      if (!json.chapter) throw new Error("missing chapter");
+      return {
+        name_arabic: json.chapter.name_arabic,
+        name_simple: json.chapter.name_simple,
+        english_name: json.chapter.translated_name?.name ?? json.chapter.name_simple,
+      };
+    } catch (err) {
+      // Swallow here so callers get null; withRetry still drives the retry.
+      throw err;
+    }
+  }).catch(() => null);
 }
 
 export async function getAvailableSurahs(): Promise<SurahNavItem[]> {
@@ -119,12 +141,12 @@ interface QcVerseWord {
 }
 
 async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
-  try {
+  return withRetry(async () => {
     const res = await fetch(
       `${QURAN_API_BASE}/verses/by_chapter/${surahId}?words=true&per_page=1000&word_fields=text_uthmani`,
-      { cache: "no-store", signal: AbortSignal.timeout(15_000) }
+      { cache: "no-store", signal: AbortSignal.timeout(20_000) }
     );
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = (await res.json()) as {
       verses?: Array<{
         verse_key: string;
@@ -133,7 +155,7 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
         text_uthmani: string;
       }>;
     };
-    if (!json.verses || json.verses.length === 0) return null;
+    if (!json.verses || json.verses.length === 0) throw new Error("no verses");
 
     return json.verses.map((v) => {
       const words: QuranWord[] = v.words
@@ -159,27 +181,23 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
         tafsir: "",
       };
     });
-  } catch {
-    return null;
-  }
+  }).catch(() => null);
 }
 
 export async function getSurahBundle(surahId: number): Promise<SurahBundle | null> {
+  if (!isValidSurahId(surahId)) return null;
+
   const fixture = FIXTURE_SURAHS[surahId];
   if (fixture) {
-    try {
-      const meta = await fetchChapterMeta(surahId);
-      return meta ? { ...fixture, ...meta } : fixture;
-    } catch {
-      return fixture;
-    }
+    const meta = await fetchChapterMeta(surahId);
+    return meta ? { ...fixture, ...meta } : fixture;
   }
 
   try {
-    const fromDb = await bundleFromDbRows(surahId);
+    const fromDb = await withRetry(() => bundleFromDbRows(surahId));
     if (fromDb) return fromDb;
   } catch {
-    // DB unavailable
+    // DB unavailable — fall through to the upstream API
   }
 
   const [meta, verses] = await Promise.all([
@@ -199,6 +217,8 @@ export async function getSurahBundle(surahId: number): Promise<SurahBundle | nul
     };
   }
 
+  // Degrade gracefully instead of throwing a 404: the reader renders a
+  // "no verse data" state the user can recover from by refreshing.
   if (meta) {
     return {
       id: surahId,
@@ -211,5 +231,13 @@ export async function getSurahBundle(surahId: number): Promise<SurahBundle | nul
     };
   }
 
-  return null;
+  return {
+    id: surahId,
+    name_arabic: "",
+    name_simple: `Surah ${surahId}`,
+    english_name: "",
+    revelation_place: "makkah",
+    ayah_count: 0,
+    ayahs: [],
+  };
 }

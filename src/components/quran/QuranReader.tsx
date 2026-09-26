@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
@@ -37,7 +37,8 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   const [audioLoading, setAudioLoading] = useState(false);
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
-  const engine = useAudioEngine({ surah, selected, hasAyahs, availableSurahs, surahUrl: (id) => `/quran?surah=${id}` });
+  const surahUrl = useCallback((id: number) => `/quran?surah=${id}`, []);
+  const engine = useAudioEngine({ surah, selected, hasAyahs, availableSurahs, surahUrl });
   useAudioSettings(engine);
 
   useEffect(() => {

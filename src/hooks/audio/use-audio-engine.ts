@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useRef } from "react";
 import { AudioEngine } from "@/lib/audio/engine";
 import { fetchVerseTimings } from "@/lib/audio/full-surah";
 import type { Ayah, SurahBundle } from "@/types/quran";
@@ -27,6 +27,19 @@ export function useAudioEngine({
 }: UseAudioEngineOptions): AudioEngine {
   const engine = useMemo(() => new AudioEngine(), []);
 
+  // Callers pass inline callbacks and often omit availableSurahs, so all three
+  // change identity every render. Holding them in refs keeps the effects below
+  // from re-running (and re-fetching verse timings) on every render.
+  const onVerseChangeRef = useRef(onVerseChange);
+  const surahUrlRef = useRef(surahUrl);
+  const availableSurahsRef = useRef(availableSurahs);
+
+  useEffect(() => {
+    onVerseChangeRef.current = onVerseChange;
+    surahUrlRef.current = surahUrl;
+    availableSurahsRef.current = availableSurahs;
+  });
+
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
@@ -42,39 +55,43 @@ export function useAudioEngine({
         const next = surah.ayahs[idx + 1];
         selectAyah(next.verse_key);
         resetRevealed(next.verse_key);
-        onVerseChange?.();
+        onVerseChangeRef.current?.();
         queueMicrotask(() => engine.play());
       } else {
-        const surahIdx = availableSurahs.findIndex((s) => s.id === surah.id);
-        const nextSurah = surahIdx >= 0 && surahIdx < availableSurahs.length - 1
-          ? availableSurahs[surahIdx + 1]
+        const surahs = availableSurahsRef.current;
+        const surahIdx = surahs.findIndex((s) => s.id === surah.id);
+        const nextSurah = surahIdx >= 0 && surahIdx < surahs.length - 1
+          ? surahs[surahIdx + 1]
           : null;
         if (nextSurah) {
-          window.location.href = surahUrl(nextSurah.id);
+          window.location.href = surahUrlRef.current(nextSurah.id);
         }
       }
     });
-  }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, surah.id, selectAyah, resetRevealed, onVerseChange, availableSurahs, surahUrl]);
+  }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, surah.id, selectAyah, resetRevealed]);
 
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {
       engine.onVerseChange((verseKey) => {
         selectAyah(verseKey);
         resetRevealed(verseKey);
-        onVerseChange?.();
+        onVerseChangeRef.current?.();
       });
+      let cancelled = false;
       void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
+        if (cancelled) return;
         engine.setSurahTimings(timings);
       });
-    } else {
-      engine.onVerseChange(null);
-      engine.clearSurahTimings();
+      return () => {
+        cancelled = true;
+        engine.onVerseChange(null);
+        engine.clearSurahTimings();
+      };
     }
-    return () => {
-      engine.onVerseChange(null);
-      engine.clearSurahTimings();
-    };
-  }, [engine, surahAudioMode, hasAyahs, surah.id, surah.ayah_count, reciterId, selectAyah, resetRevealed, onVerseChange]);
+    engine.onVerseChange(null);
+    engine.clearSurahTimings();
+    return undefined;
+  }, [engine, surahAudioMode, hasAyahs, surah.id, surah.ayah_count, reciterId, selectAyah, resetRevealed]);
 
   useEffect(() => {
     return () => engine.destroy();

@@ -156,13 +156,17 @@ export function ReaderWorkspace({
 
   const wordTimings = useWordTimings(surah.id, reciterId);
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs, wordTimings);
+  const onVerseChange = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+  const surahUrl = useCallback((id: number) => `/reader/${id}`, []);
   const engine = useAudioEngine({
     surah,
     selected,
     hasAyahs,
-    onVerseChange: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+    onVerseChange,
     availableSurahs,
-    surahUrl: (id) => `/reader/${id}`,
+    surahUrl,
   });
   useAudioSettings(engine);
 

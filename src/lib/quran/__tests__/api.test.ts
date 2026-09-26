@@ -151,13 +151,107 @@ describe("quran/api — getSurahBundle", () => {
     }
   });
 
-  it("returns null when both DB and external API fail for non-fixture surah", async () => {
+  it("degrades to an empty bundle instead of null when every source fails", async () => {
     (getDb as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db down"));
     const origFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("network fail"));
     try {
       const bundle = await getSurahBundle(2);
-      expect(bundle).toBeNull();
+      expect(bundle).not.toBeNull();
+      expect(bundle!.id).toBe(2);
+      expect(bundle!.ayahs).toHaveLength(0);
+      expect(bundle!.name_simple).toBe("Surah 2");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("retries the DB before giving up", async () => {
+    let attempts = 0;
+    (getDb as ReturnType<typeof vi.fn>).mockImplementation(() => {
+      attempts++;
+      if (attempts === 1) return Promise.reject(new Error("cold connection"));
+      return Promise.resolve({
+        surah: {
+          findUnique: vi.fn().mockResolvedValue({
+            id: 3,
+            nameArabic: "ال عمران",
+            nameSimple: "Aal-Imran",
+            englishName: "The Family of Imran",
+            revelationPlace: "madinah",
+            ayahCount: 1,
+          }),
+        },
+        verse: {
+          findMany: vi.fn().mockResolvedValue([
+            {
+              ayahNumber: 1,
+              verseKey: "3:1",
+              uthmaniText: "الم",
+              wordsJson: null,
+              audioUrl: null,
+              tafsir: null,
+            },
+          ]),
+        },
+      });
+    });
+
+    const bundle = await getSurahBundle(3);
+    expect(attempts).toBe(2);
+    expect(bundle!.name_simple).toBe("Aal-Imran");
+    expect(bundle!.ayahs).toHaveLength(1);
+  });
+
+  it("retries the upstream verses request once", async () => {
+    (getDb as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db down"));
+
+    let verseCalls = 0;
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((input: string) => {
+      if (input.includes("/verses/by_chapter/")) {
+        verseCalls++;
+        if (verseCalls === 1) return Promise.reject(new Error("network blip"));
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            verses: [
+              {
+                verse_key: "2:1",
+                verse_number: 1,
+                text_uthmani: "الم",
+                words: [
+                  {
+                    position: 1,
+                    char_type_name: "word",
+                    text_uthmani: "الم",
+                    audio_url: null,
+                    translation: null,
+                    transliteration: null,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          chapter: {
+            name_arabic: "الْبَقَرَة",
+            name_simple: "Al-Baqara",
+            translated_name: { name: "The Cow" },
+          },
+        }),
+      });
+    });
+
+    try {
+      const bundle = await getSurahBundle(2);
+      expect(verseCalls).toBe(2);
+      expect(bundle!.ayahs).toHaveLength(1);
+      expect(bundle!.ayahs[0].verse_key).toBe("2:1");
     } finally {
       globalThis.fetch = origFetch;
     }

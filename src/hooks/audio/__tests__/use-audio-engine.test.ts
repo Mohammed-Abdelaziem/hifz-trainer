@@ -33,24 +33,29 @@ vi.mock("@/lib/audio/engine", () => ({
 const mockSelectAyah = vi.fn();
 const mockResetRevealed = vi.fn();
 
+const storeState: Record<string, unknown> = {
+  continuousPlay: true,
+  surahAudioMode: false,
+  reciterId: 7,
+  speed: 1,
+  volume: 1,
+};
+
 vi.mock("@/stores/reader-store", () => ({
-  useReaderStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) => {
-    const store = {
-      continuousPlay: true,
-      surahAudioMode: false,
-      reciterId: 7,
+  useReaderStore: vi.fn((selector: (s: Record<string, unknown>) => unknown) =>
+    selector({
+      ...storeState,
       selectAyah: mockSelectAyah,
       resetRevealed: mockResetRevealed,
-      speed: 1,
-      volume: 1,
-    };
-    return selector(store);
-  }),
+    })
+  ),
 }));
+
+const mockFetchVerseTimings = vi.fn(() => Promise.resolve([] as { verseKey: string; start_ms: number; end_ms: number }[]));
 
 vi.mock("@/lib/audio/full-surah", () => ({
   getSurahAudioUrl: vi.fn(() => "https://example.com/surah.mp3"),
-  fetchVerseTimings: vi.fn(() => Promise.resolve([])),
+  fetchVerseTimings: (...args: unknown[]) => mockFetchVerseTimings(...(args as [])),
 }));
 
 import { useAudioEngine } from "@/hooks/audio/use-audio-engine";
@@ -77,6 +82,9 @@ function makeSurah(ayahCount: number) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  storeState.surahAudioMode = false;
+  storeState.continuousPlay = true;
+  storeState.reciterId = 7;
   mockEngineInstance.onEnd.mockClear();
   mockEngineInstance.onVerseChange.mockClear();
   mockEngineInstance.setSurahTimings.mockClear();
@@ -238,5 +246,101 @@ describe("useAudioEngine", () => {
     endCb();
 
     expect(assignSpy).not.toHaveBeenCalled();
+  });
+
+  describe("effect stability", () => {
+    it("does not refetch verse timings when inline callbacks change identity", async () => {
+      storeState.surahAudioMode = true;
+      const surah = makeSurah(3);
+
+      const { rerender } = renderHook(() =>
+        useAudioEngine({
+          surah,
+          selected: surah.ayahs[0],
+          hasAyahs: true,
+          enableKeyboard: false,
+          // New identity on every render, as callers pass inline arrows
+          onVerseChange: () => window.scrollTo({ top: 0, behavior: "smooth" }),
+          surahUrl: (id) => `/quran?surah=${id}`,
+        })
+      );
+
+      rerender();
+      rerender();
+      rerender();
+      await vi.waitFor(() => {
+        expect(mockEngineInstance.setSurahTimings).toHaveBeenCalledTimes(1);
+      });
+
+      expect(mockFetchVerseTimings).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not re-register the end callback when inline callbacks change identity", () => {
+      const surah = makeSurah(3);
+
+      const { rerender } = renderHook(() =>
+        useAudioEngine({
+          surah,
+          selected: surah.ayahs[0],
+          hasAyahs: true,
+          enableKeyboard: false,
+          onVerseChange: () => window.scrollTo({ top: 0 }),
+          surahUrl: (id) => `/quran?surah=${id}`,
+        })
+      );
+
+      rerender();
+      rerender();
+
+      expect(mockEngineInstance.onEnd).toHaveBeenCalledTimes(1);
+    });
+
+    it("still invokes the latest onVerseChange and surahUrl", () => {
+      const surah = makeSurah(2);
+      const first = vi.fn();
+      const second = vi.fn();
+
+      const { rerender } = renderHook(
+        ({ cb }: { cb: () => void }) =>
+          useAudioEngine({
+            surah,
+            selected: surah.ayahs[0],
+            hasAyahs: true,
+            enableKeyboard: false,
+            onVerseChange: cb,
+          }),
+        { initialProps: { cb: first } }
+      );
+
+      const endCb = mockEngineInstance.onEnd.mock.calls[0][0];
+      endCb();
+      expect(first).toHaveBeenCalledTimes(1);
+
+      rerender({ cb: second });
+      endCb();
+      expect(second).toHaveBeenCalledTimes(1);
+      expect(first).toHaveBeenCalledTimes(1);
+    });
+
+    it("refetches verse timings when the reciter changes", () => {
+      storeState.surahAudioMode = true;
+      const surah = makeSurah(3);
+
+      const { rerender } = renderHook(() =>
+        useAudioEngine({
+          surah,
+          selected: surah.ayahs[0],
+          hasAyahs: true,
+          enableKeyboard: false,
+          surahUrl: (id) => `/quran?surah=${id}`,
+        })
+      );
+      expect(mockFetchVerseTimings).toHaveBeenCalledTimes(1);
+
+      storeState.reciterId = 6;
+      rerender();
+
+      expect(mockFetchVerseTimings).toHaveBeenCalledTimes(2);
+    });
   });
 });
