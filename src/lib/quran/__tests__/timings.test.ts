@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { synthTimings, everyAyahUrl } from "@/lib/quran/timings";
+import {
+  synthTimings,
+  everyAyahUrl,
+  mergeSegments,
+  toWordTimings,
+  segmentsToTimings,
+} from "@/lib/quran/timings";
 import type { QuranWord } from "@/types/quran";
 
 describe("timings", () => {
@@ -116,6 +122,143 @@ describe("timings", () => {
 
     it("result always contains the base path", () => {
       expect(everyAyahUrl("1:1")).toContain("everyayah.com/data/Alafasy_128kbps/");
+    });
+  });
+
+  describe("mergeSegments", () => {
+    it("maps quran.com 1:1 segments onto word indexes", () => {
+      const merged = mergeSegments([
+        [0, 1, 60, 610],
+        [1, 2, 620, 1310],
+        [2, 3, 1320, 2450],
+        [3, 4, 2460, 5970],
+      ]);
+      expect(merged).toEqual([
+        [0, 60, 610],
+        [1, 620, 1310],
+        [2, 1320, 2450],
+        [3, 2460, 5970],
+      ]);
+    });
+
+    it("merges multiple segments spanning one word", () => {
+      const merged = mergeSegments([
+        [0, 1, 100, 400],
+        [0, 1, 500, 900],
+        [1, 2, 1000, 1500],
+      ]);
+      expect(merged).toEqual([
+        [0, 100, 900],
+        [1, 1000, 1500],
+      ]);
+    });
+
+    it("sorts by word index", () => {
+      const merged = mergeSegments([
+        [2, 3, 300, 400],
+        [0, 1, 100, 200],
+        [1, 2, 200, 300],
+      ]);
+      expect(merged.map((m) => m[0])).toEqual([0, 1, 2]);
+    });
+
+    it("returns empty for missing input", () => {
+      expect(mergeSegments(undefined)).toEqual([]);
+      expect(mergeSegments(null)).toEqual([]);
+      expect(mergeSegments([])).toEqual([]);
+    });
+
+    it("drops malformed segments", () => {
+      const merged = mergeSegments([
+        [0, 1, 100, 100] as never,
+        [0, 1, 500, 400] as never,
+        [0, 1] as never,
+        [-1, 0, 100, 200] as never,
+        [0, 1, Number.NaN, 200] as never,
+        [0, 1, 150, 250] as never,
+      ]);
+      expect(merged).toEqual([[0, 150, 250]]);
+    });
+  });
+
+  describe("toWordTimings", () => {
+    it("builds one timing per word", () => {
+      const timings = toWordTimings(
+        [
+          [0, 60, 610],
+          [1, 620, 1310],
+        ],
+        2
+      );
+      expect(timings).toEqual([
+        { start_ms: 60, end_ms: 610 },
+        { start_ms: 620, end_ms: 1310 },
+      ]);
+    });
+
+    it("returns empty when a word index is missing", () => {
+      expect(
+        toWordTimings(
+          [
+            [0, 60, 610],
+            [2, 900, 1000],
+          ],
+          3
+        )
+      ).toEqual([]);
+    });
+
+    it("returns empty when segment count does not match word count", () => {
+      expect(
+        toWordTimings(
+          [
+            [0, 60, 610],
+            [1, 620, 1310],
+          ],
+          3
+        )
+      ).toEqual([]);
+    });
+
+    it("returns empty for zero words", () => {
+      expect(toWordTimings([], 0)).toEqual([]);
+    });
+
+    it("rejects out-of-order indexes", () => {
+      expect(
+        toWordTimings(
+          [
+            [1, 60, 610],
+            [0, 620, 1310],
+          ],
+          2
+        )
+      ).toEqual([]);
+    });
+  });
+
+  describe("segmentsToTimings", () => {
+    it("converts real segments end to end", () => {
+      expect(
+        segmentsToTimings(
+          [
+            [0, 1, 60, 610],
+            [1, 2, 620, 1310],
+          ],
+          2
+        )
+      ).toEqual([
+        { start_ms: 60, end_ms: 610 },
+        { start_ms: 620, end_ms: 1310 },
+      ]);
+    });
+
+    it("handles a single-word verse", () => {
+      expect(segmentsToTimings([[0, 1, 30, 7080]], 1)).toEqual([{ start_ms: 30, end_ms: 7080 }]);
+    });
+
+    it("falls back to empty when timings are unavailable", () => {
+      expect(segmentsToTimings(undefined, 4)).toEqual([]);
     });
   });
 });

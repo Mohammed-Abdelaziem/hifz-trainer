@@ -14,7 +14,7 @@ import type {
 import type { VerseTiming } from "@/lib/audio/full-surah";
 import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
-import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
+import { useAudioEngine, useVerseData, useAudioSettings, useWordTimings } from "@/hooks/audio";
 import {
   schedule,
   describeOutcome,
@@ -154,7 +154,8 @@ export function ReaderWorkspace({
 
   const [verseTimings, setVerseTimings] = useState<VerseTiming[]>([]);
 
-  const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
+  const wordTimings = useWordTimings(surah.id, reciterId);
+  const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs, wordTimings);
   const engine = useAudioEngine({
     surah,
     selected,

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Ayah, QuranWord, SurahBundle } from "@/types/quran";
-import { everyAyahUrl, synthTimings } from "@/lib/quran/timings";
+import { synthTimings, toWordTimings, type MergedSegment } from "@/lib/quran/timings";
 import { useReaderStore } from "@/stores/reader-store";
 
 interface LiveState {
@@ -12,7 +12,11 @@ interface LiveState {
   tafsir: string | null;
 }
 
-export function useVerseData(surah: SurahBundle, hasAyahs: boolean) {
+export function useVerseData(
+  surah: SurahBundle,
+  hasAyahs: boolean,
+  timingsByVerse?: Record<string, MergedSegment[]>
+) {
   const [liveState, setLiveState] = useState<LiveState | null>(null);
 
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
@@ -58,15 +62,19 @@ export function useVerseData(surah: SurahBundle, hasAyahs: boolean) {
     if (!selected)
       return { ayah_number: 0, verse_key: "1:1", words: [], audio_url: "", timings: [], tafsir: "" };
     if (!live) return selected;
-    const timings = synthTimings(live.words);
+
+    const merged = timingsByVerse?.[selected.verse_key];
+    const real = merged ? toWordTimings(merged, live.words.length) : [];
+    const timings = real.length > 0 ? real : synthTimings(live.words);
+
     return {
       ...selected,
       words: live.words,
-      audio_url: everyAyahUrl(selected.verse_key),
+      audio_url: live.audioUrl ?? selected.audio_url,
       timings,
       tafsir: selected.tafsir || live.tafsir || "",
     };
-  }, [selected, live]);
+  }, [selected, live, timingsByVerse]);
 
   return { selected, live, effectiveSelected };
 }
