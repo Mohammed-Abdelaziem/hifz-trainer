@@ -13,7 +13,7 @@ interface VerseWordProps {
   showTranslation: boolean;
   showRoots: boolean;
   ayahScoped: boolean;
-  onReveal: () => void;
+  onReveal: (wordId: string) => void;
 }
 
 function firstLetterPrompt(text: string): string {
@@ -38,11 +38,28 @@ export const VerseWord = memo(function VerseWord({
   let display = word.text_uthmani;
   if (masked && mode === "FIRST_LETTER") display = firstLetterPrompt(word.text_uthmani);
 
+  // A bare span with onClick is unreachable by keyboard and announced as
+  // decoration, which made word reveal impossible without a mouse.
+  const interactiveProps = masked
+    ? ({
+        role: "button",
+        tabIndex: 0,
+        onClick: () => onReveal(word.id),
+        onKeyDown: (e: React.KeyboardEvent) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            onReveal(word.id);
+          }
+        },
+        "aria-label": "Reveal word",
+      } as const)
+    : {};
+
   return (
     <motion.span
       layout="position"
       data-active={active || undefined}
-      onClick={masked ? onReveal : undefined}
+      {...interactiveProps}
       className={cn(
         "relative mx-[0.12em] inline-flex cursor-default flex-col items-center align-bottom",
         masked && "cursor-pointer",

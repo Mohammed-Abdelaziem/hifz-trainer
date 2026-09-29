@@ -17,6 +17,9 @@ export const DEMO_EMAIL = "demo@hifz.local";
 
 const PAGE_NUMBERS: Record<number, number> = { 1: 1, 112: 604 };
 
+/** Upper bound on items returned by buildDailyQueue for a single user. */
+const MAX_QUEUE_ITEMS = 500;
+
 let seedPromise: Promise<void> | null = null;
 
 async function seedVerses(): Promise<void> {
@@ -186,6 +189,11 @@ export async function recordReview(params: {
     dueDate = outcome.dueDate;
   }
 
+  const streakFields = computeStreak(user, now);
+
+  // The streak update is part of the same transaction: previously it ran as a
+  // third separate write, so a failure after the commit left the review logged
+  // with no streak credit and no way to reconcile.
   await db.$transaction([
     db.userMemoryState.upsert({
       where: { userId_verseKey: { userId: params.userId, verseKey: params.verseKey } },
@@ -228,10 +236,8 @@ export async function recordReview(params: {
         reviewDurationMs: Math.round(params.durationMs ?? 0),
       },
     }),
+    db.user.update({ where: { id: params.userId }, data: streakFields }),
   ]);
-
-  const streakFields = computeStreak(user, now);
-  await db.user.update({ where: { id: params.userId }, data: streakFields });
 
   const todayReviewed = await db.reviewLog.count({
     where: {
@@ -312,11 +318,23 @@ export async function recordReading(params: {
 export async function buildMemoryMap(userId: string): Promise<MemoryCell[]> {
   const db = await getDb();
   const [verses, surahRows] = await Promise.all([
+    // Only these columns are mapped below. Without `select` this pulls the
+    // uthmani text, translation, timestamps and the multi-KB wordsJson blob
+    // for all ~6,236 verses on every request, and discards all of it.
     db.verse.findMany({
-      include: { memoryStates: { where: { userId } } },
+      select: {
+        verseKey: true,
+        surahId: true,
+        ayahNumber: true,
+        pageNumber: true,
+        memoryStates: {
+          where: { userId },
+          select: { state: true, intervalDays: true, dueDate: true, readCount: true },
+        },
+      },
       orderBy: [{ surahId: "asc" }, { ayahNumber: "asc" }],
     }),
-    db.surah.findMany(),
+    db.surah.findMany({ select: { id: true, nameSimple: true } }),
   ]);
   const surahNames = new Map<number, string>();
   for (const s of surahRows) surahNames.set(s.id, s.nameSimple);
@@ -353,10 +371,20 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
 
   const [user, states] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
+    // `include: { verse: true }` fetched the whole Verse row (text, translation,
+    // wordsJson) for every due verse. The mapper below needs four fields, and
+    // the due set grows with the corpus, so the result set is also capped.
     db.userMemoryState.findMany({
       where: { userId, dueDate: { lte: endOfToday } },
-      include: { verse: true },
+      select: {
+        verseKey: true,
+        state: true,
+        intervalDays: true,
+        dueDate: true,
+        verse: { select: { surahId: true, ayahNumber: true, pageNumber: true } },
+      },
       orderBy: { dueDate: "asc" },
+      take: MAX_QUEUE_ITEMS,
     }),
   ]);
   const toItem = (s: (typeof states)[number]): QueueItem => ({

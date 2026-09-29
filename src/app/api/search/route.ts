@@ -9,8 +9,16 @@ export async function GET(req: Request) {
     if (!q || q.length < 2) {
       return Response.json({ results: [], query: q ?? "" });
     }
+    // Each query drives an unindexed ILIKE '%…%' scan of every verse, so cap
+    // the input size rather than letting a multi-megabyte string reach the DB.
+    if (q.length > 64) {
+      return Response.json({ results: [], query: q });
+    }
 
-    const limit = Math.min(Number(params.get("limit") ?? "20"), 50);
+    // Math.min(NaN, 50) is NaN, which Prisma rejects as `take`; and a negative
+    // take means "from the end" rather than being clamped.
+    const rawLimit = Number(params.get("limit") ?? "20");
+    const limit = Number.isInteger(rawLimit) ? Math.min(Math.max(rawLimit, 1), 50) : 20;
     const db = await getDb();
 
     const verses = await db.verse.findMany({

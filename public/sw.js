@@ -8,12 +8,15 @@ const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
 const SYNC_TAG = "review-sync";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(SHELL_ASSETS))
-      .then(() => self.skipWaiting())
-  );
+event.waitUntil(
+  // addAll is atomic: one failed asset rejects the whole promise and the new
+  // worker would never activate, pinning the client to the old one. Settle
+  // individually so a single 404 cannot block the update.
+  caches
+    .open(SHELL_CACHE)
+    .then((cache) => Promise.allSettled(SHELL_ASSETS.map((url) => cache.add(url))))
+    .then(() => self.skipWaiting())
+);
 });
 
 self.addEventListener("activate", (event) => {
@@ -56,11 +59,24 @@ async function cacheFirst(request, cacheName) {
   return res;
 }
 
+// Only these routes return identical HTML for every visitor. Anything else
+// (dashboard, settings, analytics, reader) embeds the caller's session data,
+// and `res.headers.has("set-cookie")` cannot be used to detect that because
+// Set-Cookie is a forbidden response header name and never appears in Headers.
+const CACHEABLE_NAVIGATIONS = ["/offline", "/blog", "/quran"];
+
+function isCacheableNavigation(url) {
+  return CACHEABLE_NAVIGATIONS.some(
+    (path) => url.pathname === path || url.pathname.startsWith(path + "/")
+  );
+}
+
 async function networkFirst(request, cacheName, fallbackResponse) {
   const cache = await caches.open(cacheName);
+  const url = new URL(request.url);
   try {
     const res = await fetch(request);
-    if (res && res.ok && res.type === "basic" && !res.headers.has("set-cookie")) {
+    if (res && res.ok && res.type === "basic" && isCacheableNavigation(url)) {
       cache.put(request, res.clone());
     }
     return res;
@@ -99,13 +115,16 @@ async function syncPendingReviews() {
     });
     const result = await response.json();
 
-    if (result.synced > 0) {
-      for (const item of pending.slice(0, result.synced)) {
+    // The server skips invalid entries and returns failures in the middle of
+    // the array, so `result.synced` is not a prefix count. Match each result
+    // back to its queued item by verseKey and mark it individually.
+    const byVerseKey = new Map(pending.map((item) => [item.verseKey, item]));
+    for (const entry of result.results ?? []) {
+      const item = byVerseKey.get(entry.verseKey);
+      if (!item) continue;
+      if (entry.ok) {
         await markReviewSynced(item.id);
-      }
-    }
-    if (result.failed > 0) {
-      for (const item of pending.slice(result.synced)) {
+      } else {
         await incrementReviewRetries(item.id);
       }
     }

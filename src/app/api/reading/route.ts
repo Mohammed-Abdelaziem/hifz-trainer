@@ -29,7 +29,13 @@ export async function POST(req: Request) {
     await recordReading({
       userId: user.id,
       verseKey,
-      durationMs: typeof durationMs === "number" && Number.isFinite(durationMs) ? durationMs : undefined,
+      durationMs:
+        typeof durationMs === "number" &&
+        Number.isFinite(durationMs) &&
+        durationMs >= 0 &&
+        durationMs <= 3_600_000
+          ? durationMs
+          : undefined,
     });
 
     return Response.json({ ok: true });

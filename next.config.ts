@@ -14,17 +14,25 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
+      // 'unsafe-inline' is required by the App Router's own bootstrap scripts.
+      // script-src-attr is separate and blocks inline event handlers
+      // (onerror=, onclick=), which is the common shape of an XSS payload.
       "script-src 'self' 'unsafe-inline'",
+      "script-src-attr 'none'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' https://verses.quran.com https://api.quran.com data: https://*.googleusercontent.com https://avatars.githubusercontent.com",
-      "media-src 'self' https://verses.quran.com https://audio.everyayah.com https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
-      "connect-src 'self' https://api.quran.com https://verses.quran.com https://audio.everyayah.com https://mp3quran.net https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net https://accounts.google.com https://oauth2.googleapis.com https://github.com https://api.github.com https://githubusercontent.com",
+      "img-src 'self' https://verses.quran.com https://api.quran.com data:",
+      // everyayah.com is the apex host the app actually loads audio from
+      // (lib/quran/timings.ts RECITER_BASE), not audio.everyayah.com.
+      "media-src 'self' https://verses.quran.com https://everyayah.com https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
+      // OAuth hosts are contacted server-side only, so the browser does not
+      // need reach to them.
+      "connect-src 'self' https://api.quran.com https://verses.quran.com https://everyayah.com https://mp3quran.net https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
       "font-src 'self' https://fonts.gstatic.com",
       "base-uri 'self'",
       "form-action 'self'",
       "frame-ancestors 'none'",
       "object-src 'none'",
-      "upgrade-insecure-requests",
+      ...(process.env.NODE_ENV === "production" ? ["upgrade-insecure-requests"] : []),
     ].join("; "),
   },
   ...(process.env.NODE_ENV === "production"

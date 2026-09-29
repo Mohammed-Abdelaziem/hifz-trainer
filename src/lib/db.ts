@@ -40,7 +40,18 @@ async function createAdapter(rawUrl: string) {
 
   if (parsedUrl.protocol === "postgres:" || parsedUrl.protocol === "postgresql:") {
     const { PrismaPg } = await import("@prisma/adapter-pg");
-    return new PrismaPg({ connectionString: encodedUrl });
+    return new PrismaPg({
+      connectionString: encodedUrl,
+      // Each warm lambda gets a small pool and Supavisor multiplexes the rest.
+      // connectionTimeoutMillis is deliberately non-zero: the pg default of 0
+      // queues forever, which surfaces as an opaque platform timeout instead
+      // of a catchable error.
+      max: 2,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 5_000,
+      statement_timeout: 15_000,
+      application_name: "hifz-app",
+    });
   }
 
   const { PrismaBetterSqlite3 } = await import("@prisma/adapter-better-sqlite3");

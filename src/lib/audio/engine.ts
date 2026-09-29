@@ -152,9 +152,10 @@ export class AudioEngine {
     this.clearVirtualClipTimer();
     const myClip = ++this.clipSeq;
     await new Promise<void>((resolve) => {
-      this.clipResolve = () => {
-        if (myClip === this.clipSeq) resolve();
-      };
+      // Resolve unconditionally: this closure belongs to exactly one clip, and
+      // gating on clipSeq meant abortClips() (which bumps clipSeq first) left
+      // the promise permanently pending.
+      this.clipResolve = () => resolve();
       void this.load(url).then(() => {
         if (myClip !== this.clipSeq) {
           resolve();

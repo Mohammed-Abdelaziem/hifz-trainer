@@ -114,8 +114,10 @@ export function AudioSyncProvider({
         idx = indexForPosition(timings, pos);
       }
 
-      if (loopB !== null && pos >= loopB) {
-        engine.seekMs(loopA ?? 0);
+      // Both bounds are required. With only B set, seeking to `loopA ?? 0`
+      // replayed 0→B forever and the early return froze the position readout.
+      if (loopA !== null && loopB !== null && pos >= loopB) {
+        engine.seekMs(loopA);
         return;
       }
       if (

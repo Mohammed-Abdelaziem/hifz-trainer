@@ -74,10 +74,18 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   const [seqActive, setSeqActive] = useState(false);
 
   useEffect(() => {
-    seqGenRef.current++;
+    const gen = ++seqGenRef.current;
     seqRunningRef.current = false;
     engine.abortClips();
     setForcedActiveIndex(null);
+    // Also stop on unmount. Without this the drill loop survives navigation:
+    // the generation guard only trips when seqGenRef changes, and a remount
+    // never bumps it, so playClip() kept firing on a destroyed engine.
+    return () => {
+      seqGenRef.current = gen + 1;
+      seqRunningRef.current = false;
+      engine.abortClips();
+    };
   }, [verseKey, engine, setForcedActiveIndex]);
 
   useEffect(() => {

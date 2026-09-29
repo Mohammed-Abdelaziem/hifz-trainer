@@ -187,16 +187,26 @@ export function ReaderWorkspace({
 
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {
-      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
-        setVerseTimings(timings);
-      });
+      // fetchVerseTimings hits a third-party host, so it rejects when the user
+      // is offline; without a catch that becomes an unhandled rejection. The
+      // flag also stops a slow response for a previous surah/reciter from
+      // landing after the selection has moved on.
+      let cancelled = false;
+      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count)
+        .then((timings) => {
+          if (!cancelled) setVerseTimings(timings);
+        })
+        .catch(() => {});
       const url = getSurahAudioUrl(surah.id, reciterId);
       engine.load(url);
-    } else {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setVerseTimings([]);
-      engine.load(effectiveSelected.audio_url);
+      return () => {
+        cancelled = true;
+      };
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setVerseTimings([]);
+    engine.load(effectiveSelected.audio_url);
+    return undefined;
   }, [surahAudioMode, reciterId, surah.id, surah.ayah_count, engine, effectiveSelected.audio_url, hasAyahs]);
 
   useEffect(() => {

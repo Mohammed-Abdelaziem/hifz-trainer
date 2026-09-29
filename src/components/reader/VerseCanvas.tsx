@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, memo, useEffect, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { SurahBundle } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 import { usePlayback } from "@/hooks/use-audio-sync";
@@ -38,6 +38,16 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
 
   const ayahScoped = maskMode === "BLUR" && blurScope === "ayah";
   const allRevealed = ayahScoped && words.every((w) => revealedWords.has(w.id));
+
+  // Stable across renders, otherwise memo() on VerseWord never hits and a
+  // single tap re-renders every mounted word's framer-motion layout.
+  const handleReveal = useCallback(
+    (wordId: string) => {
+      if (!isSelected) selectAyah(ayah.verse_key);
+      revealWord(wordId);
+    },
+    [isSelected, selectAyah, ayah.verse_key, revealWord]
+  );
 
   return (
     <div
@@ -79,10 +89,7 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
                 showTranslation={showTranslation && isSelected}
                 showRoots={showRoots && isSelected}
                 ayahScoped={ayahScoped}
-                onReveal={() => {
-                  if (!isSelected) selectAyah(ayah.verse_key);
-                  revealWord(word.id);
-                }}
+                onReveal={handleReveal}
               />
             ))
           )}

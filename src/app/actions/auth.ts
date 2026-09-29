@@ -80,11 +80,21 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   if (existing?.passwordHash) {
     return { success: true, error: undefined };
   }
+  // An account created through OAuth has no passwordHash. Attaching one here
+  // would let anyone who knows the address take the account over, so require
+  // the user to sign in with their provider first and set a password from
+  // /settings, where the session is already verified.
+  if (existing) {
+    return {
+      success: false,
+      error: "This email uses a social login. Sign in with that provider to continue.",
+    };
+  }
 
   const passwordHash = await hashPassword(creds.password);
-  const user = existing
-    ? await db.user.update({ where: { id: existing.id }, data: { passwordHash, lastPasswordChangedAt: new Date() } })
-    : await db.user.create({ data: { email: creds.email, passwordHash, lastPasswordChangedAt: new Date() } });
+  const user = await db.user.create({
+    data: { email: creds.email, passwordHash, lastPasswordChangedAt: new Date() },
+  });
 
   await createSession(user.id, true);
   redirect("/");

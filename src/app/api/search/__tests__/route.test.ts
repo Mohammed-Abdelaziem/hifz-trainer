@@ -34,6 +34,32 @@ describe("/api/search", () => {
     expect(body.query).toBe("a");
   });
 
+  it("falls back to the default limit when limit is not a number", async () => {
+    // Math.min(NaN, 50) is NaN, which Prisma rejects as `take` and 500s.
+    await GET(makeRequest("rahman", "abc"));
+    expect(mockDb.verse.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 20 })
+    );
+  });
+
+  it("clamps a negative or oversized limit instead of passing it through", async () => {
+    await GET(makeRequest("rahman", "-5"));
+    expect(mockDb.verse.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ take: 1 })
+    );
+    await GET(makeRequest("rahman", "9999"));
+    expect(mockDb.verse.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({ take: 50 })
+    );
+  });
+
+  it("rejects an over-long query without touching the database", async () => {
+    const res = await GET(makeRequest("a".repeat(200)));
+    const body = await res.json();
+    expect(body.results).toEqual([]);
+    expect(mockDb.verse.findMany).not.toHaveBeenCalled();
+  });
+
   it("returns empty results for null query", async () => {
     const res = await GET(makeRequest(null));
     const body = await res.json();
