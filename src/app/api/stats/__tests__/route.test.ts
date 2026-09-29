@@ -27,11 +27,15 @@ describe("/api/stats", () => {
 
   it("returns real stats for authenticated users", async () => {
     (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+    // Anchor fixtures to "now" so the rolling activeDays window never
+    // silently ages them out.
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
     const db = {
       reviewLog: {
         findMany: vi.fn().mockResolvedValue([
-          { createdAt: new Date("2026-08-30T10:00:00Z"), grade: "GOOD", reviewDurationMs: 5000, intervalDays: 3, scheduler: "sm2" },
-          { createdAt: new Date("2026-08-29T10:00:00Z"), grade: "AGAIN", reviewDurationMs: 2000, intervalDays: 1, scheduler: "fsrs" },
+          { createdAt: new Date(now - 1 * day), grade: "GOOD", reviewDurationMs: 5000, intervalDays: 3, scheduler: "sm2" },
+          { createdAt: new Date(now - 2 * day), grade: "AGAIN", reviewDurationMs: 2000, intervalDays: 1, scheduler: "fsrs" },
         ]),
       },
       readingLog: {

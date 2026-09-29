@@ -14,6 +14,7 @@ import type {
 import type { VerseTiming } from "@/lib/audio/full-surah";
 import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
+import { usePassiveReadingTracker } from "@/hooks/use-passive-reading-tracker";
 import { useAudioEngine, useVerseData, useAudioSettings, useWordTimings } from "@/hooks/audio";
 import {
   schedule,
@@ -182,27 +183,7 @@ export function ReaderWorkspace({
     resetRevealed(target);
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
-  const readTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const lastReadVerseRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!selected || isGuest) return;
-    const verseKey = selected.verse_key;
-    if (lastReadVerseRef.current === verseKey) return;
-    lastReadVerseRef.current = verseKey;
-    if (readTimerRef.current) clearTimeout(readTimerRef.current);
-    readTimerRef.current = setTimeout(() => {
-      fetch("/api/reading", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verseKey }),
-      }).catch(() => {});
-    }, 2000);
-    return () => {
-      if (readTimerRef.current) clearTimeout(readTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected?.verse_key, isGuest]);
+  usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
 
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {
