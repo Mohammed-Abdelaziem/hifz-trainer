@@ -9,6 +9,8 @@ import {
   recordFailedLogin,
   resetFailedLogins,
   revokeAllSessions,
+  DECOY_PASSWORD_HASH,
+  purgeExpiredSessions,
 } from "@/lib/server/auth";
 import { getGoogleAuthUrl, getGitHubAuthUrl, createOAuthState } from "@/lib/server/oauth";
 import { getDbWithTest } from "@/lib/db";
@@ -49,6 +51,10 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   const user = await db.user.findUnique({ where: { email: creds.email } });
 
   if (!user?.passwordHash) {
+    // Still run a verification against a decoy so an unknown address costs the
+    // same ~150ms of scrypt as a known one; otherwise response latency
+    // enumerates registered emails.
+    await verifyPassword(creds.password, DECOY_PASSWORD_HASH);
     await recordFailedLogin(creds.email);
     return { error: "Incorrect email or password." };
   }
@@ -68,6 +74,9 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   await resetFailedLogins(user.id);
   await revokeAllSessions(user.id);
   await createSession(user.id);
+  // Opportunistic sweep: sessions are otherwise only ever removed when their
+  // own token is presented or the user signs out again.
+  void purgeExpiredSessions();
   redirect("/");
 }
 

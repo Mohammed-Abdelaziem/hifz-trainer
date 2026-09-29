@@ -9,6 +9,12 @@ export async function GET() {
   try {
     const user = await getSessionUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    // GET was authenticated but not admin-gated, unlike POST. The payload is
+    // only global corpus counts today, but the asymmetry would leak the moment
+    // it grew a field.
+    if (user.role !== "admin") {
+      return Response.json({ error: "Forbidden" }, { status: 403 });
+    }
     return Response.json(await getSyncStatus());
   } catch (err) {
     console.error("[/api/sync]", err);

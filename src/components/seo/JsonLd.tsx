@@ -9,7 +9,7 @@ export function JsonLd() {
     name: "Wholly Quran — Hifz Trainer",
     url: "https://whollyquran.me",
     description:
-      "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking.",
+      "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, and progress tracking.",
     applicationCategory: "EducationalApplication",
     operatingSystem: "Web",
     offers: {
@@ -21,7 +21,6 @@ export function JsonLd() {
       "Spaced-repetition Quran memorization (SM2 & FSRS)",
       "Word-by-word Arabic Quran reader",
       "10 reciters including Mishary Alafasy",
-      "Tajweed checker with AI transcription",
       "Interactive memory heatmap analytics",
       "Daily review scheduling (Sabaq, Sabqi, Manzil)",
     ],

@@ -22,9 +22,11 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    // Production build, not `next dev`: dev-mode HMR and a cold .env make
+    // these specs behave differently from what users get.
+    command: "npm run build && npm run start",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 120000,
+    timeout: 300000,
   },
 });

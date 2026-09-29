@@ -1,12 +1,72 @@
 name: CI
 
 on:
+  push:
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
+
+# A new push supersedes an in-flight run for the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # postinstall already runs prisma generate.
+      - run: npm ci
+
+      # Applies the real migration history, so CI validates the same SQL that
+      # production will run. `db push` validated a throwaway schema and never
+      # caught drift against the live database.
+      - name: Apply migrations
+        run: npx prisma migrate deploy
+
+      # Fails if schema.prisma has drifted from the migrations directory.
+      - name: Verify no schema drift
+        run: |
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema prisma/schema.prisma \
+            --exit-code
+
+      - run: npm run typecheck
+
+      - run: npm run lint -- --max-warnings 0
+
+      - run: npm test
+
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -33,12 +93,12 @@ jobs:
 
       - run: npm ci
 
-      - run: npx prisma generate
+      - run: npx prisma migrate deploy
 
-      - run: npx prisma db push --accept-data-loss
+      - run: npx playwright install --with-deps chromium
 
-      - run: npm run build
+      - name: Seed the auth fixture
+        run: node scripts/auth-e2e.mjs
 
-      - run: npm run lint -- --max-warnings 0
-
-      - run: npm test
+      - name: Run e2e suite
+        run: npm run e2e

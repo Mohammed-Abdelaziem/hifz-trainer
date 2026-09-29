@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Dashboard", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/login");
-    await page.getByRole("button", { name: "Continue with demo account" }).click();
+    await page.getByRole("button", { name: "Continue without account" }).click();
     await expect(page).toHaveURL("/");
     await page.waitForLoadState("networkidle");
   });

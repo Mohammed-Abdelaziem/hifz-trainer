@@ -33,12 +33,11 @@ export const metadata: Metadata = {
     template: "%s | Wholly Quran",
   },
   description:
-    "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking. Start your hifz journey today.",
+    "Free Quran memorization platform with spaced-repetition scheduling, an interactive word-by-word reader with per-word audio highlighting, and progress tracking. Start your hifz journey today.",
   keywords: [
     "quran memorization",
     "hifz trainer",
     "learn quran",
-    "tajweed",
     "quran app",
     "memorize quran",
     "spaced repetition quran",
@@ -55,7 +54,7 @@ export const metadata: Metadata = {
     siteName: "Wholly Quran",
     title: "Hifz Trainer — Memorize the Quran with Spaced Repetition",
     description:
-      "Free Quran memorization platform with spaced-repetition scheduling, interactive word-by-word reader, tajweed checker, and progress tracking.",
+      "Free Quran memorization platform with spaced-repetition scheduling, an interactive word-by-word reader with per-word audio highlighting, and progress tracking.",
     images: [
       {
         url: "https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition",
@@ -69,7 +68,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Hifz Trainer — Memorize the Quran",
     description:
-      "Free Quran memorization platform with spaced-repetition, word-by-word reader, and tajweed checker.",
+      "Free Quran memorization platform with spaced-repetition, a word-by-word reader with per-word audio highlighting, and progress tracking.",
     images: ["https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition"],
   },
   manifest: "/manifest.webmanifest",

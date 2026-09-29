@@ -32,6 +32,7 @@ model User {
 
 model Session {
   id            String   @id @default(cuid())
+  /// SHA-256 of the bearer token; the raw token only ever lives in the cookie.
   token         String   @unique
   userId        String
   expiresAt     DateTime
@@ -41,6 +42,7 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
 }
 
 model Surah {
@@ -50,8 +52,6 @@ model Surah {
   englishName     String
   revelationPlace String
   ayahCount       Int
-
-  @@index([nameSimple])
 }
 
 model Verse {
@@ -69,11 +69,14 @@ model Verse {
   tafsir         String?
   createdAt      DateTime @default(now())
 
-  memoryStates UserMemoryState[]
-  reviewLogs   ReviewLog[]
+  memoryStates  UserMemoryState[]
+  reviewLogs    ReviewLog[]
+  readingLogs   ReadingLog[]
+  recitationAudio RecitationAudio[]
 
-  @@index([surahId])
-  @@index([pageNumber])
+  /// Serves the ORDER BY surahId, ayahNumber in getSurahBundle and the
+  /// pending-enrichment scan without a sort.
+  @@index([surahId, ayahNumber])
 }
 
 model UserMemoryState {
@@ -106,8 +109,11 @@ model RecitationAudio {
   reciterId Int
   url       String
 
+  /// Previously unconstrained, so rows for verses that do not exist could be
+  /// written and nothing would ever remove them.
+  verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
+
   @@unique([verseKey, reciterId])
-  @@index([reciterId])
 }
 
 model ReviewLog {
@@ -125,10 +131,12 @@ model ReviewLog {
   createdAt       DateTime @default(now())
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
+  /// Restrict, not Cascade: ReviewLog is an append-only analytics ledger and
+  /// Verse rows are content owned by a sync job. Cascading would let a verse
+  /// re-import silently delete users' review history.
+  verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Restrict)
 
   @@index([userId, createdAt])
-  @@index([verseKey])
 }
 
 model ReadingLog {
@@ -138,8 +146,10 @@ model ReadingLog {
   durationMs Int      @default(0)
   createdAt  DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Present only to match ReviewLog: a review rolls the reading back if the
+  /// verse is gone, so a reading must never be able to exist alone.
+  verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
 
   @@index([userId, createdAt])
-  @@index([verseKey])
 }

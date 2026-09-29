@@ -24,15 +24,44 @@ async function checkUpstashRateLimit(
 }
 
 function isSameOrigin(request: NextRequest): boolean {
+  const method = request.method;
+  if (!["POST", "PUT", "DELETE", "PATCH"].includes(method)) return true;
+
+  // Browsers always send Sec-Fetch-Site on cross-origin requests, and it
+  // cannot be forged by page script. Prefer it.
+  const secFetchSite = request.headers.get("sec-fetch-site");
+  if (secFetchSite) {
+    return secFetchSite === "same-origin" || secFetchSite === "none";
+  }
+
+  // Fail closed when Origin is absent. Treating a missing Origin as trusted
+  // made this check a no-op for any client that simply omits the header.
   const origin = request.headers.get("origin");
   const host = request.headers.get("host");
-  if (!origin || !host) return true;
+  if (!origin || !host) return false;
   try {
-    const originHost = new URL(origin).host;
-    return originHost === host;
+    return new URL(origin).host === host;
   } catch {
     return false;
   }
+}
+
+function clientIp(request: NextRequest): string | null {
+  // Prefer the platform-set header, then the LAST X-Forwarded-For entry.
+  // The first entry is client-supplied whenever the edge appends rather than
+  // overwrites, which would let an attacker mint a fresh rate-limit bucket
+  // per request by sending a random X-Forwarded-For.
+  const candidates = [
+    request.headers.get("x-vercel-forwarded-for"),
+    request.headers.get("cf-connecting-ip"),
+    request.headers.get("x-real-ip"),
+  ];
+  for (const header of candidates) {
+    const value = header?.split(",").pop()?.trim();
+    if (value) return value;
+  }
+  const xff = request.headers.get("x-forwarded-for")?.split(",").pop()?.trim();
+  return xff || null;
 }
 
 const AUTH_ROUTES = ["/login", "/signup"];
@@ -53,33 +82,41 @@ let apiWriteRatelimit: { limit: (identifier: string) => Promise<{ success: boole
 let apiReadRatelimit: { limit: (identifier: string) => Promise<{ success: boolean }> } | null = null;
 let apiExpensiveRatelimit: { limit: (identifier: string) => Promise<{ success: boolean }> } | null = null;
 
+let upstashInitialized = false;
+let upstashInitializing: Promise<void> | null = null;
+
 async function initUpstash() {
-  if (upstashAvailable) return;
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) {
-    upstashAvailable = false;
-    return;
-  }
-  try {
-    const { Ratelimit } = await import("@upstash/ratelimit");
-    const { Redis } = await import("@upstash/redis");
-    const redis = new Redis({ url, token });
-    authRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(RATE_LIMIT, "60 s"), analytics: false });
-    apiWriteRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(API_WRITE_LIMIT, "60 s"), analytics: false });
-    apiReadRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(API_READ_LIMIT, "60 s"), analytics: false });
-    apiExpensiveRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(API_EXPENSIVE_LIMIT, "60 s"), analytics: false });
-    upstashAvailable = true;
-  } catch {
-    upstashAvailable = false;
-  }
+  if (upstashInitialized) return;
+  // Without this guard the two dynamic imports re-executed on every request
+  // when Upstash was unconfigured.
+  upstashInitializing ??= (async () => {
+    const url = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (!url || !token) {
+      upstashAvailable = false;
+      upstashInitialized = true;
+      return;
+    }
+    try {
+      const { Ratelimit } = await import("@upstash/ratelimit");
+      const { Redis } = await import("@upstash/redis");
+      const redis = new Redis({ url, token });
+      authRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(RATE_LIMIT, "60 s"), analytics: false });
+      apiWriteRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(API_WRITE_LIMIT, "60 s"), analytics: false });
+      apiReadRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(API_READ_LIMIT, "60 s"), analytics: false });
+      apiExpensiveRatelimit = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(API_EXPENSIVE_LIMIT, "60 s"), analytics: false });
+      upstashAvailable = true;
+    } catch {
+      upstashAvailable = false;
+    }
+    upstashInitialized = true;
+  })();
+  await upstashInitializing;
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
-
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
   if (method === "POST" || method === "PUT" || method === "DELETE") {
     if (!isSameOrigin(request)) {
@@ -87,12 +124,19 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  const ip = clientIp(request);
+
   await initUpstash();
 
   const isAuthPage = AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
   const isAuthAction = method === "POST" && AUTH_ACTION_ROUTES.some((r) => pathname === r);
 
-  if (isAuthPage || isAuthAction) {
+  // Without a client identifier there is nothing to key a bucket on. Failing
+  // closed would let anyone lock out every user behind a header-stripping
+  // proxy, so skip limiting for this request instead of sharing one bucket.
+  const limitable = ip !== null;
+
+  if (limitable && (isAuthPage || isAuthAction)) {
     let allowed = true;
     if (upstashAvailable && authRatelimit) {
       allowed = await checkUpstashRateLimit(authRatelimit, `auth:${ip}`);
@@ -107,7 +151,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  if (pathname.startsWith("/api/")) {
+  if (pathname.startsWith("/api/") && limitable) {
     const isExpensive = EXPENSIVE_API_ROUTES.some((r) => pathname.startsWith(r));
     const isWrite = method === "POST" || method === "PUT" || method === "DELETE";
 

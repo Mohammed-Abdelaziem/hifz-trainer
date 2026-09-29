@@ -22,8 +22,15 @@ describe("/api/sync", () => {
     vi.clearAllMocks();
   });
 
-  it("GET returns sync status", async () => {
-    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1" });
+  it("GET returns 403 for authenticated non-admins", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1", role: "user" });
+    const res = await GET();
+    expect(res.status).toBe(403);
+    expect(getSyncStatus).not.toHaveBeenCalled();
+  });
+
+  it("GET returns sync status for admins", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1", role: "admin" });
     (getSyncStatus as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       syncedAt: new Date("2026-08-31T00:00:00Z"),
@@ -36,7 +43,7 @@ describe("/api/sync", () => {
   });
 
   it("GET returns 500 when getSyncStatus throws", async () => {
-    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1" });
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "user-1", role: "admin" });
     (getSyncStatus as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("sync error"));
     const res = await GET();
     expect(res.status).toBe(500);

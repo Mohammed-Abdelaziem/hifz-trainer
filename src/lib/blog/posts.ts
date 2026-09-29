@@ -156,7 +156,7 @@ Every beginner should master these first:
 1. **Listen first** — play a recitation by a qualified reciter and follow along
 2. **Record yourself** — compare your pronunciation with the reciter
 3. **Focus on one rule at a time** — don't try to learn everything at once
-4. **Use the Tajweed Checker** — apps like Wholly Quran can analyze your recitation and identify mistakes
+4. **Recite along with the audio** — Wholly Quran highlights each word as it is recited, so you can follow a qualified reciter and hear the correct timing for every letter
 
 ## Recommended Learning Path
 
@@ -195,7 +195,7 @@ The traditional method of memorizing the Quran with a teacher is irreplaceable. 
 - **Spaced repetition scheduling** — so you review at the optimal time
 - **Progress tracking** — so you know exactly where you stand
 - **Multiple reciters** — so you can listen and reinforce
-- **Tajweed support** — so you learn proper pronunciation
+- **Word-level audio highlighting** — so you can follow along as it recites
 
 ## Top Quran Memorization Apps in 2026
 
@@ -208,7 +208,7 @@ The traditional method of memorizing the Quran with a teacher is irreplaceable. 
 - 3-tier review system: Sabaq, Sabqi, Manzil
 - Interactive word-by-word Quran reader
 - 10 reciters including Mishary Alafasy and Abdul Basit
-- AI-powered tajweed checker
+- Per-word highlighting that follows the recitation
 - Memory heatmap showing strength across all 114 surahs
 - Fully free and open-source
 
@@ -253,15 +253,16 @@ The traditional method of memorizing the Quran with a teacher is irreplaceable. 
 | Feature | Wholly Quran | Quran.com | Tarteel AI |
 |---------|-------------|-----------|------------|
 | Spaced Repetition | ✅ SM-2 + FSRS | ❌ | ❌ |
-| Tajweed Checker | ✅ AI | ❌ | ✅ Voice |
+| Pronunciation Feedback | ❌ | ❌ | ✅ Voice |
 | Reciters | 10 | 20+ | 5 |
 | Word-by-Word | ✅ | ✅ | ❌ |
+| Per-Word Highlighting | ✅ | ❌ | ❌ |
 | Heatmap | ✅ | ❌ | ❌ |
 | Price | Free | Free | $9.99/mo |
 
 ## The Bottom Line
 
-For **serious memorization**, you need spaced repetition. Quran.com is excellent for reading, Tarteel AI is great for pronunciation, but **Wholly Quran** is the only free app that combines memorization scheduling, progress tracking, and tajweed analysis in one place.
+For **serious memorization**, you need spaced repetition. Quran.com is excellent for reading and Tarteel AI is worth using for pronunciation practice, but **Wholly Quran** is the only free app that combines memorization scheduling with progress tracking in one place.
 
 Start your hifz journey at whollyquran.me — it's completely free.
     `.trim(),
