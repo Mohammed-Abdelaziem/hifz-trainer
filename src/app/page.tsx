@@ -33,5 +33,11 @@ export default async function HomePage() {
     available = [];
   }
 
-  return <DashboardView availableSurahs={available} isGuest={!user} />;
+  return (
+    <DashboardView
+      availableSurahs={available}
+      isGuest={!user}
+      isAdmin={user?.role === "admin"}
+    />
+  );
 }

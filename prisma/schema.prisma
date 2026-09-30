@@ -73,6 +73,7 @@ model Verse {
   reviewLogs    ReviewLog[]
   readingLogs   ReadingLog[]
   recitationAudio RecitationAudio[]
+  search        VerseSearch?
 
   /// Serves the ORDER BY surahId, ayahNumber in getSurahBundle and the
   /// pending-enrichment scan without a sort.
@@ -101,6 +102,17 @@ model UserMemoryState {
   @@unique([userId, verseKey])
   @@index([userId, dueDate])
   @@index([userId, state])
+}
+
+/// Diacritic- and hamza-folded copy of a verse, so an unvocalized query can
+/// match fully-vocalized uthmani text. Populated during enrichment.
+model VerseSearch {
+  verseKey       String @id
+  textNormalized String
+
+  verse Verse @relation(fields: [verseKey], references: [verseKey], onDelete: Cascade)
+
+  @@index([textNormalized])
 }
 
 model RecitationAudio {

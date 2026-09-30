@@ -25,9 +25,17 @@ const queue: DailyQueue = {
 };
 
 describe("TaskQueueTabs", () => {
-  it("defaults to Sabaq and shows its empty state", () => {
+  it("defaults to Sabaq and points an empty plan at the intake control", () => {
     render(<TaskQueueTabs queue={queue} />);
-    expect(screen.getByText(/No new verses to learn/)).toBeInTheDocument();
+    // The old copy congratulated a brand-new user with zero history on
+    // "staying on top", so the empty state now names the control that fixes it.
+    expect(screen.getByText(/No new verses yet/)).toBeInTheDocument();
+    expect(screen.getByText(/Add to Sabaq/)).toBeInTheDocument();
+  });
+
+  it("tells a guest to sign in instead of offering an empty plan", () => {
+    render(<TaskQueueTabs queue={queue} isGuest />);
+    expect(screen.getByText(/Sign in to add verses/)).toBeInTheDocument();
   });
 
   it("switches to Sabqi and lists its items with deep links", async () => {

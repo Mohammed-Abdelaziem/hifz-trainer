@@ -7,6 +7,9 @@ export const FONT_SIZE_DEFAULT = 32;
 export const DAILY_TARGET_MIN = 5;
 export const DAILY_TARGET_MAX = 50;
 
+/** Largest number of verses that can be added to the plan in one request. */
+export const SABAQ_BATCH_MAX = 50;
+
 // Day in milliseconds
 export const DAY_MS = 86_400_000;
 

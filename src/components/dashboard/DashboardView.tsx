@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { GoalRing, StreakCard } from "./StatsCards";
 import { TaskQueueTabs } from "./TaskQueueTabs";
 import { SyncButton } from "./SyncButton";
+import { SabaqIntake } from "./SabaqIntake";
 import { WeeklyChartWrapper } from "./WeeklyChartWrapper";
 
 function SchedulerControls({ active, retention }: { active: SchedulerKind; retention: number }) {
@@ -101,7 +102,15 @@ function DashboardSkeleton() {
   );
 }
 
-export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: { id: number; name_arabic: string; name_simple: string; ayah_count: number }[]; isGuest?: boolean }) {
+export function DashboardView({
+  availableSurahs,
+  isGuest,
+  isAdmin,
+}: {
+  availableSurahs: { id: number; name_arabic: string; name_simple: string; ayah_count: number }[];
+  isGuest?: boolean;
+  isAdmin?: boolean;
+}) {
   const { data: queue, isLoading, isError } = useQueue();
   const fullCorpus = availableSurahs.length >= 114;
 
@@ -139,9 +148,20 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
 
       {isError ? (
         <Card className="border-red-200 p-6 text-sm text-red-700 dark:border-red-900 dark:text-red-300">
-          Could not load your queue. Is the database reachable? Run{" "}
-          <code className="rounded bg-red-50 px-1 dark:bg-red-950/40">npm run db:push</code> and
-          reload.
+          {isGuest ? (
+            <>
+              You&apos;re browsing as a guest, so there is no review queue to load.{" "}
+              <Link href="/login" className="font-medium underline">
+                Sign in
+              </Link>{" "}
+              to start tracking your memorization.
+            </>
+          ) : (
+            <>
+              Could not load your queue. If this keeps happening the database may be
+              unreachable — check the server logs.
+            </>
+          )}
         </Card>
       ) : isLoading || !queue ? (
         <DashboardSkeleton />
@@ -162,6 +182,12 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
                 You&apos;ve read <strong>{queue.streak.todayRead}</strong> verse{queue.streak.todayRead === 1 ? "" : "s"} today.
                 Reading counts toward your streak even without grading.
               </p>
+            </div>
+          )}
+
+          {!isGuest && (
+            <div className="mb-4">
+              <SabaqIntake />
             </div>
           )}
 
@@ -196,7 +222,7 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
             </div>
           </div>
 
-          <TaskQueueTabs queue={queue} />
+          <TaskQueueTabs queue={queue} isGuest={isGuest} />
         </>
       )}
 
@@ -205,7 +231,9 @@ export function DashboardView({ availableSurahs, isGuest }: { availableSurahs: {
           <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-400">
             {fullCorpus ? "All surahs" : "Open a surah to memorize"}
           </h2>
-          <SyncButton corpusSynced={fullCorpus} />
+          {/* POST /api/sync is admin-gated, so showing this to everyone left a
+              button that always failed with "Forbidden". */}
+          {isAdmin && <SyncButton corpusSynced={fullCorpus} />}
         </div>
         {fullCorpus ? (
           <details className="rounded-xl border border-stone-200 bg-white shadow-sm dark:border-stone-800 dark:bg-stone-900">

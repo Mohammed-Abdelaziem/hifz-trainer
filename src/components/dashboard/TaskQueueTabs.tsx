@@ -82,7 +82,13 @@ function QueueRow({ item }: { item: QueueItem }) {
   );
 }
 
-export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {
+export function TaskQueueTabs({
+  queue,
+  isGuest = false,
+}: {
+  queue: DailyQueue;
+  isGuest?: boolean;
+}) {
   const [active, setActive] = useState<Bucket>("sabaq");
   const counts: Record<Bucket, number> = {
     sabaq: queue.sabaq.length,
@@ -176,7 +182,13 @@ export function TaskQueueTabs({ queue }: { queue: DailyQueue }) {
               <div className="flex h-[96px] flex-col items-center justify-center gap-1 text-center">
                 <BookOpen className="h-5 w-5 text-stone-300 dark:text-stone-600" />
                 <p className="text-sm text-stone-500">
-                  {active === "sabaq" && "No new verses to learn right now. Great job staying on top!"}
+                  {/* Sabaq starts empty for every new account, so the old copy
+                      congratulated someone with zero history on staying on
+                      top. Point them at the intake control instead. */}
+                  {active === "sabaq" &&
+                    (isGuest
+                      ? "Sign in to add verses to your plan."
+                      : "No new verses yet — add some with “Add to Sabaq” above.")}
                   {active === "sabqi" && "No recent verses due for review. They'll appear here as you memorise new ones."}
                   {active === "manzil" && "No long-term verses due. They'll appear here as your sabqi verses mature."}
                 </p>

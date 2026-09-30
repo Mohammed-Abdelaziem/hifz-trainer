@@ -249,29 +249,57 @@ export function ReaderWorkspace({
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), 2600);
 
-    const isOnline = navigator.onLine;
-    if (!isGuest && isOnline) {
-      fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verseKey, grade }),
-      })
-        .then(async (res) => {
-          if (!res.ok) return;
-          const data = (await res.json()) as { result: ServerReviewResult };
-          const next = toSnapshot(data.result);
-          next.lapses =
-            grade === "AGAIN" && prev.state !== "SABAQ" ? prev.lapses + 1 : prev.lapses;
-          memoryStatesRef.current.set(verseKey, next);
-          setFlash(describeOutcome(next, grade));
+    const queueLocally = (reason: string) => {
+      offlineReviewQueue
+        .enqueue({ verseKey, grade, timestamp: Date.now() })
+        .then((id) => {
+          setFlash(`${reason} — review queued (${id.slice(0, 8)})`);
+          registerBackgroundSync().catch(() => {});
         })
-        .catch(() => {});
-    } else {
-      offlineReviewQueue.enqueue({ verseKey, grade, timestamp: Date.now() }).then((id) => {
-        setFlash(`Offline — review queued (${id.slice(0, 8)})`);
-      });
-      registerBackgroundSync().catch(() => {});
+        .catch(() => {
+          // The IndexedDB write itself failed; the local SRS preview above
+          // still stands, so say so rather than claiming it was saved.
+          setFlash("Saved locally only — could not reach the queue");
+        });
+    };
+
+    if (isGuest) {
+      queueLocally("Guest");
+      return;
     }
+
+    if (!navigator.onLine) {
+      queueLocally("Offline");
+      return;
+    }
+
+    fetch("/api/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ verseKey, grade }),
+    })
+      .then(async (res) => {
+        if (res.status === 401) {
+          queueLocally("Session expired");
+          return;
+        }
+        // A 500, a rate limit, or an expired session all used to return early,
+        // silently discarding a grade the user had just seen succeed.
+        if (!res.ok) {
+          queueLocally("Server error");
+          return;
+        }
+        const data = (await res.json()) as { result: ServerReviewResult };
+        const next = toSnapshot(data.result);
+        next.lapses =
+          grade === "AGAIN" && prev.state !== "SABAQ" ? prev.lapses + 1 : prev.lapses;
+        memoryStatesRef.current.set(verseKey, next);
+        setFlash(describeOutcome(next, grade));
+      })
+      .catch(() => {
+        // Offline mid-request, a dropped connection, or a backgrounded tab.
+        queueLocally("Connection lost");
+      });
 
     const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
     if (idx + 1 < surah.ayahs.length) {

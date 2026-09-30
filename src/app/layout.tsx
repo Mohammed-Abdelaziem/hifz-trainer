@@ -72,12 +72,26 @@ export const metadata: Metadata = {
     images: ["https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition"],
   },
   manifest: "/manifest.webmanifest",
-  icons: { icon: "/icon.svg" },
+  // Raster icons are required for installability: Chrome wants a >=192px PNG
+  // and iOS ignores manifest SVG icons for the home screen entirely.
+  icons: {
+    icon: [
+      { url: "/favicon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+  // Without this, "Add to Home Screen" on iOS opens Safari chrome rather than a
+  // standalone window.
+  appleWebApp: { capable: true, title: "Hifz Trainer", statusBarStyle: "black-translucent" },
   metadataBase: new URL("https://whollyquran.me"),
 };
 
 export const viewport: Viewport = {
   themeColor: "#b45309",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {

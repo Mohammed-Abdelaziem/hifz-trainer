@@ -1,6 +1,6 @@
 import type { Grade, MemoryState, SchedulerKind } from "@/types/quran";
 import type { DailyQueue, MemoryCell, QueueItem, StreakInfo } from "@/types/srs";
-import { getDb, getDbWithTest, sanitizeUrl } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { DAY_MS, DEFAULT_RETENTION } from "@/lib/constants";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 import {
@@ -13,79 +13,13 @@ import { scheduleFsrs, type FsrsInput } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
 import { stabilityScore } from "@/lib/srs/stability";
 
-export const DEMO_EMAIL = "demo@hifz.local";
-
-const PAGE_NUMBERS: Record<number, number> = { 1: 1, 112: 604 };
-
 /** Upper bound on items returned by buildDailyQueue for a single user. */
 const MAX_QUEUE_ITEMS = 500;
-
-let seedPromise: Promise<void> | null = null;
-
-async function seedVerses(): Promise<void> {
-  const db = await getDbWithTest();
-  for (const surah of Object.values(FIXTURE_SURAHS)) {
-    for (const ayah of surah.ayahs) {
-      const safeAudioUrl = sanitizeUrl(ayah.audio_url);
-      const createData = {
-        verseKey: ayah.verse_key,
-        surahId: surah.id,
-        ayahNumber: ayah.ayah_number,
-        pageNumber: PAGE_NUMBERS[surah.id] ?? 1,
-        uthmaniText: ayah.words.map((w) => w.text_uthmani).join(" "),
-        translation: ayah.words.map((w) => w.translation).join(" "),
-        audioUrl: safeAudioUrl ?? ayah.audio_url,
-        timestampsJson: JSON.stringify(ayah.timings),
-        wordsJson: JSON.stringify(ayah.words),
-        tafsir: ayah.tafsir,
-      };
-      try {
-        await db.verse.upsert({
-          where: { verseKey: ayah.verse_key },
-          create: createData,
-          update: {},
-        });
-      } catch {
-        throw new Error(`Failed to seed verse ${ayah.verse_key}`);
-      }
-    }
-  }
-}
-
-export function ensureVersesSeeded(): Promise<void> {
-  if (!seedPromise) {
-    seedPromise = seedVerses().catch((err) => {
-      seedPromise = null;
-      throw err;
-    });
-  }
-  return seedPromise;
-}
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-export async function getOrCreateUser(email = DEMO_EMAIL) {
-  const db = await getDbWithTest();
-  await ensureVersesSeeded();
-  return db.user.upsert({
-    where: { email },
-    create: { email },
-    update: {},
-  });
-}
-
-export async function ensureDemoUser(email: string, passwordHash: string) {
-  const db = await getDbWithTest();
-  await ensureVersesSeeded();
-  await db.user.upsert({
-    where: { email },
-    create: { email, passwordHash },
-    update: { passwordHash },
-  });
 }
 
 function computeStreak(
@@ -274,8 +208,71 @@ export async function recordReview(params: {
   };
 }
 
-function surahName(surahId: number): string {
-  return FIXTURE_SURAHS[surahId]?.name_simple ?? `Surah ${surahId}`;
+/**
+ * Builds a surahId -> name map, preferring the Surah table and falling back to
+ * the two-surah fixture for a database that has not been synced yet.
+ */
+function buildSurahNameMap(
+  rows: { id: number; nameSimple: string }[]
+): Map<number, string> {
+  const names = new Map<number, string>();
+  for (const row of rows) names.set(row.id, row.nameSimple);
+  for (const s of Object.values(FIXTURE_SURAHS)) {
+    if (!names.has(s.id)) names.set(s.id, s.name_simple);
+  }
+  return names;
+}
+
+/**
+ * Inserts verses into the user's Sabaq (new-memorization) bucket.
+ *
+ * This is the intake step the app was missing: rows only ever appeared as a
+ * side effect of grading a verse in the reader, so a new account had a
+ * permanently empty queue and an empty state that congratulated them on it.
+ */
+export async function addToSabaq(params: {
+  userId: string;
+  verseKeys: string[];
+}): Promise<{ added: number; skipped: number }> {
+  const db = await getDb();
+  const now = new Date();
+
+  // Only verses that exist can be added, and the shape is validated here as
+  // well as at the route edge.
+  const keys = [...new Set(params.verseKeys)].filter(
+    (k) => /^\d{1,3}:\d{1,3}$/.test(k)
+  );
+  if (keys.length === 0) return { added: 0, skipped: 0 };
+
+  const existingVerses = await db.verse.findMany({
+    where: { verseKey: { in: keys } },
+    select: { verseKey: true },
+  });
+  const valid = existingVerses.map((v) => v.verseKey);
+  if (valid.length === 0) return { added: 0, skipped: keys.length };
+
+  // Never re-add something the user already has state for; that would reset a
+  // verse they have partly memorized back to Sabaq.
+  const alreadyTracked = await db.userMemoryState.findMany({
+    where: { userId: params.userId, verseKey: { in: valid } },
+    select: { verseKey: true },
+  });
+  const tracked = new Set(alreadyTracked.map((s) => s.verseKey));
+  const toAdd = valid.filter((k) => !tracked.has(k));
+
+  if (toAdd.length > 0) {
+    await db.userMemoryState.createMany({
+      data: toAdd.map((verseKey) => ({
+        userId: params.userId,
+        verseKey,
+        state: "SABAQ",
+        dueDate: now,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  return { added: toAdd.length, skipped: keys.length - toAdd.length };
 }
 
 export async function recordReading(params: {
@@ -369,7 +366,7 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  const [user, states] = await Promise.all([
+  const [user, states, surahRows] = await Promise.all([
     db.user.findUniqueOrThrow({ where: { id: userId } }),
     // `include: { verse: true }` fetched the whole Verse row (text, translation,
     // wordsJson) for every due verse. The mapper below needs four fields, and
@@ -386,11 +383,15 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
       orderBy: { dueDate: "asc" },
       take: MAX_QUEUE_ITEMS,
     }),
+    // Surah names live in the Surah table, not in the two-surah fixture, so
+    // reading them here is what stops the queue showing "Surah 47".
+    db.surah.findMany({ select: { id: true, nameSimple: true } }),
   ]);
+  const names = buildSurahNameMap(surahRows);
   const toItem = (s: (typeof states)[number]): QueueItem => ({
     verseKey: s.verseKey,
     surahId: s.verse.surahId,
-    surahName: surahName(s.verse.surahId),
+    surahName: names.get(s.verse.surahId) ?? `Surah ${s.verse.surahId}`,
     ayahNumber: s.verse.ayahNumber,
     pageNumber: s.verse.pageNumber,
     dueAt: s.dueDate.toISOString(),
