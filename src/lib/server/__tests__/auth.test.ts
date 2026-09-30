@@ -132,6 +132,17 @@ describe("session token storage", () => {
       where: { userId: "u1" },
     });
   });
+
+  it("destroySession removes the row by hashed token and clears the cookie", async () => {
+    const token = await createSession("u1");
+    db.session.deleteMany.mockClear();
+
+    await destroySession();
+    // Same guarantee as getSessionUser: the raw cookie value is never queried.
+    expect(db.session.deleteMany).toHaveBeenCalledWith({
+      where: { token: sha256(token) },
+    });
+  });
 });
 
 describe("password hashing", () => {

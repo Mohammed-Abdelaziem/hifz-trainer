@@ -14,8 +14,6 @@ function makeRequest(
   } as unknown as NextRequest;
 }
 
-const json = (res: Response) => res.json();
-
 beforeEach(() => {
   vi.resetModules();
 });
