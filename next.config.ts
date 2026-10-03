@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-// NOTE: unsafe-inline and unsafe-eval are required by Next.js SSR/hydration.
-// Consider migrating to nonce-based CSP if custom server rendering is added.
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -21,12 +19,15 @@ const securityHeaders = [
       "script-src-attr 'none'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' https://verses.quran.com https://api.quran.com data:",
-      // everyayah.com is the apex host the app actually loads audio from
-      // (lib/quran/timings.ts RECITER_BASE), not audio.everyayah.com.
-      "media-src 'self' https://verses.quran.com https://everyayah.com https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
+      // Audio is served from four different mp3quran hosts plus the everyayah
+      // CDN, and mp3quran.net 301-redirects to www.mp3quran.net — CSP
+      // re-checks the redirect target, so the apex alone is not enough.
+      // Wildcards cover every current and future host in the family.
+      // `data:` covers decoded Web Audio buffers.
+      "media-src 'self' https://verses.quran.com https://everyayah.com https://*.everyayah.com https://mp3quran.net https://*.mp3quran.net data:",
       // OAuth hosts are contacted server-side only, so the browser does not
       // need reach to them.
-      "connect-src 'self' https://api.quran.com https://verses.quran.com https://everyayah.com https://mp3quran.net https://server8.mp3quran.net https://server13.mp3quran.net https://server7.mp3quran.net https://server11.mp3quran.net https://server10.mp3quran.net",
+      "connect-src 'self' https://api.quran.com https://verses.quran.com https://everyayah.com https://*.everyayah.com https://mp3quran.net https://*.mp3quran.net",
       "font-src 'self' https://fonts.gstatic.com",
       "base-uri 'self'",
       "form-action 'self'",
