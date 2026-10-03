@@ -34,16 +34,21 @@ CREATE INDEX IF NOT EXISTS "VerseSearch_textNormalized_idx"
 -- ta-marbuta folds below. PostgreSQL has no NFKC, so a few presentation
 -- forms are not folded here; the application normalizer handles those and
 -- both sides are folded before comparison.
+--
+-- Implemented entirely with regexp_replace rather than nested translate():
+-- Postgres cannot resolve the type of translate's second and third arguments
+-- when they are literals inside a nested call, and fails with
+-- "function translate(text, unknown, unknown, unknown) does not exist".
 INSERT INTO "VerseSearch" ("verseKey", "textNormalized")
 SELECT
   "verseKey",
   lower(
-    translate(
-      translate(
-        translate(
-          translate(
-            translate(
-              translate(
+    btrim(
+      regexp_replace(
+        regexp_replace(
+          regexp_replace(
+            regexp_replace(
+              regexp_replace(
                 regexp_replace(
                   regexp_replace(
                     regexp_replace(
@@ -53,7 +58,7 @@ SELECT
                       ),
                       '[آأإٱٲٳٵ]', 'ا', 'g'
                     ),
-                    '[ؤٷۈۉۍۇۆ]', 'و', 'g'
+                    '[ؤٷۈۉۍۇۆۋ]', 'و', 'g'
                   ),
                   '[يىےۓېئ]', 'ي', 'g'
                 ),
@@ -63,9 +68,9 @@ SELECT
             ),
             '[‌‍]', '', 'g'
           ),
-          '  ', ' ', 'g'
+          '[[:space:]]+', ' ', 'g'
         ),
-        ' ', ' ', 'g'
+        ' {2,}', ' ', 'g'
       )
     )
   )
