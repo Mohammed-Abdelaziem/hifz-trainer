@@ -48,13 +48,12 @@ jobs:
       - name: Apply migrations
         run: npx prisma migrate deploy
 
-      # Fails if schema.prisma has drifted from the migrations directory.
-      - name: Verify no schema drift
-        run: |
-          npx prisma migrate diff \
-            --from-migrations prisma/migrations \
-            --to-schema prisma/schema.prisma \
-            --exit-code
+      # Fails if the migrated database does not match schema.prisma, which
+      # catches a migration that silently did not apply. Diffing the migrations
+      # directory instead would need a shadow database, which is not worth the
+      # extra service for this check.
+      - name: Verify no drift between the database and the schema
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema prisma/schema.prisma --exit-code
 
       - run: npm run typecheck
 
