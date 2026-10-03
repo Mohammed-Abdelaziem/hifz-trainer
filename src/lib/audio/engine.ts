@@ -10,6 +10,8 @@ export class AudioEngine {
   private howl: Howl | null = null;
   private url: string | null = null;
   private lastGoodUrl: string | null = null;
+  /** URLs that have already errored, so the fallback cannot ping-pong. */
+  private failedUrls = new Set<string>();
   private mode: EngineMode = "idle";
   private rateFactor = 1;
   private volumeFactor = 1;
@@ -69,7 +71,13 @@ export class AudioEngine {
 
   async load(url: string) {
     if (!url) return;
-    if (this.url === url && this.mode !== "idle" && this.mode !== "virtual") return;
+    // Deduped on the URL alone. Excluding "virtual" from this check meant a
+    // load that had failed into virtual mode was retried on every subsequent
+    // effect run, each attempt creating another Howl — and with html5 audio
+    // Howler only pools three Audio objects, so the pool was exhausted and it
+    // began handing back objects that were still locked. Retry a virtual URL
+    // only via an explicit load() with force, or a different URL.
+    if (this.url === url && this.mode !== "idle") return;
     const previousUrl = this.url;
     this.softStop();
     this.unload();
@@ -78,6 +86,9 @@ export class AudioEngine {
     if (typeof window === "undefined") return;
     this.mode = "loading";
     const myLoad = ++this.loadSeq;
+    // Tracked separately so the catch can release it: a Howl that throws or
+    // fails still holds an HTML5 Audio slot, and Howler's pool is three deep.
+    let created: Howl | null = null;
     try {
       const { Howl: HowlCtor } = await import("howler");
       if (this.loadSeq !== myLoad) return;
@@ -120,7 +131,21 @@ export class AudioEngine {
       howl.on("loaderror", (_id, err) => {
         if (this.loadSeq !== myLoad) return;
         console.warn("[AudioEngine] load failed:", url, String(err));
-        if (previousUrl && previousUrl !== url) {
+        this.failedUrls.add(url);
+        // Release the audio object now. Leaving the failed Howl assigned means
+        // it holds an HTML5 Audio slot until some later load happens to unload
+        // it, and Howler's pool is only three deep.
+        if (this.howl === howl) {
+          this.howl = null;
+        }
+        howl.off();
+        howl.unload();
+        // Fall back only to a URL that has not already failed. Comparing against
+// lastGoodUrl did not work: in the normal case the previous URL *is* the last
+// good one, so that blocked the legitimate fallback. Tracking failures is what
+// actually prevents two failing URLs from ping-ponging through the fallback
+// recursively and spawning overlapping loads.
+if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
           void this.load(previousUrl);
           return;
         }
@@ -138,9 +163,18 @@ export class AudioEngine {
         }
       });
       this.howl = howl;
+      created = howl;
     } catch (err) {
       console.warn("[AudioEngine] load exception:", url, String(err));
-      if (previousUrl && previousUrl !== url) {
+      this.failedUrls.add(url);
+      if (created) {
+        if (this.howl === created) {
+          this.howl = null;
+        }
+        created.off();
+        created.unload();
+      }
+      if (previousUrl && previousUrl !== url && previousUrl !== this.lastGoodUrl) {
         void this.load(previousUrl);
         return;
       }

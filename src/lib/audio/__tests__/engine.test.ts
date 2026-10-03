@@ -2,6 +2,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("howler", () => {
   const instances: MockHowl[] = [];
+  /** Every Howl ever constructed, including unloaded ones. */
+  const all: MockHowl[] = [];
 
   class MockHowl {
     _src: string;
@@ -10,12 +12,14 @@ vi.mock("howler", () => {
     _playing = false;
     _listeners: Record<string, Array<(...args: unknown[]) => void>> = {};
     _seekPos = 0;
+    _unloaded = false;
 
     constructor(opts: { src: string[]; volume?: number; rate?: number }) {
       this._src = opts.src[0];
       this._volume = opts.volume ?? 1;
       this._rate = opts.rate ?? 1;
       instances.push(this);
+      all.push(this);
     }
 
     on(event: string, cb: (...args: unknown[]) => void) {
@@ -48,6 +52,7 @@ vi.mock("howler", () => {
     }
 
     unload() {
+      this._unloaded = true;
       const idx = instances.indexOf(this);
       if (idx >= 0) instances.splice(idx, 1);
     }
@@ -102,6 +107,7 @@ vi.mock("howler", () => {
   return {
     Howl: MockHowl,
     __instances: instances,
+    __all: all,
   };
 });
 
@@ -118,8 +124,14 @@ function getAllHowls() {
   return howlerMock.__instances;
 }
 
+/** Every Howl ever constructed in this test, unloaded ones included. */
+function getEveryHowlEverCreated() {
+  return howlerMock.__all as Array<{ _src: string; _unloaded: boolean }>;
+}
+
 beforeEach(() => {
   howlerMock.__instances.length = 0;
+  howlerMock.__all.length = 0;
 });
 
 describe("AudioEngine", () => {
@@ -451,6 +463,58 @@ describe("AudioEngine", () => {
       await engine.load("https://example.com/bad.mp3");
       getLastHowl().fireLoadError("network error");
       await vi.waitFor(() => expect(engine.getMode()).toBe("virtual"));
+    });
+
+    it("does not retry the same URL after it failed into virtual mode", async () => {
+      // With html5 audio Howler pools only three Audio objects, so creating a
+      // fresh Howl on every effect run exhausted the pool and it started
+      // handing back objects that were still locked.
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/bad.mp3");
+      getLastHowl().fireLoadError("network error");
+      await vi.waitFor(() => expect(engine.getMode()).toBe("virtual"));
+
+      const createdAfterFailure = getAllHowls().length;
+      for (let i = 0; i < 10; i += 1) {
+        await engine.load("https://example.com/bad.mp3");
+      }
+      expect(getAllHowls().length).toBe(createdAfterFailure);
+    });
+
+    it("releases the failed Howl so its audio object returns to the pool", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/bad.mp3");
+      const failed = getLastHowl();
+      failed.fireLoadError("network error");
+      expect(failed._unloaded).toBe(true);
+      // Nothing left holding a pooled Audio object.
+      expect(getAllHowls()).toHaveLength(0);
+    });
+
+    it("does not ping-pong when two URLs both fail", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/a.mp3");
+      getLastHowl().fireLoadError("fail");
+      await engine.load("https://example.com/b.mp3");
+      getLastHowl().fireLoadError("fail");
+
+      await vi.waitFor(() => expect(engine.getMode()).toBe("virtual"));
+      // a fails -> b, b fails -> must not go back to a.
+      const attempts = getEveryHowlEverCreated().filter(
+        (h) => h._src === "https://example.com/a.mp3"
+      );
+      expect(attempts).toHaveLength(1);
+    });
+
+    it("still falls back to a known-good URL on a transient failure", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/good.mp3");
+      getLastHowl().fireLoad();
+      await engine.load("https://example.com/flaky.mp3");
+      getLastHowl().fireLoadError("fail");
+      await vi.waitFor(() =>
+        expect(getAllHowls().some((h) => h._src === "https://example.com/good.mp3")).toBe(true)
+      );
     });
 
     it("auto-plays in virtual mode when pendingPlay", async () => {
