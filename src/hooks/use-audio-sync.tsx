@@ -49,6 +49,48 @@ function verseKeyForPosition(verseTimings: VerseTiming[], pos: number): string |
   return null;
 }
 
+function verseStartFor(verseTimings: VerseTiming[], verseKey: string): number | undefined {
+  return verseTimings.find((t) => t.verseKey === verseKey)?.start_ms;
+}
+
+/**
+ * Resolves which verse is playing and which word inside it, for continuous
+ * full-surah playback.
+ *
+ * Two different coordinate spaces are involved: `pos` is an absolute position
+ * in the whole-surah MP3, while `wordTimings` are relative to the start of a
+ * single ayah. The verse offset has to be subtracted before they can be
+ * compared — without that step no word is ever highlighted.
+ *
+ * `wordTimings` belongs to whichever verse the reader has selected, which lags
+ * `pos` by a render when the audio crosses a boundary. So the index is reset to
+ * -1 for the tick on which the verse changes rather than highlighting against
+ * timings that still describe the previous verse.
+ */
+export function resolveSurahPlaybackPosition(args: {
+  pos: number;
+  verseTimings: VerseTiming[];
+  wordTimings: WordTiming[];
+  previousVerseKey: string | null;
+}): { activeVerseKey: string | null; activeIndex: number } {
+  const { pos, verseTimings, wordTimings, previousVerseKey } = args;
+  const found = verseKeyForPosition(verseTimings, pos);
+  const activeVerseKey = found ?? previousVerseKey;
+
+  if (!activeVerseKey) return { activeVerseKey, activeIndex: -1 };
+  if (found !== null && found !== previousVerseKey) {
+    // Verse boundary crossed; word timings still describe the old verse.
+    return { activeVerseKey, activeIndex: -1 };
+  }
+
+  const verseStart = verseStartFor(verseTimings, activeVerseKey);
+  if (verseStart === undefined || wordTimings.length === 0) {
+    return { activeVerseKey, activeIndex: -1 };
+  }
+
+  return { activeVerseKey, activeIndex: indexForPosition(wordTimings, pos - verseStart) };
+}
+
 export function AudioSyncProvider({
   engine,
   timings,
@@ -108,7 +150,14 @@ export function AudioSyncProvider({
 
       if (surahAudioMode) {
         if (verseTimings && verseTimings.length > 0) {
-          activeVerseKey = verseKeyForPosition(verseTimings, pos) ?? activeVerseKey;
+          const resolved = resolveSurahPlaybackPosition({
+            pos,
+            verseTimings,
+            wordTimings: timings,
+            previousVerseKey: activeVerseKey,
+          });
+          activeVerseKey = resolved.activeVerseKey;
+          idx = resolved.activeIndex;
         }
       } else if (timings.length > 0 && pos >= timings[0].start_ms) {
         idx = indexForPosition(timings, pos);

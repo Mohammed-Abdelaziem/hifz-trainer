@@ -513,7 +513,11 @@ describe("AudioEngine", () => {
       await engine.load("https://example.com/flaky.mp3");
       getLastHowl().fireLoadError("fail");
       await vi.waitFor(() =>
-        expect(getAllHowls().some((h) => h._src === "https://example.com/good.mp3")).toBe(true)
+        expect(
+          getAllHowls().some(
+            (h: { _src: string }) => h._src === "https://example.com/good.mp3"
+          )
+        ).toBe(true)
       );
     });
 
