@@ -265,42 +265,40 @@ export function ReaderWorkspace({
 
     if (isGuest) {
       queueLocally("Guest");
-      return;
-    }
-
-    if (!navigator.onLine) {
+    } else if (!navigator.onLine) {
       queueLocally("Offline");
-      return;
+    } else {
+      fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ verseKey, grade }),
+      })
+        .then(async (res) => {
+          if (res.status === 401) {
+            queueLocally("Session expired");
+            return;
+          }
+          // A 500, a rate limit, or an expired session all used to return
+          // early, silently discarding a grade the user had just seen succeed.
+          if (!res.ok) {
+            queueLocally("Server error");
+            return;
+          }
+          const data = (await res.json()) as { result: ServerReviewResult };
+          const next = toSnapshot(data.result);
+          next.lapses =
+            grade === "AGAIN" && prev.state !== "SABAQ" ? prev.lapses + 1 : prev.lapses;
+          memoryStatesRef.current.set(verseKey, next);
+          setFlash(describeOutcome(next, grade));
+        })
+        .catch(() => {
+          // Offline mid-request, a dropped connection, or a backgrounded tab.
+          queueLocally("Connection lost");
+        });
     }
 
-    fetch("/api/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ verseKey, grade }),
-    })
-      .then(async (res) => {
-        if (res.status === 401) {
-          queueLocally("Session expired");
-          return;
-        }
-        // A 500, a rate limit, or an expired session all used to return early,
-        // silently discarding a grade the user had just seen succeed.
-        if (!res.ok) {
-          queueLocally("Server error");
-          return;
-        }
-        const data = (await res.json()) as { result: ServerReviewResult };
-        const next = toSnapshot(data.result);
-        next.lapses =
-          grade === "AGAIN" && prev.state !== "SABAQ" ? prev.lapses + 1 : prev.lapses;
-        memoryStatesRef.current.set(verseKey, next);
-        setFlash(describeOutcome(next, grade));
-      })
-      .catch(() => {
-        // Offline mid-request, a dropped connection, or a backgrounded tab.
-        queueLocally("Connection lost");
-      });
-
+    // Deliberately not an early return: where the grade is persisted must not
+    // change whether the reader advances to the next verse.
     const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
     if (idx + 1 < surah.ayahs.length) {
       const nextAyah = surah.ayahs[idx + 1];
