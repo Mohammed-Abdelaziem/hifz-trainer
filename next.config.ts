@@ -15,7 +15,12 @@ const securityHeaders = [
       // 'unsafe-inline' is required by the App Router's own bootstrap scripts.
       // script-src-attr is separate and blocks inline event handlers
       // (onerror=, onclick=), which is the common shape of an XSS payload.
-      "script-src 'self' 'unsafe-inline'",
+      //
+      // static.cloudflareinsights.com is Cloudflare Browser Insights, which
+      // the zone injects automatically. If you would rather not allow a
+      // third-party script host, delete this host from both directives below
+      // and turn Browser Insights off in the Cloudflare dashboard instead.
+      "script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com",
       "script-src-attr 'none'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' https://verses.quran.com https://api.quran.com data:",
@@ -27,7 +32,7 @@ const securityHeaders = [
       "media-src 'self' https://verses.quran.com https://everyayah.com https://*.everyayah.com https://mp3quran.net https://*.mp3quran.net data:",
       // OAuth hosts are contacted server-side only, so the browser does not
       // need reach to them.
-      "connect-src 'self' https://api.quran.com https://verses.quran.com https://everyayah.com https://*.everyayah.com https://mp3quran.net https://*.mp3quran.net",
+      "connect-src 'self' https://api.quran.com https://verses.quran.com https://everyayah.com https://*.everyayah.com https://mp3quran.net https://*.mp3quran.net https://cloudflareinsights.com",
       "font-src 'self' https://fonts.gstatic.com",
       "base-uri 'self'",
       "form-action 'self'",

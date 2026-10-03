@@ -24,7 +24,13 @@ self.addEventListener("activate", (event) => {
     caches
       .keys()
       .then((keys) =>
-        Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k)))
+        Promise.all(
+          keys
+            // Anything not this version goes, plus STATIC_CACHE which is no
+            // longer populated. Left in place it would sit unused forever.
+            .filter((k) => !k.startsWith(VERSION) || k === STATIC_CACHE)
+            .map((k) => caches.delete(k))
+        )
       )
       .then(() => self.clients.claim())
   );
@@ -235,7 +241,14 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Deliberately does not intercept /_next/static/. Those URLs are
+  // content-hashed and immutable, so the HTTP cache is already the correct
+  // layer. Routing them through the SW put a second cache in front of
+  // Next's <link rel="preload">, and because a preloaded fetch and a
+  // service-worker-intercepted fetch are different "worlds", the browser
+  // discarded every preload as unused. It also grew STATIC_CACHE without
+  // bound, since nothing evicted it.
   if (url.origin === self.location.origin && isStaticAsset(url)) {
-    event.respondWith(cacheFirst(request, STATIC_CACHE));
+    event.respondWith(fetch(request));
   }
 });
