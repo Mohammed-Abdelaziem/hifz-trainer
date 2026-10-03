@@ -95,7 +95,17 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const user = await getSessionUser();
+  // The layout wraps every page, so an unhandled throw here turns any transient
+  // database hiccup into a 500 on the whole site — React reports it as a
+  // Server Components render error (#441) with no message in production.
+  // Degrade to a signed-out render instead; the pages that need a session
+  // still guard their own data.
+  let user = null;
+  try {
+    user = await getSessionUser();
+  } catch (err) {
+    console.error("[layout] session lookup failed", err);
+  }
   const isGuest = !user;
   return (
     <html
