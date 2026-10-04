@@ -18,13 +18,12 @@ test.describe("Dashboard", () => {
     await expect(page.getByRole("tab", { name: /Manzil/i })).toBeVisible();
   });
 
-  test("shows the corpus sync control in whichever state applies", async ({ page }) => {
-    // The label reflects the current state: "Sync full Quran" when idle,
-    // "Full corpus synced" once done, "Retry sync" after a failure. The
-    // "Browse all N surahs" fallback this test used to accept does not exist
-    // anywhere in the app.
+  test("hides the corpus sync control from non-admins", async ({ page }) => {
+    // SyncButton is gated behind isAdmin so an ordinary account cannot trigger
+    // a full 6,236-verse sync. scripts/auth-e2e.mjs seeds a plain user, so the
+    // control must be absent whichever state it would have been in.
     await expect(
       page.getByRole("button", { name: /Sync full Quran|Full corpus synced|Retry sync/ })
-    ).toBeVisible();
+    ).toHaveCount(0);
   });
 });

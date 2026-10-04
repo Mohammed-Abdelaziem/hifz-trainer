@@ -44,11 +44,15 @@ test.describe("Reader", () => {
   test("reveals a word with the keyboard", async ({ page }) => {
     // Switch to a masking mode so words are interactive.
     await page.getByRole("tab", { name: /Blurred/i }).click();
-    const word = page.getByRole("button", { name: "Reveal word" }).first();
-    await expect(word).toBeVisible();
-    await word.focus();
+    const words = page.getByRole("button", { name: "Reveal word" });
+    await expect(words.first()).toBeVisible();
+
+    // A revealed word loses role="button" and its "Reveal word" label, so a
+    // locator re-resolves to the next still-masked word. Count the buttons
+    // instead of asserting on a re-resolved element's classes.
+    const before = await words.count();
+    await words.first().focus();
     await page.keyboard.press("Enter");
-    // The blurred attribute is removed once revealed.
-    await expect(word).not.toHaveClass(/blur-\[6px\]/);
+    await expect(words).toHaveCount(before - 1);
   });
 });
