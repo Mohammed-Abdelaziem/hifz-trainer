@@ -455,7 +455,11 @@ export function ReaderWorkspace({
         </div>
 
         <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
-          <div className="mx-auto flex max-w-4xl flex-col gap-2.5 p-3">
+          {/* MobileNav is also fixed to the bottom and sits at z-50, so on
+              phones it covered the rating buttons and made them untappable.
+              Reserve its height here and drop back to the normal padding from
+              md up, where the nav is hidden. */}
+          <div className="mx-auto flex max-w-4xl flex-col gap-2.5 px-3 pb-16 pt-3 md:pb-3">
             <AudioControlBar
               words={effectiveSelected.words}
               verseKey={selected!.verse_key}
