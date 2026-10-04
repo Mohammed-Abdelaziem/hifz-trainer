@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { unstable_rethrow } from "next/navigation";
 import { Geist, Geist_Mono, Scheherazade_New } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
@@ -104,7 +105,12 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   try {
     user = await getSessionUser();
   } catch (err) {
-    console.error("[layout] session lookup failed", err);
+    // Next.js signals "this route must be rendered dynamically" by throwing a
+    // DynamicServerError out of cookies(). That is control flow, not a
+    // failure, so it has to keep propagating; swallowing it both silences the
+    // real cause and lets Next try to prerender a route that cannot be.
+    unstable_rethrow(err);
+    console.warn("[layout] session lookup failed, rendering signed out", err);
   }
   const isGuest = !user;
   return (

@@ -48,12 +48,27 @@ jobs:
       - name: Apply migrations
         run: npx prisma migrate deploy
 
-      # Fails if the migrated database does not match schema.prisma, which
-      # catches a migration that silently did not apply. Prisma 7 removed
-      # --from-url, so the "from" side comes from the datasource declared in
-      # prisma.config.ts, which reads DATABASE_URL.
+      # Fails if the migrated database does not match schema.prisma, which catches a
+      # migration that silently did not apply. Prisma 7 removed --from-url, so
+      # the "from" side comes from the datasource in prisma.config.ts.
+      #
+      # The pg_trgm index is created by hand-written SQL because Prisma cannot
+      # express a GIN index with an operator class, so Prisma always reports it
+      # as removable. That one statement is filtered out; anything else fails.
       - name: Verify no drift between the database and the schema
-        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
+        run: |
+          npx prisma migrate diff \
+            --from-config-datasource \
+            --to-schema prisma/schema.prisma \
+            --script > /tmp/drift.sql || true
+          awk 'BEGIN { RS=";" } /VerseSearch_textNormalized_trgm_idx/ { next } { print }' \
+            /tmp/drift.sql | grep -vE '^[[:space:]]*(--|$)' > /tmp/drift-filtered.sql || true
+          if [ -s /tmp/drift-filtered.sql ]; then
+            echo "::error::Database does not match prisma/schema.prisma"
+            cat /tmp/drift-filtered.sql
+            exit 1
+          fi
+          echo "No unexpected drift."
 
       - run: npm run typecheck
 

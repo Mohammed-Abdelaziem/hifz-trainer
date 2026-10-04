@@ -1,7 +1,9 @@
-import { createHash, randomBytes, scrypt } from "node:crypto";
-// Prisma 7 ships a CommonJS client, so a named ESM import fails at runtime
-// with "Named export 'PrismaClient' not found". Take it off the default.
-import prismaPkg from "@prisma/client";
+import { randomBytes, scrypt } from "node:crypto";
+// Import the generated client from its configured output directory. The
+// "@prisma/client" entry point resolves to a stub that needs
+// ".prisma/client/default", which only exists when the client is generated
+// into node_modules rather than ../generated/prisma.
+import prismaPkg from "../generated/prisma/index.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
@@ -22,19 +24,20 @@ function createDb() {
 
 const db = createDb();
 
+// maxmem must match SCRYPT_OPTIONS in src/lib/server/auth.ts. OpenSSL's 32MB
+// default is below what N=65536,r=8 requires (128*N*r = 64MB), so scrypt
+// throws "memory limit exceeded" without it.
+const SCRYPT_OPTIONS = { N: 65536, r: 8, p: 1, maxmem: 128 * 1024 * 1024 };
+
 function hash(password) {
   return new Promise((resolve, reject) => {
     const salt = randomBytes(16).toString("hex");
-    scrypt(password, salt, 64, { N: 65536, r: 8, p: 1 }, (err, key) => {
+    scrypt(password, salt, 64, SCRYPT_OPTIONS, (err, key) => {
       if (err) reject(err);
       else resolve(`${salt}:${key.toString("hex")}`);
     });
   });
 }
-
-// Sessions are stored as SHA-256 of the bearer token, so the fixture has to
-// write the digest rather than the token itself.
-const sessionDigest = (token) => createHash("sha256").update(token).digest("hex");
 
 try {
   if (mode === "setup") {

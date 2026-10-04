@@ -54,17 +54,6 @@ function isAyahData(url) {
   return url.origin === self.location.origin && url.pathname === "/api/ayah-data";
 }
 
-async function cacheFirst(request, cacheName) {
-  const cache = await caches.open(cacheName);
-  const hit = await cache.match(request);
-  if (hit) return hit;
-  const res = await fetch(request);
-  if (res && (res.ok || res.type === "opaque")) {
-    cache.put(request, res.clone());
-  }
-  return res;
-}
-
 // Only these routes return identical HTML for every visitor. Anything else
 // (dashboard, settings, analytics, reader) embeds the caller's session data,
 // and `res.headers.has("set-cookie")` cannot be used to detect that because
