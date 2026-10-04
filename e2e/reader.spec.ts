@@ -1,10 +1,10 @@
-import { test, expect } from "./fixtures";
+import { test, expect, signIn } from "./fixtures";
 
 test.describe("Reader", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByRole("button", { name: "Continue without account" }).click();
-    await expect(page).toHaveURL("/");
+    // The rating bar and drill toggle are account features; a guest only gets
+    // the read-only view.
+    await signIn(page);
     await page.goto("/reader/1");
     await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
   });

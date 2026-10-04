@@ -1,10 +1,9 @@
-import { test, expect } from "./fixtures";
+import { test, expect, signIn } from "./fixtures";
 
 test.describe("Dashboard", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByRole("button", { name: "Continue without account" }).click();
-    await expect(page).toHaveURL("/");
+    // These assert account-only UI; a guest gets the "no review queue" state.
+    await signIn(page);
     await page.waitForLoadState("networkidle");
   });
 
