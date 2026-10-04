@@ -8,7 +8,18 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 // as a single client, 429ing it partway through. Opt in explicitly from the
 // workflow rather than keying off CI, which would also disable the limiter
 // during the unit tests that cover it.
-const RATE_LIMIT_BYPASS = process.env.RATE_LIMIT_BYPASS === "1";
+//
+// The NODE_ENV guard is the important half: this variable must never be
+// honoured on a real deployment, or rate limiting is silently off in
+// production. Vercel sets NODE_ENV=production for us.
+const RATE_LIMIT_BYPASS =
+  process.env.RATE_LIMIT_BYPASS === "1" && process.env.NODE_ENV !== "production";
+
+if (process.env.RATE_LIMIT_BYPASS === "1" && process.env.NODE_ENV === "production") {
+  console.warn(
+    "[proxy] RATE_LIMIT_BYPASS is set but ignored: rate limiting stays enabled in production."
+  );
+}
 
 function checkInMemoryRateLimit(key: string, limit: number, windowMs: number): boolean {
   if (RATE_LIMIT_BYPASS) return true;

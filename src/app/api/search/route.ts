@@ -77,25 +77,11 @@ export async function GET(req: Request) {
       wordsJson: string | null;
     }[] = [];
 
-    const trgmAvailable = await db.$queryRaw<{ ok: number }[]>`
-      SELECT 1 AS ok
-      FROM pg_extension WHERE extname = 'pg_trgm'
-    `.catch(() => [] as { ok: number }[]);
-
-    if (trgmAvailable.length > 0) {
-      verses = await db.$queryRaw<
-        { verseKey: string; surahId: number; ayahNumber: number; wordsJson: string | null }[]
-      >`
-        SELECT s."verseKey", s."surahId", s."ayahNumber", v."wordsJson"
-        FROM "VerseSearch" s
-        JOIN "Verse" v ON v."verseKey" = s."verseKey"
-        WHERE s."textNormalized" ILIKE ${'%' + needle + '%'} ESCAPE '\\'
-        ORDER BY s."verseKey"
-        LIMIT ${limit}
-      `;
-    } else {
-      // Fallback for a database without the extension. Slow, but correct.
-      verses = await db.verse.findMany({
+    // Fallback for a database without the extension or without the backfilled
+    // table. Slow, but correct, and the only thing that works before the
+    // migration has been applied.
+    const fallbackScan = () =>
+      db.verse.findMany({
         where: { wordsJson: { contains: q, mode: "insensitive" } },
         select: {
           verseKey: true,
@@ -106,6 +92,38 @@ export async function GET(req: Request) {
         orderBy: { verseKey: "asc" },
         take: limit,
       });
+
+    // The fast path needs the trigram extension *and* the side table.
+    // Probing only pg_extension is not enough: a database can have pg_trgm
+    // installed while 20260930000000_verse_search has not been applied yet,
+    // and the query below then throws a 500 instead of falling back.
+    const readiness = await db
+      .$queryRaw<{ hasExt: boolean; hasTable: boolean }[]>`
+        SELECT
+          EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') AS "hasExt",
+          to_regclass('"VerseSearch"') IS NOT NULL AS "hasTable"
+      `
+      .catch(() => null);
+
+    if (readiness?.[0]?.hasExt && readiness[0].hasTable) {
+      try {
+        verses = await db.$queryRaw<
+          { verseKey: string; surahId: number; ayahNumber: number; wordsJson: string | null }[]
+        >`
+          SELECT s."verseKey", s."surahId", s."ayahNumber", v."wordsJson"
+          FROM "VerseSearch" s
+          JOIN "Verse" v ON v."verseKey" = s."verseKey"
+          WHERE s."textNormalized" ILIKE ${'%' + needle + '%'} ESCAPE '\\'
+          ORDER BY s."verseKey"
+          LIMIT ${limit}
+        `;
+      } catch {
+        // A partially applied migration leaves the table present but without
+        // the expected column. Degrade instead of returning a 500.
+        verses = await fallbackScan();
+      }
+    } else {
+      verses = await fallbackScan();
     }
 
     const results = verses.map((v) => {

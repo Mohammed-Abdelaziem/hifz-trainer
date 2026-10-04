@@ -139,4 +139,36 @@ describe("proxy auth rate limiting", () => {
     }
     expect(codes).toContain(429);
   });
+
+  it("ignores RATE_LIMIT_BYPASS when NODE_ENV is production", async () => {
+    // The e2e job sets RATE_LIMIT_BYPASS. If that ever reached a real
+    // deployment, rate limiting would be silently off.
+    vi.stubEnv("RATE_LIMIT_BYPASS", "1");
+    vi.stubEnv("NODE_ENV", "production");
+    vi.resetModules();
+    const { proxy: prodProxy } = await import("@/proxy");
+
+    const headers = { "x-forwarded-for": "8.8.8.8", "sec-fetch-site": "same-origin" };
+    const codes: number[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const res = await prodProxy(makeRequest("/login", { method: "POST", headers }));
+      codes.push(res.status);
+    }
+    expect(codes).toContain(429);
+  });
+
+  it("honours RATE_LIMIT_BYPASS outside production", async () => {
+    vi.stubEnv("RATE_LIMIT_BYPASS", "1");
+    vi.stubEnv("NODE_ENV", "test");
+    vi.resetModules();
+    const { proxy: testProxy } = await import("@/proxy");
+
+    const headers = { "x-forwarded-for": "9.9.9.10", "sec-fetch-site": "same-origin" };
+    const codes: number[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const res = await testProxy(makeRequest("/login", { method: "POST", headers }));
+      codes.push(res.status);
+    }
+    expect(codes).not.toContain(429);
+  });
 });

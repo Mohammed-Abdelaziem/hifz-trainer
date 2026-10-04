@@ -18,21 +18,21 @@ const mockDb = {
   verse: {
     findMany: vi.fn().mockResolvedValue([]),
   },
-  // The trigram probe: an empty result means pg_trgm is absent, so the route
-  // takes the slow fallback. Mocked as available so the fast path is covered.
-  $queryRaw: vi.fn().mockResolvedValue([{ ok: 1 }]),
+  // Readiness probe: the fast path needs pg_trgm *and* the VerseSearch table.
+  // Both reported present so the fast path is the default under test.
+  $queryRaw: vi.fn().mockResolvedValue([{ hasExt: true, hasTable: true }]),
 };
 
 beforeEach(() => {
   vi.clearAllMocks();
   (getDb as ReturnType<typeof vi.fn>).mockResolvedValue(mockDb);
   mockDb.verse.findMany.mockResolvedValue([]);
-  mockDb.$queryRaw.mockResolvedValue([{ ok: 1 }]);
+  mockDb.$queryRaw.mockResolvedValue([{ hasExt: true, hasTable: true }]);
 });
 
-/** Forces the pg_trgm probe to report the extension as absent. */
-function useFallbackPath() {
-  mockDb.$queryRaw.mockResolvedValueOnce([]);
+/** Forces the readiness probe to report the fast path as unusable. */
+function useFallbackPath(hasExt = false, hasTable = false) {
+  mockDb.$queryRaw.mockResolvedValueOnce([{ hasExt, hasTable }]);
 }
 
 describe("/api/search", () => {
@@ -45,7 +45,7 @@ describe("/api/search", () => {
 
   it("falls back to the default limit when limit is not a number", async () => {
     // Math.min(NaN, 50) is NaN, which Prisma rejects as `take` and 500s.
-    mockDb.$queryRaw.mockResolvedValueOnce([{ ok: 1 }]); // extension probe
+    mockDb.$queryRaw.mockResolvedValueOnce([{ hasExt: true, hasTable: true }]); // readiness probe
     mockDb.$queryRaw.mockResolvedValueOnce([]); // search query
     await GET(makeRequest("rahman", "abc"));
     expect(mockDb.verse.findMany).not.toHaveBeenCalled();
@@ -66,8 +66,30 @@ describe("/api/search", () => {
     );
   });
 
+  it("falls back when pg_trgm exists but the VerseSearch table does not", async () => {
+    // pg_trgm can be installed while 20260930000000_verse_search has not been
+    // applied. Probing only the extension made the fast-path query throw and
+    // the route return 500 instead of degrading.
+    useFallbackPath(true, false);
+    mockDb.verse.findMany.mockResolvedValue([]);
+    const res = await GET(makeRequest("rahman"));
+    expect(res.status).toBe(200);
+    expect(mockDb.verse.findMany).toHaveBeenCalled();
+  });
+
+  it("falls back when the fast-path query throws", async () => {
+    // A partially applied migration leaves the table present but without the
+    // expected column, so readiness passes and the query still fails.
+    mockDb.$queryRaw.mockResolvedValueOnce([{ hasExt: true, hasTable: true }]);
+    mockDb.$queryRaw.mockRejectedValueOnce(new Error('column "textNormalized" does not exist'));
+    mockDb.verse.findMany.mockResolvedValue([]);
+    const res = await GET(makeRequest("rahman"));
+    expect(res.status).toBe(200);
+    expect(mockDb.verse.findMany).toHaveBeenCalled();
+  });
+
   it("normalizes the query so unvocalized Arabic matches vocalized text", async () => {
-    mockDb.$queryRaw.mockResolvedValueOnce([{ ok: 1 }]);
+    mockDb.$queryRaw.mockResolvedValueOnce([{ hasExt: true, hasTable: true }]);
     mockDb.$queryRaw.mockResolvedValueOnce([]);
 
     await GET(makeRequest("لا إله إلا"));
@@ -84,7 +106,7 @@ describe("/api/search", () => {
   });
 
   it("escapes LIKE wildcards so a query cannot inject them", async () => {
-    mockDb.$queryRaw.mockResolvedValueOnce([{ ok: 1 }]);
+    mockDb.$queryRaw.mockResolvedValueOnce([{ hasExt: true, hasTable: true }]);
     mockDb.$queryRaw.mockResolvedValueOnce([]);
     await GET(makeRequest("100% pure"));
     const values = mockDb.$queryRaw.mock.calls[1].slice(1);
@@ -101,7 +123,7 @@ describe("/api/search", () => {
   });
 
   it("returns a snippet from the field that actually matched", async () => {
-    mockDb.$queryRaw.mockResolvedValueOnce([{ ok: 1 }]);
+    mockDb.$queryRaw.mockResolvedValueOnce([{ hasExt: true, hasTable: true }]);
     mockDb.$queryRaw.mockResolvedValueOnce([
       {
         verseKey: "2:255",

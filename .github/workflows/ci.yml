@@ -52,19 +52,30 @@ jobs:
       # migration that silently did not apply. Prisma 7 removed --from-url, so
       # the "from" side comes from the datasource in prisma.config.ts.
       #
-      # The pg_trgm index is created by hand-written SQL because Prisma cannot
-      # express a GIN index with an operator class, so Prisma always reports it
-      # as removable. That one statement is filtered out; anything else fails.
+      # Prisma cannot express a GIN index with an operator class, so indexes
+      # created by hand-written migration SQL are invisible to it and it always
+      # reports them as removable. Add each one to MANAGED_BY_SQL below or this
+      # check fails with a confusing "database does not match schema" error.
       - name: Verify no drift between the database and the schema
         run: |
+          MANAGED_BY_SQL="VerseSearch_textNormalized_trgm_idx"
+
           npx prisma migrate diff \
             --from-config-datasource \
             --to-schema prisma/schema.prisma \
             --script > /tmp/drift.sql || true
-          awk 'BEGIN { RS=";" } /VerseSearch_textNormalized_trgm_idx/ { next } { print }' \
-            /tmp/drift.sql | grep -vE '^[[:space:]]*(--|$)' > /tmp/drift-filtered.sql || true
+
+          # Drop whole statements (records are ';'-delimited) that only touch a
+          # hand-managed index. Note the (--|$) group: (|--|$) has an empty
+          # alternative that matches every line and silently discards the diff.
+          awk -v allow="$MANAGED_BY_SQL" \
+            'BEGIN { RS=";" } $0 ~ allow { next } { print }' \
+            /tmp/drift.sql \
+            | grep -vE '^[[:space:]]*(--|$)' > /tmp/drift-filtered.sql || true
+
           if [ -s /tmp/drift-filtered.sql ]; then
             echo "::error::Database does not match prisma/schema.prisma"
+            echo "If this is a hand-written index, add it to MANAGED_BY_SQL."
             cat /tmp/drift-filtered.sql
             exit 1
           fi
@@ -80,7 +91,11 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The suite itself runs in well under a minute; the budget is dominated by
+    # npm ci, Playwright's browser download and the production build. 20 minutes
+    # only ever masked a hang, which is how the original broken suite hid for
+    # three runs.
+    timeout-minutes: 10
     services:
       postgres:
         image: postgres:16
