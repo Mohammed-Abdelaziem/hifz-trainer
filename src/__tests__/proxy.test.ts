@@ -111,3 +111,32 @@ describe("proxy rate-limit identity", () => {
     expect(codes).not.toContain(429);
   }, 30_000);
 });
+
+describe("proxy auth rate limiting", () => {
+  // Only credential submissions are limited. Charging page loads meant that
+  // reloading /login a few times returned a 429 JSON body in place of the
+  // form, which is how the e2e suite started failing.
+  it("does not limit repeated GET /login", async () => {
+    const headers = { "x-forwarded-for": "6.6.6.6" };
+    const codes: number[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      const res = await proxy(makeRequest("/login", { headers }));
+      codes.push(res.status);
+    }
+    expect(codes).not.toContain(429);
+  });
+
+  it("still limits repeated sign-in attempts", async () => {
+    const headers = {
+      "x-forwarded-for": "7.7.7.7",
+      // Satisfy the same-origin check so the limiter is what rejects.
+      "sec-fetch-site": "same-origin",
+    };
+    const codes: number[] = [];
+    for (let i = 0; i < 10; i += 1) {
+      const res = await proxy(makeRequest("/login", { method: "POST", headers }));
+      codes.push(res.status);
+    }
+    expect(codes).toContain(429);
+  });
+});

@@ -97,6 +97,9 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: "postgresql://postgres:postgres@localhost:5432/test"
+      # Every spec shares one IP and this server has no Upstash, so the
+      # in-memory fallback would rate-limit the suite itself. See src/proxy.ts.
+      RATE_LIMIT_BYPASS: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -115,4 +118,4 @@ jobs:
         run: node scripts/auth-e2e.mjs
 
       - name: Run e2e suite
-        run: npx playwright test e2e/auth.spec.ts --project=chromium
+        run: npm run e2e

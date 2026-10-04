@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 
 // Must match E2E_PASSWORD in scripts/auth-e2e.mjs. The current policy requires
 // 12+ characters and 3 of 4 character classes; shorter values are rejected by

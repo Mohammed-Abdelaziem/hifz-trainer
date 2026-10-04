@@ -3,7 +3,15 @@ import type { NextRequest } from "next/server";
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
+// The e2e job runs an ephemeral server with no Upstash configured, so every
+// spec shares one client IP and the in-memory fallback counts the whole suite
+// as a single client, 429ing it partway through. Opt in explicitly from the
+// workflow rather than keying off CI, which would also disable the limiter
+// during the unit tests that cover it.
+const RATE_LIMIT_BYPASS = process.env.RATE_LIMIT_BYPASS === "1";
+
 function checkInMemoryRateLimit(key: string, limit: number, windowMs: number): boolean {
+  if (RATE_LIMIT_BYPASS) return true;
   const now = Date.now();
   const entry = rateLimitMap.get(key);
   if (!entry || now > entry.resetAt) {
@@ -65,7 +73,6 @@ function clientIp(request: NextRequest): string | null {
 }
 
 const AUTH_ROUTES = ["/login", "/signup"];
-const AUTH_ACTION_ROUTES = ["/login", "/"];
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60_000;
 
@@ -128,15 +135,19 @@ export async function proxy(request: NextRequest) {
 
   await initUpstash();
 
-  const isAuthPage = AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
-  const isAuthAction = method === "POST" && AUTH_ACTION_ROUTES.some((r) => pathname === r);
+  // Count credential submissions only. Charging GET /login and GET /signup
+  // against the same 5-per-minute bucket meant that reloading the page a few
+  // times replaced the form with a 429 JSON body, and any visitor behind one
+  // shared address locked everyone else out.
+  const isAuthSubmit =
+    method === "POST" && AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
 
   // Without a client identifier there is nothing to key a bucket on. Failing
   // closed would let anyone lock out every user behind a header-stripping
   // proxy, so skip limiting for this request instead of sharing one bucket.
   const limitable = ip !== null;
 
-  if (limitable && (isAuthPage || isAuthAction)) {
+  if (limitable && isAuthSubmit) {
     let allowed = true;
     if (upstashAvailable && authRatelimit) {
       allowed = await checkUpstashRateLimit(authRatelimit, `auth:${ip}`);
