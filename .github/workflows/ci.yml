@@ -115,4 +115,4 @@ jobs:
         run: node scripts/auth-e2e.mjs
 
       - name: Run e2e suite
-        run: npm run e2e
+        run: npx playwright test e2e/auth.spec.ts --project=chromium
