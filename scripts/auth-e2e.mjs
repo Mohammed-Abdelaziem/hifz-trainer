@@ -1,7 +1,11 @@
 import { createHash, randomBytes, scrypt } from "node:crypto";
-import { PrismaClient } from "@prisma/client";
+// Prisma 7 ships a CommonJS client, so a named ESM import fails at runtime
+// with "Named export 'PrismaClient' not found". Take it off the default.
+import prismaPkg from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+
+const { PrismaClient } = prismaPkg;
 
 // Matches the fixtures in e2e/*.spec.ts. Keep the three in sync.
 export const E2E_EMAIL = "auth-test@example.com";

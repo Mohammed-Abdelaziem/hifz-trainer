@@ -15,9 +15,13 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { PrismaClient } from "@prisma/client";
+// Prisma 7 ships a CommonJS client, so a named ESM import fails at runtime
+// with "Named export 'PrismaClient' not found". Take it off the default.
+import prismaPkg from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+
+const { PrismaClient } = prismaPkg;
 
 function loadEnv() {
   try {

@@ -49,11 +49,11 @@ jobs:
         run: npx prisma migrate deploy
 
       # Fails if the migrated database does not match schema.prisma, which
-      # catches a migration that silently did not apply. Diffing the migrations
-      # directory instead would need a shadow database, which is not worth the
-      # extra service for this check.
+      # catches a migration that silently did not apply. Prisma 7 removed
+      # --from-url, so the "from" side comes from the datasource declared in
+      # prisma.config.ts, which reads DATABASE_URL.
       - name: Verify no drift between the database and the schema
-        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema prisma/schema.prisma --exit-code
+        run: npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --exit-code
 
       - run: npm run typecheck
 
