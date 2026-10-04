@@ -5,19 +5,18 @@ const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 
 // The e2e job runs an ephemeral server with no Upstash configured, so every
 // spec shares one client IP and the in-memory fallback counts the whole suite
-// as a single client, 429ing it partway through. Opt in explicitly from the
-// workflow rather than keying off CI, which would also disable the limiter
-// during the unit tests that cover it.
+// as a single client, 429ing it partway through.
 //
-// The NODE_ENV guard is the important half: this variable must never be
-// honoured on a real deployment, or rate limiting is silently off in
-// production. Vercel sets NODE_ENV=production for us.
-const RATE_LIMIT_BYPASS =
-  process.env.RATE_LIMIT_BYPASS === "1" && process.env.NODE_ENV !== "production";
+// The CI guard is the important half. It deliberately does NOT test
+// NODE_ENV: the e2e job serves a production build via `next start`, so
+// NODE_ENV is "production" there and a NODE_ENV check silently disabled the
+// bypass and re-broke the suite. Vercel never sets CI, so requiring it means
+// this cannot be switched off on a real deployment even if the variable leaks.
+const RATE_LIMIT_BYPASS = process.env.RATE_LIMIT_BYPASS === "1" && process.env.CI === "true";
 
-if (process.env.RATE_LIMIT_BYPASS === "1" && process.env.NODE_ENV === "production") {
+if (process.env.RATE_LIMIT_BYPASS === "1" && process.env.CI !== "true") {
   console.warn(
-    "[proxy] RATE_LIMIT_BYPASS is set but ignored: rate limiting stays enabled in production."
+    "[proxy] RATE_LIMIT_BYPASS is set but ignored outside CI: rate limiting stays enabled."
   );
 }
 
