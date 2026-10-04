@@ -4,9 +4,19 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
+  // One retry, not two. With 26 specs across two projects on a single worker,
+  // every failing test costs 3 x 30s, which is what pushed the job past its
+  // timeout before the report was ever written.
+  retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: "html",
+  timeout: 30_000,
+  // The html reporter writes results to a file and prints nothing until the
+  // run finishes, so a hanging suite looks identical to a passing one. The
+  // list reporter streams each result as it happens. open: "never" stops the
+  // reporter from serving the report and blocking forever after the run,
+  // which is what held the step open until the job timeout. Use
+  // `npm run e2e:report` to read the HTML report.
+  reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",

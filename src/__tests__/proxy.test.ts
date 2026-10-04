@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import type { NextRequest } from "next/server";
-import { middleware } from "@/middleware";
+import { proxy } from "@/proxy";
 
 function makeRequest(
   path: string,
@@ -22,9 +22,9 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("middleware origin checks", () => {
+describe("proxy origin checks", () => {
   it("allows a same-origin browser POST via sec-fetch-site", async () => {
-    const res = await middleware(
+    const res = await proxy(
       makeRequest("/api/reviews", {
         method: "POST",
         headers: { "sec-fetch-site": "same-origin" },
@@ -34,7 +34,7 @@ describe("middleware origin checks", () => {
   });
 
   it("rejects a cross-site browser POST", async () => {
-    const res = await middleware(
+    const res = await proxy(
       makeRequest("/api/reviews", {
         method: "POST",
         headers: { "sec-fetch-site": "cross-site" },
@@ -46,12 +46,12 @@ describe("middleware origin checks", () => {
   it("fails closed when Origin is missing on a write", async () => {
     // Previously a missing Origin was treated as trusted, making the check a
     // no-op for any client that simply omitted the header.
-    const res = await middleware(makeRequest("/api/reviews", { method: "POST" }));
+    const res = await proxy(makeRequest("/api/reviews", { method: "POST" }));
     expect(res.status).toBe(403);
   });
 
   it("accepts a matching Origin header", async () => {
-    const res = await middleware(
+    const res = await proxy(
       makeRequest("/api/reviews", {
         method: "POST",
         headers: { origin: "https://whollyquran.me" },
@@ -61,7 +61,7 @@ describe("middleware origin checks", () => {
   });
 
   it("rejects a mismatched Origin header", async () => {
-    const res = await middleware(
+    const res = await proxy(
       makeRequest("/api/reviews", {
         method: "POST",
         headers: { origin: "https://evil.example" },
@@ -71,19 +71,19 @@ describe("middleware origin checks", () => {
   });
 
   it("does not apply the check to GET", async () => {
-    const res = await middleware(makeRequest("/api/stats"));
+    const res = await proxy(makeRequest("/api/stats"));
     expect(res.status).not.toBe(403);
   });
 });
 
-describe("middleware rate-limit identity", () => {
+describe("proxy rate-limit identity", () => {
   it("uses the last x-forwarded-for hop, not the client-supplied first", async () => {
     // A rotating first entry previously minted a fresh bucket per request,
     // defeating every limiter.
-    const first = await middleware(
+    const first = await proxy(
       makeRequest("/api/stats", { headers: { "x-forwarded-for": "1.1.1.1, 9.9.9.9" } })
     );
-    const second = await middleware(
+    const second = await proxy(
       makeRequest("/api/stats", { headers: { "x-forwarded-for": "2.2.2.2, 9.9.9.9" } })
     );
     // Same bucket key (9.9.9.9) means the same quota, so both succeed until
@@ -95,7 +95,7 @@ describe("middleware rate-limit identity", () => {
     const headers = { "x-forwarded-for": "5.5.5.5" };
     const codes: number[] = [];
     for (let i = 0; i < 70; i += 1) {
-      const res = await middleware(makeRequest("/api/stats", { headers }));
+      const res = await proxy(makeRequest("/api/stats", { headers }));
       codes.push(res.status);
     }
     expect(codes).toContain(429);
@@ -105,7 +105,7 @@ describe("middleware rate-limit identity", () => {
     // Every such caller must not share one global bucket.
     const codes: number[] = [];
     for (let i = 0; i < 70; i += 1) {
-      const res = await middleware(makeRequest("/api/stats"));
+      const res = await proxy(makeRequest("/api/stats"));
       codes.push(res.status);
     }
     expect(codes).not.toContain(429);
