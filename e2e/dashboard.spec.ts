@@ -18,12 +18,13 @@ test.describe("Dashboard", () => {
     await expect(page.getByRole("tab", { name: /Manzil/i })).toBeVisible();
   });
 
-  test("can sync full Quran corpus or shows already synced", async ({ page }) => {
-    // The sync button is only shown when corpus is not fully synced
-    const syncButton = page.getByRole("button", { name: /Sync full Quran/i });
-    const syncedMessage = page.getByText(/Browse all \d+ surahs/i);
-    
-    // Either the sync button is visible (not synced) or the "Browse all X surahs" is shown (already synced)
-    await expect(syncButton.or(syncedMessage)).toBeVisible();
+  test("shows the corpus sync control in whichever state applies", async ({ page }) => {
+    // The label reflects the current state: "Sync full Quran" when idle,
+    // "Full corpus synced" once done, "Retry sync" after a failure. The
+    // "Browse all N surahs" fallback this test used to accept does not exist
+    // anywhere in the app.
+    await expect(
+      page.getByRole("button", { name: /Sync full Quran|Full corpus synced|Retry sync/ })
+    ).toBeVisible();
   });
 });

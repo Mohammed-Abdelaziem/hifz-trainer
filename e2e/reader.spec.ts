@@ -29,10 +29,16 @@ test.describe("Reader", () => {
   });
 
   test("toggles between word-by-word drill and full recitation", async ({ page }) => {
-    const toggle = page.getByRole("button", { name: "Word-by-word drill" });
-    await expect(toggle).toBeVisible();
+    // ModeButton labels itself with the mode it switches *to*, so the
+    // accessible name flips with the current mode. Match either and assert the
+    // flip rather than assuming which mode starts active.
+    const toggle = page.locator(
+      'button[aria-label="Word-by-word drill"], button[aria-label="Full verse recitation"]'
+    );
+    await expect(toggle).toHaveCount(1);
+    const before = await toggle.getAttribute("aria-label");
     await toggle.click();
-    await expect(page.getByRole("button", { name: "Full verse recitation" })).toBeVisible();
+    await expect(toggle).not.toHaveAttribute("aria-label", before ?? "");
   });
 
   test("reveals a word with the keyboard", async ({ page }) => {
