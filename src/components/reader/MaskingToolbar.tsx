@@ -63,15 +63,18 @@ function Segmented<T extends string>({
 function ToggleChip({
   active,
   onClick,
+  title,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  title?: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
+      title={title}
       aria-pressed={active}
       className={cn(
         "rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
@@ -90,12 +93,14 @@ export function MaskingToolbar() {
   const blurScope = useReaderStore((s) => s.blurScope);
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const showTranslation = useReaderStore((s) => s.showTranslation);
+  const showVerseTranslation = useReaderStore((s) => s.showVerseTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
   const setMaskMode = useReaderStore((s) => s.setMaskMode);
   const setBlurScope = useReaderStore((s) => s.setBlurScope);
   const setLayoutMode = useReaderStore((s) => s.setLayoutMode);
   const toggleTranslation = useReaderStore((s) => s.toggleTranslation);
+  const toggleVerseTranslation = useReaderStore((s) => s.toggleVerseTranslation);
   const toggleRoots = useReaderStore((s) => s.toggleRoots);
   const setFontSize = useReaderStore((s) => s.setFontSize);
 
@@ -107,7 +112,14 @@ export function MaskingToolbar() {
       )}
       <Segmented options={LAYOUT_MODES} value={layoutMode} onChange={setLayoutMode} />
       <ToggleChip active={showTranslation} onClick={toggleTranslation}>
-        Translation
+        Word translation
+      </ToggleChip>
+      <ToggleChip
+        active={showVerseTranslation}
+        onClick={toggleVerseTranslation}
+        title="Show the full English line under each verse"
+      >
+        Verse translation
       </ToggleChip>
       <ToggleChip active={showRoots} onClick={toggleRoots}>
         Roots

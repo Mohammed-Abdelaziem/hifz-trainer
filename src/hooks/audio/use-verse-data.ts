@@ -60,7 +60,15 @@ export function useVerseData(
 
   const effectiveSelected: Ayah = useMemo(() => {
     if (!selected)
-      return { ayah_number: 0, verse_key: "1:1", words: [], audio_url: "", timings: [], tafsir: "" };
+      return {
+        ayah_number: 0,
+        verse_key: "1:1",
+        words: [],
+        audio_url: "",
+        timings: [],
+        tafsir: "",
+        translation: "",
+      };
     if (!live) return selected;
 
     const merged = timingsByVerse?.[selected.verse_key];

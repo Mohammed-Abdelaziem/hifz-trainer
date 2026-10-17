@@ -20,6 +20,7 @@ interface ReaderSettings {
   layoutMode: LayoutMode;
   playbackMode: PlaybackMode;
   showTranslation: boolean;
+  showVerseTranslation: boolean;
   showRoots: boolean;
   fontSizePx: number;
   speed: number;
@@ -45,6 +46,7 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setLayoutMode: (m: LayoutMode) => void;
   setPlaybackMode: (m: PlaybackMode) => void;
   toggleTranslation: () => void;
+  toggleVerseTranslation: () => void;
   toggleRoots: () => void;
   setFontSize: (px: number) => void;
   setSpeed: (x: number) => void;
@@ -70,6 +72,7 @@ const DEFAULT_SETTINGS = {
   layoutMode: "FLOW" as LayoutMode,
   playbackMode: "continuous" as PlaybackMode,
   showTranslation: false,
+  showVerseTranslation: false,
   showRoots: false,
   fontSizePx: FONT_SIZE_DEFAULT,
   speed: 1,
@@ -97,6 +100,8 @@ export const useReaderStore = create<ReaderStore>()(
       setPlaybackMode: (playbackMode) =>
         set({ playbackMode, forcedActiveIndex: null, loopA: null, loopB: null }),
       toggleTranslation: () => set((s) => ({ showTranslation: !s.showTranslation })),
+      toggleVerseTranslation: () =>
+        set((s) => ({ showVerseTranslation: !s.showVerseTranslation })),
       toggleRoots: () => set((s) => ({ showRoots: !s.showRoots })),
       setFontSize: (fontSizePx) =>
         set({ fontSizePx: Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, fontSizePx)) }),
@@ -161,6 +166,7 @@ export const useReaderStore = create<ReaderStore>()(
         layoutMode: s.layoutMode,
         playbackMode: s.playbackMode,
         showTranslation: s.showTranslation,
+        showVerseTranslation: s.showVerseTranslation,
         showRoots: s.showRoots,
         fontSizePx: s.fontSizePx,
         speed: s.speed,

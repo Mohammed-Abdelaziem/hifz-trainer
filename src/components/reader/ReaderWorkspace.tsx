@@ -173,7 +173,6 @@ export function ReaderWorkspace({
 
   useEffect(() => {
     if (!hasAyahs) return;
-    useReaderStore.persist.rehydrate();
     const requested =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey

@@ -32,6 +32,7 @@ export interface Ayah {
   audio_url: string;
   timings: WordTiming[];
   tafsir: string;
+  translation: string;
 }
 
 export interface SurahBundle {

@@ -68,6 +68,7 @@ function makeSurah(ayahCount: number) {
     audio_url: `https://example.com/${i + 1}.mp3`,
     timings: [],
     tafsir: "",
+    translation: "",
   }));
   return {
     id: 1,

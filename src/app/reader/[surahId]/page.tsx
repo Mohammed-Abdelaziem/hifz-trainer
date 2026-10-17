@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
+import { ReaderStoreHydrator } from "@/components/reader/ReaderStoreHydrator";
 
 type Props = PageProps<'/reader/[surahId]'>;
 
@@ -82,14 +83,17 @@ export default async function ReaderPage(props: Props) {
   const initialVerseKey = typeof verseParam === "string" ? verseParam : undefined;
 
   return (
-    <ReaderWorkspace
-      key={id}
-      surah={surah}
-      initialVerseKey={initialVerseKey}
-      scheduler={!user ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
-      requestRetention={!user ? 0.9 : (user?.requestRetention ?? 0.9)}
-      isGuest={!user}
-      availableSurahs={navItems}
-    />
+    <>
+      <ReaderStoreHydrator />
+      <ReaderWorkspace
+        key={id}
+        surah={surah}
+        initialVerseKey={initialVerseKey}
+        scheduler={!user ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
+        requestRetention={!user ? 0.9 : (user?.requestRetention ?? 0.9)}
+        isGuest={!user}
+        availableSurahs={navItems}
+      />
+    </>
   );
 }

@@ -19,6 +19,7 @@ const mockSurah: SurahBundle = {
       audio_url: "https://example.com/101.mp3",
       timings: [{ start_ms: 0, end_ms: 1000 }],
       tafsir: "Test tafsir",
+      translation: "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
     },
     {
       ayah_number: 2,
@@ -29,6 +30,7 @@ const mockSurah: SurahBundle = {
       audio_url: "https://example.com/102.mp3",
       timings: [{ start_ms: 0, end_ms: 1000 }],
       tafsir: "",
+      translation: "[All] praise is [due] to Allah, Lord of the worlds -",
     },
   ],
 };
