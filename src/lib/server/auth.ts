@@ -132,13 +132,25 @@ export async function getSessionUser(): Promise<User | null> {
       where: { id: session.id },
       data: { expiresAt: newExpiry, lastRefreshAt: new Date() },
     });
-    jar.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV !== "development",
-      path: "/",
-      expires: newExpiry,
-    });
+    try {
+      jar.set(SESSION_COOKIE, token, {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV !== "development",
+        path: "/",
+        expires: newExpiry,
+      });
+    } catch {
+      // Server Components render with a read-only cookie jar: every jar.set
+      // throws (ReadonlyRequestCookiesError). Those calls run inside the root
+      // layout and page renders, so without this catch a session older than
+      // the sliding interval would 500 (or render signed-out) on the first
+      // RSC hit after it. The row refresh above still ran; the browser cookie
+      // itself is re-issued by contexts where writing is legal — route
+      // handlers (e.g. /api/queue polling) and server actions — on their next
+      // getSessionUser, so the account never hard-expires at the original
+      // 30-day mark.
+    }
   }
 
   return session.user;

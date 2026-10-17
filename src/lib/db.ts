@@ -109,7 +109,14 @@ export async function getDb(): Promise<PrismaClient> {
     pendingClient = (async () => {
       const adapter = await createAdapter(rawUrl ?? "file:./dev.db");
       return new PrismaClient({ adapter });
-    })();
+    })().catch((err: unknown) => {
+      // A rejected module-level promise here would otherwise be cached
+      // forever: one transient connection/DNS/auth hiccup on boot kept every
+      // later getDb() call failing with the same stale error until the
+      // process restarted. Resetting lets the next call retry from scratch.
+      pendingClient = null;
+      throw err;
+    });
   }
   const client = await pendingClient;
   globalForPrisma.prisma = client;

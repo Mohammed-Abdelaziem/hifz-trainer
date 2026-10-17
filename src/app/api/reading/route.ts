@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReading } from "@/lib/server/hifz-service";
+import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,13 @@ export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const db = await getDb();
+    const verse = await db.verse.findUnique({
+      where: { verseKey },
+      select: { verseKey: true },
+    });
+    if (!verse) return Response.json({ error: `Unknown verse ${verseKey}` }, { status: 400 });
 
     await recordReading({
       userId: user.id,

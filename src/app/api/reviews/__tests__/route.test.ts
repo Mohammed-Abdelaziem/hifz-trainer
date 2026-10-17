@@ -8,13 +8,27 @@ vi.mock("@/lib/server/hifz-service", () => ({
   recordReview: vi.fn(),
 }));
 
+vi.mock("@/lib/db", () => ({
+  getDb: vi.fn(),
+}));
+
 import { POST } from "../route";
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReview } from "@/lib/server/hifz-service";
+import { getDb } from "@/lib/db";
 
 describe("/api/reviews", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The route verifies verse existence before recordReview; echo the
+    // requested key back so every verse in the fixtures counts as known.
+    (getDb as ReturnType<typeof vi.fn>).mockResolvedValue({
+      verse: {
+        findUnique: vi.fn().mockImplementation(({ where }: { where: { verseKey: string } }) =>
+          Promise.resolve({ verseKey: where.verseKey })
+        ),
+      },
+    });
   });
 
   it("returns 401 for unauthenticated users", async () => {

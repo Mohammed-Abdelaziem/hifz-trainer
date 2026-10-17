@@ -4,6 +4,19 @@ import { EMPTY_FSRS_INPUT, scheduleFsrs, MIN_RETENTION, MAX_RETENTION } from "@/
 const NOW = new Date("2026-08-26T10:00:00Z");
 
 describe("scheduleFsrs wrapper", () => {
+  it("re-seeds from an empty card when a legacy row has reps but zero stability", () => {
+    // Reps > 0 with stability 0 used to be handed to ts-fsrs as a Review card;
+    // the engine divides by stability and returned NaN for the interval.
+    const out = scheduleFsrs(
+      { difficulty: 5, stability: 0, repetitionCount: 3, lapses: 1 },
+      "GOOD",
+      NOW
+    );
+    expect(Number.isFinite(out.intervalDays)).toBe(true);
+    expect(out.stability).toBeGreaterThan(0);
+    expect(out.difficulty).toBeGreaterThan(0);
+  });
+
   it("initializes stability/difficulty per rating on first review", () => {
     const again = scheduleFsrs(EMPTY_FSRS_INPUT, "AGAIN", NOW);
     const good = scheduleFsrs(EMPTY_FSRS_INPUT, "GOOD", NOW);

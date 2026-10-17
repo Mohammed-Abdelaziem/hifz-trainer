@@ -3,6 +3,7 @@ import { getDb, getDbWithTest, sanitizeUrl, toAbsoluteUrl } from "@/lib/db";
 import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
 import { fetchJson } from "@/lib/server/fetch-json";
 import { QURAN_API_BASE, VERSES_CDN, API_TIMEOUT_MEDIUM_MS } from "@/lib/constants";
+import { Prisma } from "@prisma/client";
 
 const TAFSIR_RESOURCE_ID = 169;
 
@@ -70,12 +71,35 @@ async function fetchAndCacheRecitationUrl(verseKey: string, reciterId: number): 
   return url;
 }
 
+// One enrichment run per verse/reciter pair, no matter how many concurrent
+// API requests race for the same verse (a surah page fires ~5 parallel
+// /api/ayah-data fetches): every duplicate would run its own upstream fetch
+// plus write for no benefit.
+const inFlightAyahData = new Map<string, Promise<AyahData>>();
+
 export async function getOrFetchAyahData(
   verseKey: string,
   reciterId: number = DEFAULT_RECITER_ID
 ): Promise<AyahData> {
   if (!VALID_RECITER_IDS.has(reciterId)) reciterId = DEFAULT_RECITER_ID;
+  const key = `${reciterId}:${verseKey}`;
 
+  const existing = inFlightAyahData.get(key);
+  if (existing) return existing;
+
+  const p = enrichAyahData(verseKey, reciterId);
+  inFlightAyahData.set(key, p);
+  void p
+    .finally(() => {
+      inFlightAyahData.delete(key);
+    })
+    // Swallow a mirror rejection on the cleanup chain; the awaiting caller
+    // already receives the real one through p.
+    .catch(() => {});
+  return p;
+}
+
+async function enrichAyahData(verseKey: string, reciterId: number): Promise<AyahData> {
   const db = await getDbWithTest();
   const row = await db.verse.findUnique({ where: { verseKey } });
 
@@ -131,7 +155,7 @@ export async function getOrFetchAyahData(
 
   const wordsFreshened = Boolean(words) && row?.wordsSource !== "quran";
   if (row && (wordsFreshened || tafsir)) {
-    const updateData: Record<string, unknown> = {};
+    const updateData: Prisma.VerseUpdateInput = {};
     if (wordsFreshened) {
       updateData.wordsJson = JSON.stringify(words);
       updateData.wordsSource = "quran";
@@ -142,7 +166,7 @@ export async function getOrFetchAyahData(
     try {
       await db.verse.update({
         where: { verseKey },
-        data: updateData as never,
+        data: updateData,
       });
     } catch {
       // ignore update failure

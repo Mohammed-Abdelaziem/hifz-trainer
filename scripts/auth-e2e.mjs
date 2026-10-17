@@ -16,6 +16,23 @@ export const E2E_PASSWORD = "testpass12345";
 const mode = process.argv[2] ?? "setup";
 const rawUrl = process.env.DATABASE_URL ?? "file:./dev.db";
 
+// Fail closed: this script mints and hard-deletes accounts, so running it
+// against a production database would corrupt real user data. CI and a
+// locally-addressable URL are always fine; anything else needs an explicit
+// E2E_DATABASE_LOCATION=test override.
+const isCi = process.env.CI === "true" || process.env.CI === "1";
+const isLocalish =
+  rawUrl.startsWith("file:") ||
+  rawUrl.includes("localhost") ||
+  rawUrl.includes("127.0.0.1");
+if (!isCi && !isLocalish && process.env.E2E_DATABASE_LOCATION !== "test") {
+  console.error(
+    `Refusing to run auth-e2e against "${rawUrl}". ` +
+      "Run it in CI (CI=true), against a local database, or set E2E_DATABASE_LOCATION=test explicitly."
+  );
+  process.exit(1);
+}
+
 function createDb() {
   return rawUrl.startsWith("postgres")
     ? new PrismaClient({ adapter: new PrismaPg({ connectionString: rawUrl, max: 2 }) })

@@ -8,13 +8,26 @@ vi.mock("@/lib/server/hifz-service", () => ({
   recordReview: vi.fn(),
 }));
 
+vi.mock("@/lib/db", () => ({
+  getDb: vi.fn(),
+}));
+
 import { POST } from "../route";
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReview } from "@/lib/server/hifz-service";
+import { getDb } from "@/lib/db";
 
 describe("/api/reviews/sync", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Batch existence check: every key the fixtures submit counts as known.
+    (getDb as ReturnType<typeof vi.fn>).mockResolvedValue({
+      verse: {
+        findMany: vi.fn().mockImplementation(({ where }: { where: { verseKey: { in: string[] } } }) =>
+          Promise.resolve(where.verseKey.in.map((verseKey) => ({ verseKey })))
+        ),
+      },
+    });
   });
 
   it("POST returns 401 for unauthenticated users", async () => {
