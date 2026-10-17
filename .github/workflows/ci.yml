@@ -134,3 +134,16 @@ jobs:
 
       - name: Run e2e suite
         run: npm run e2e
+
+      # Playwright leaves a text snapshot of every failed page (aria snapshot)
+      # under test-results/*/error-context.md, plus traces/videos when enabled.
+      # Without an upload these vanish with the runner, and layout failures like
+      # "element intercepts pointer events" are impossible to diagnose from the
+      # click log alone.
+      - name: Upload Playwright failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: test-results/
+          if-no-files-found: ignore
