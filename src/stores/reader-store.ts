@@ -182,14 +182,18 @@ export const useReaderStore = create<ReaderStore>()(
 if (typeof window !== "undefined") {
   const debugSets: unknown[] = [];
   (window as unknown as { __debugSets?: unknown[] }).__debugSets = debugSets;
-  useReaderStore.subscribe((state) => {
+  useReaderStore.subscribe((state, prev) => {
+    const s = state as unknown as Record<string, unknown>;
+    const p = prev as unknown as Record<string, unknown>;
+    const changed = Object.keys(s).filter((k) => s[k] !== p[k]);
     debugSets.push({
       showVT: state.showVerseTranslation,
       sel: state.selectedVerseKey,
+      changed,
       stack: new Error().stack
         ?.split("\n")
         .filter((l) => !l.includes("zustand") && !l.includes("node_modules"))
-        .slice(1, 5)
+        .slice(1, 6)
         .join(" | "),
     });
   });
