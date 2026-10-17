@@ -33,16 +33,33 @@ describe("reader-store — verse translation toggle", () => {
     expect(useReaderStore.getState().showVerseTranslation).toBe(false);
   });
 
-  it("persists the flag and restores it through rehydrate", () => {
-    useReaderStore.getState().toggleVerseTranslation();
-    const stored = JSON.parse(localStorage.getItem("reader-settings") ?? "{}");
-    expect(stored.state.showVerseTranslation).toBe(true);
-
-    useReaderStore.getState().toggleVerseTranslation();
+  it("rehydrates a persisted true over an in-memory false", async () => {
+    useReaderStore.setState({ showVerseTranslation: false }, false);
+    localStorage.setItem(
+      "reader-settings",
+      JSON.stringify({
+        state: { ...DEFAULT_STUB, showVerseTranslation: true },
+        version: 0,
+      })
+    );
     expect(useReaderStore.getState().showVerseTranslation).toBe(false);
 
-    useReaderStore.getState().toggleVerseTranslation();
-    useReaderStore.persist.rehydrate();
+    await useReaderStore.persist.rehydrate();
     expect(useReaderStore.getState().showVerseTranslation).toBe(true);
   });
 });
+
+const DEFAULT_STUB = {
+  maskMode: "HIDDEN",
+  blurScope: "word",
+  layoutMode: "FLOW",
+  playbackMode: "continuous",
+  showTranslation: false,
+  showRoots: false,
+  fontSizePx: 32,
+  speed: 1,
+  volume: 1,
+  reciterId: 7,
+  continuousPlay: false,
+  surahAudioMode: false,
+};

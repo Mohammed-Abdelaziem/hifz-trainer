@@ -152,6 +152,14 @@ export function ReaderWorkspace({
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
+  const debugState = useReaderStore((s) =>
+    JSON.stringify({
+      showVerseTranslation: s.showVerseTranslation,
+      maskMode: s.maskMode,
+      layoutMode: s.layoutMode,
+      selectedVerseKey: s.selectedVerseKey,
+    })
+  );
 
   const [verseTimings, setVerseTimings] = useState<VerseTiming[]>([]);
 
@@ -359,6 +367,7 @@ export function ReaderWorkspace({
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
         <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+          <div data-testid="reader-debug" className="hidden">{debugState}</div>
           <header className="mb-5">
             <div className="flex items-center justify-between gap-4">
               <div>
