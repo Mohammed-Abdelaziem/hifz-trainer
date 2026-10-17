@@ -25,39 +25,56 @@ test.describe("Reader", () => {
   test("can rate a verse and advance", async ({ page }) => {
     // TEMPORARY DIAGNOSTIC — print live layout boxes before clicking "Good".
     const boxes = await page.evaluate(() => {
-      const grab = (label: string, selectors: string[]) => ({
-        label,
-        matches: selectors
-          .flatMap((sel) => Array.from(document.querySelectorAll(sel)))
-          .map((el) => {
-            const r = el.getBoundingClientRect();
-            const cs = getComputedStyle(el);
-            return {
-              cls: String(el.className).slice(0, 70),
-              x: Math.round(r.x),
-              y: Math.round(r.y),
-              w: Math.round(r.width),
-              h: Math.round(r.height),
-              pos: cs.position,
-              z: cs.zIndex,
-            };
-          }),
-      });
       const good = document.querySelector<HTMLButtonElement>('button[title*="Good"]');
-      let atPoint: string | null = null;
+      const info: unknown[] = [];
       if (good) {
         const r = good.getBoundingClientRect();
-        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
-        atPoint = hit ? `${hit.tagName}.${String(hit.className).slice(0, 80)}` : null;
+        const cx = r.x + r.width / 2;
+        const cy = r.y + r.height / 2;
+        // Walk the hit-test chain: elementFromPoint, then its painting
+        // ancestors, with box + stacking-relevant computed styles.
+        let el: Element | null = document.elementFromPoint(cx, cy);
+        for (let depth = 0; depth < 8 && el; depth += 1) {
+          const er = el.getBoundingClientRect();
+          const cs = getComputedStyle(el);
+          info.push({
+            el: `${el.tagName}${el.ownerSVGElement ? "[svg]" : ""}`,
+            cls: String(el.className).slice(0, 80),
+            rect: `${Math.round(er.x)},${Math.round(er.y)} ${Math.round(er.width)}x${Math.round(er.height)}`,
+            pos: cs.position,
+            z: cs.zIndex,
+            opacity: cs.opacity,
+            vis: cs.visibility,
+            pointerEvents: cs.pointerEvents,
+            transform: cs.transform !== "none" ? cs.transform.slice(0, 40) : null,
+            overflow: cs.overflow,
+          });
+          el = el.parentElement;
+        }
+        // Any span whose box actually intersects the Good button box.
+        const spans = Array.from(document.querySelectorAll("span"))
+          .filter((s) => {
+            const sr = s.getBoundingClientRect();
+            return sr.y < r.bottom && sr.bottom > r.y && sr.x < r.right && sr.right > r.x;
+          })
+          .slice(0, 12)
+          .map((s) => {
+            const sr = s.getBoundingClientRect();
+            return {
+              cls: String(s.className).slice(0, 60),
+              aria: s.getAttribute("aria-hidden"),
+              rect: `${Math.round(sr.x)},${Math.round(sr.y)} ${Math.round(sr.width)}x${Math.round(sr.height)}`,
+              pos: getComputedStyle(s).position,
+              visibility: getComputedStyle(s).visibility,
+            };
+          });
+        return JSON.stringify(
+          { viewport: { w: window.innerWidth, h: window.innerHeight }, goodRect: `${Math.round(r.x)},${Math.round(r.y)} ${Math.round(r.width)}x${Math.round(r.height)}`, point: `${Math.round(cx)},${Math.round(cy)}`, chain: info, spansInBand: spans },
+          null,
+          1
+        );
       }
-      return JSON.stringify({
-        viewport: { w: window.innerWidth, h: window.innerHeight, scrollY: window.scrollY },
-        goodCenterHit: atPoint,
-        bar: grab("fixedBar", ['[class*="inset-x-0 bottom-0"]']),
-        innerCol: grab("innerCol", ['[class*="max-w-4xl flex"]']),
-        panel: grab("panel", ['[class*="space-y-2 rounded-xl border"]']),
-        good: grab("good", ['button[title*="Good"]']),
-      });
+      return "good button not found";
     });
     console.log("RATING-LAYOUT-DUMP\n" + boxes);
 
