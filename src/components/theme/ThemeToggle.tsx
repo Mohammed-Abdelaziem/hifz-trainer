@@ -41,7 +41,7 @@ export function ThemeToggle() {
       onClick={() => setTheme(next)}
       title={`Theme: ${LABELS[current]} (click for ${LABELS[next]})`}
       aria-label={`Theme: ${LABELS[current]}. Switch to ${LABELS[next]}.`}
-      className="inline-flex cursor-pointer items-center rounded-lg p-2 text-stone-600 transition-colors hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
+      className="inline-flex shrink-0 cursor-pointer items-center rounded-lg p-2 text-stone-600 transition-colors hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
     >
       <Icon className="h-4 w-4" />
     </button>

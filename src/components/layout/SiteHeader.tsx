@@ -35,7 +35,7 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
 
   return (
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/85 backdrop-blur dark:border-stone-800 dark:bg-stone-950/85">
-      <div className="mx-auto flex h-14 max-w-5xl items-center gap-4 px-4">
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4 md:gap-4">
         <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
           <span dir="rtl" lang="ar" className="font-quran text-xl leading-none text-amber-700 dark:text-amber-400">
             حِفْظ
@@ -51,7 +51,7 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
                 key={href}
                 href={href}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                  "inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium transition-colors md:px-3",
                   active
                     ? "bg-stone-900 text-white dark:bg-amber-600"
                     : "text-stone-600 hover:bg-stone-100 dark:text-stone-300 dark:hover:bg-stone-800"
@@ -64,15 +64,13 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
           })}
         </nav>
         {/* Outside the user/guest conditional so signed-out visitors get it too. */}
-        <div className="flex items-center gap-1 border-l border-stone-200 pl-1 md:border-l-0 md:pl-0 dark:border-stone-700">
-          <ThemeToggle />
-        </div>
+        <ThemeToggle />
         <div className="hidden w-48 md:block">
           <SearchBar />
         </div>
         {user || isGuest ? (
           <>
-            <div className="flex items-center gap-2 border-l border-stone-200 pl-3 dark:border-stone-700">
+            <div className="flex items-center gap-2 border-l border-stone-200 pl-2 dark:border-stone-700 md:pl-3">
               <span
                 title={user?.email ?? "Guest mode — progress saved locally"}
                 className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
@@ -83,7 +81,7 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
                 <button
                   type="submit"
                   title="Sign out"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
                 >
                   <LogOut className="h-3.5 w-3.5" />
                   <span className="hidden sm:inline">Sign out</span>
