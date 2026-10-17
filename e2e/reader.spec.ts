@@ -38,7 +38,7 @@ test.describe("Reader", () => {
           const er = el.getBoundingClientRect();
           const cs = getComputedStyle(el);
           info.push({
-            el: `${el.tagName}${el.ownerSVGElement ? "[svg]" : ""}`,
+            el: el.tagName,
             cls: String(el.className).slice(0, 80),
             rect: `${Math.round(er.x)},${Math.round(er.y)} ${Math.round(er.width)}x${Math.round(er.height)}`,
             pos: cs.position,
