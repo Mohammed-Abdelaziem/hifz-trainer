@@ -62,6 +62,10 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
             );
           })}
         </nav>
+        {/* Outside the user/guest conditional so signed-out visitors get it too. */}
+        <div className="flex items-center gap-1 border-l border-stone-200 pl-1 md:border-l-0 md:pl-0 dark:border-stone-700">
+          <span className="h-8 w-8" />
+        </div>
         <div className="hidden w-48 md:block">
           <SearchBar />
         </div>
