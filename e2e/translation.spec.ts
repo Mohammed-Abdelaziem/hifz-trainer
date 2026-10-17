@@ -47,7 +47,7 @@ test.describe("Reader — verse translation", () => {
     console.log(
       "POST-RELOAD-SETS " +
         (await page.evaluate(() =>
-          JSON.stringify((window as unknown as { __debugSets?: unknown[] }).__debugSets?.slice(-3) ?? [])
+          JSON.stringify((window as unknown as { __debugSets?: unknown[] }).__debugSets ?? [])
         ))
     );
     await expect(lines.first()).toBeVisible();

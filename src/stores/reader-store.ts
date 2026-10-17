@@ -187,6 +187,7 @@ if (typeof window !== "undefined") {
     const p = prev as unknown as Record<string, unknown>;
     const changed = Object.keys(s).filter((k) => s[k] !== p[k]);
     debugSets.push({
+      at: Date.now(),
       showVT: state.showVerseTranslation,
       sel: state.selectedVerseKey,
       changed,
