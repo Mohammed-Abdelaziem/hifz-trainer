@@ -5,6 +5,7 @@ interface RawAyah {
   n: number;
   words: [text: string, translation: string, root?: string][];
   tafsir: string;
+  translation: string;
 }
 
 function buildAyah(surahId: number, raw: RawAyah): Ayah {
@@ -22,6 +23,7 @@ function buildAyah(surahId: number, raw: RawAyah): Ayah {
     audio_url: everyAyahUrl(verse_key),
     timings: synthTimings(words),
     tafsir: raw.tafsir,
+    translation: raw.translation,
   };
 }
 
@@ -53,6 +55,8 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "The Basmalah opens the surah: every recitation begins by invoking Allah's name, which encompasses His mercy — ar-Rahman denoting the universal mercy embracing all creation, ar-Raheem the special mercy for the believers.",
+        translation:
+          "In the name of Allah, the Entirely Merciful, the Especially Merciful.",
       },
       {
         n: 2,
@@ -64,6 +68,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Hamd combines praise with love and reverence. Rabb (Lord) means the Owner, Sustainer and Nurturer of all existence; 'alameen comprises everything besides Allah — mankind, jinn, angels and all created realms.",
+        translation: "[All] praise is [due] to Allah, Lord of the worlds -",
       },
       {
         n: 3,
@@ -73,6 +78,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Repetition after mentioning Lordship reassures the servant: the One who governs all affairs does so through mercy before any command or decree.",
+        translation: "The Entirely Merciful, the Especially Merciful,",
       },
       {
         n: 4,
@@ -83,6 +89,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Sovereignty is attributed specifically to the Day of Judgement because on that day no one claims dominion beside Him; all worldly kings surrender their crowns and He alone judges.",
+        translation: "Sovereign of the Day of Recompense.",
       },
       {
         n: 5,
@@ -94,6 +101,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Placing iyyaka (You alone) before the verb restricts worship and seeking aid to Allah exclusively. Worship is the right He deserves; istiana (seeking help) is the acknowledgment that nothing is achieved without Him.",
+        translation: "It is You we worship and You we ask for help.",
       },
       {
         n: 6,
@@ -104,6 +112,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Hidayah here means both the knowledge of the truth and the steadfastness upon it. As-sirat al-mustaqim is the clear path leading straight to Allah's pleasure — Islam itself.",
+        translation: "Guide us to the straight path -",
       },
       {
         n: 7,
@@ -120,6 +129,8 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "The favored are the prophets, the truthful, the martyrs and the righteous. Those who earned anger knew the truth yet abandoned it; those astray worshipped without knowledge. The surah teaches us to ask for guidance away from both extremes.",
+        translation:
+          "The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray.",
       },
     ]
   ),
@@ -142,6 +153,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Commanded to answer the question about his Lord's identity, the Prophet ﷺ declares: He is Allah, uniquely One — ahad negating plurality, partners, likeness and composition.",
+        translation: 'Say, "He is Allah, [who is] One,',
       },
       {
         n: 2,
@@ -151,6 +163,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "As-Samad: the Master who is perfect in every attribute, sought by all creation in their needs, while He needs none — neither eating, drinking, sleeping nor progeny.",
+        translation: "Allah, the Eternal Refuge.",
       },
       {
         n: 3,
@@ -162,6 +175,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "He has no child, no parent and no equal. Begetting implies resemblance to created things and neediness, both impossible for the Perfect Creator.",
+        translation: "He neither begets nor is born,",
       },
       {
         n: 4,
@@ -174,6 +188,7 @@ export const FIXTURE_SURAHS: Record<number, SurahBundle> = {
         ],
         tafsir:
           "Kufuwan ahad: absolutely no one resembles Him in essence, attributes or deeds. This surah equals one third of the Qur'an because it encapsulates Tawhid — the central message every other theme serves.",
+        translation: "Nor is there to Him any equivalent.",
       },
     ]
   ),

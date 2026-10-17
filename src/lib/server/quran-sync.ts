@@ -30,6 +30,7 @@ interface PageVerse {
   text_uthmani: string;
   verse_number: number;
   page_number: number;
+  translations?: Array<{ resource_id?: number; text?: string }>;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -93,8 +94,10 @@ export async function syncFullQuran(): Promise<SyncReport> {
     const collected: PageVerse[] = [];
 
     const settled = await mapWithConcurrency(pageNumbers, CONCURRENCY, async (page) => {
+      // translations=131 pins Saheeh International so Verse.translation is a
+      // stable, meaningful English line instead of the legacy empty string.
       const res = await fetchJson<{ verses: PageVerse[] }>(
-        `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&per_page=50`,
+        `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&translations=131&per_page=50`,
         { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
       );
       return res.verses;
@@ -111,7 +114,7 @@ export async function syncFullQuran(): Promise<SyncReport> {
     for (const page of failedPages.splice(0)) {
       try {
         const res = await fetchJson<{ verses: PageVerse[] }>(
-          `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&per_page=50`,
+          `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&translations=131&per_page=50`,
           { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
         );
         collected.push(...res.verses);
@@ -138,13 +141,16 @@ export async function syncFullQuran(): Promise<SyncReport> {
               ayahNumber: Number(ayahStr),
               pageNumber: v.page_number,
               uthmaniText: v.text_uthmani,
-              translation: "",
+              translation: v.translations?.[0]?.text ?? "",
               audioUrl: safeAudioUrl ?? audioUrl,
               timestampsJson: "[]",
             },
+            // Only overwrite when the upstream call actually carried a
+            // translation so a degraded retry can't wipe existing content.
             update: {
               pageNumber: v.page_number,
               uthmaniText: v.text_uthmani,
+              ...(v.translations?.[0]?.text ? { translation: v.translations[0].text! } : {}),
             },
           });
         })

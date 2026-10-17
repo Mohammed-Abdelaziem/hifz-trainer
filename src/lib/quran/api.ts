@@ -116,6 +116,7 @@ async function bundleFromDbRows(surahId: number): Promise<SurahBundle | null> {
       audio_url: row.audioUrl || everyAyahUrl(row.verseKey),
       timings: synthTimings(words),
       tafsir: row.tafsir ?? "",
+      translation: row.translation ?? "",
     };
   });
 
@@ -140,10 +141,16 @@ interface QcVerseWord {
   transliteration: { text: string } | null;
 }
 
+// resource_id 131 = Saheeh International, the edition used across the app.
+interface QcVerseTranslation {
+  resource_id?: number;
+  text?: string;
+}
+
 async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
   return withRetry(async () => {
     const res = await fetch(
-      `${QURAN_API_BASE}/verses/by_chapter/${surahId}?words=true&per_page=1000&word_fields=text_uthmani`,
+      `${QURAN_API_BASE}/verses/by_chapter/${surahId}?words=true&per_page=1000&word_fields=text_uthmani&translations=131`,
       { cache: "no-store", signal: AbortSignal.timeout(20_000) }
     );
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -153,6 +160,7 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
         verse_number: number;
         words: QcVerseWord[];
         text_uthmani: string;
+        translations?: QcVerseTranslation[];
       }>;
     };
     if (!json.verses || json.verses.length === 0) throw new Error("no verses");
@@ -179,6 +187,7 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
         audio_url: everyAyahUrl(v.verse_key),
         timings: synthTimings(words),
         tafsir: "",
+        translation: v.translations?.[0]?.text ?? "",
       };
     });
   }).catch(() => null);

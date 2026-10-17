@@ -20,6 +20,9 @@ describe("quran/api — getSurahBundle", () => {
     expect(bundle!.id).toBe(1);
     expect(bundle!.ayahs.length).toBe(7);
     expect(bundle!.ayahs[0].verse_key).toBe("1:1");
+    expect(bundle!.ayahs[0].translation).toBe(
+      "In the name of Allah, the Entirely Merciful, the Especially Merciful."
+    );
   });
 
   it("returns fixture for surah 112 (Al-Ikhlas)", async () => {
@@ -71,22 +74,24 @@ describe("quran/api — getSurahBundle", () => {
       },
       verse: {
         findMany: vi.fn().mockResolvedValue([
-          {
-            ayahNumber: 1,
-            verseKey: "2:1",
-            uthmaniText: "الم",
-            wordsJson: null,
-            audioUrl: null,
-            tafsir: "test tafsir",
-          },
-          {
-            ayahNumber: 2,
-            verseKey: "2:2",
-            uthmaniText: "ذَٰلِكَ الْكِتَابُ",
-            wordsJson: null,
-            audioUrl: null,
-            tafsir: "test tafsir 2",
-          },
+        {
+          ayahNumber: 1,
+          verseKey: "2:1",
+          uthmaniText: "الم",
+          wordsJson: null,
+          audioUrl: null,
+          tafsir: "test tafsir",
+          translation: "Alif, Lam, Meem.",
+        },
+        {
+          ayahNumber: 2,
+          verseKey: "2:2",
+          uthmaniText: "ذَٰلِكَ الْكِتَابُ",
+          wordsJson: null,
+          audioUrl: null,
+          tafsir: "test tafsir 2",
+          translation: "This is the Book about which there is no doubt,",
+        },
         ]),
       },
     };
@@ -98,6 +103,8 @@ describe("quran/api — getSurahBundle", () => {
     expect(bundle!.name_simple).toBe("Al-Baqara");
     expect(bundle!.ayahs.length).toBe(2);
     expect(bundle!.revelation_place).toBe("madinah");
+    expect(bundle!.ayahs[0].translation).toBe("Alif, Lam, Meem.");
+    expect(bundle!.ayahs[1].translation).toBe("This is the Book about which there is no doubt,");
   });
 
   it("falls back to external API when DB returns no surah row", async () => {
@@ -252,6 +259,58 @@ describe("quran/api — getSurahBundle", () => {
       expect(verseCalls).toBe(2);
       expect(bundle!.ayahs).toHaveLength(1);
       expect(bundle!.ayahs[0].verse_key).toBe("2:1");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("maps upstream English translations onto the bundle", async () => {
+    (getDb as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db down"));
+
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockImplementation((input: string) => {
+      if (input.includes("/verses/by_chapter/")) {
+        expect(input).toContain("translations=131");
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            verses: [
+              {
+                verse_key: "2:1",
+                verse_number: 1,
+                text_uthmani: "الم",
+                translations: [{ resource_id: 131, text: "Alif, Lam, Meem." }],
+                words: [
+                  {
+                    position: 1,
+                    char_type_name: "word",
+                    text_uthmani: "الم",
+                    audio_url: null,
+                    translation: null,
+                    transliteration: null,
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          chapter: {
+            name_arabic: "الْبَقَرَة",
+            name_simple: "Al-Baqara",
+            translated_name: { name: "The Cow" },
+          },
+        }),
+      });
+    });
+
+    try {
+      const bundle = await getSurahBundle(2);
+      expect(bundle!.ayahs).toHaveLength(1);
+      expect(bundle!.ayahs[0].translation).toBe("Alif, Lam, Meem.");
     } finally {
       globalThis.fetch = origFetch;
     }

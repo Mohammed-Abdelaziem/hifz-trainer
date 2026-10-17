@@ -23,6 +23,7 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
   const maskMode = useReaderStore((s) => s.maskMode);
   const blurScope = useReaderStore((s) => s.blurScope);
   const showTranslation = useReaderStore((s) => s.showTranslation);
+  const showVerseTranslation = useReaderStore((s) => s.showVerseTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
   const revealedWords = useReaderStore((s) => s.revealedWords);
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
@@ -97,7 +98,22 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
             <AyahMarker number={ayah.ayah_number} />
           </span>
         </p>
-    </div>
+        {showVerseTranslation && ayah.translation && (
+          <p
+            dir="ltr"
+            lang="en"
+            data-testid="verse-translation"
+            className={cn(
+              "border-s-2 border-sky-300/70 ps-3 text-sm font-normal leading-relaxed text-stone-600 dark:border-sky-500/50 dark:text-stone-400",
+              // Clear the absolutely-positioned word-translation layer when
+              // both toggles are active so the lines never collide.
+              showTranslation || showRoots ? "mt-12" : "mt-2"
+            )}
+          >
+            {ayah.translation}
+          </p>
+        )}
+      </div>
   );
 }
 
