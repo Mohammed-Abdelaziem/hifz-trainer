@@ -95,6 +95,12 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
+// Runs before first paint and must agree with src/stores/theme-store.ts (the
+// zustand persist key "theme" holds {"state":{"theme":...},"version":0}).
+// script-src allows 'unsafe-inline' (the App Router bootstrap needs it too),
+// and script-src-attr 'none' only blocks attribute handlers like onerror=.
+const themeBootScript = `(function(){try{var t=JSON.parse(localStorage.getItem("theme")||"{}").state.theme;if(t!=="light"&&t!=="dark"&&t!=="system")t="system";document.documentElement.classList.toggle("dark",t==="system"?!(!window.matchMedia("(prefers-color-scheme: dark)")||!window.matchMedia("(prefers-color-scheme: dark)").matches):t==="dark");document.documentElement.style.colorScheme=document.documentElement.classList.contains("dark")?"dark":"light";}catch(e){}})();`;
+
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // The layout wraps every page, so an unhandled throw here turns any transient
   // database hiccup into a 500 on the whole site — React reports it as a
@@ -116,9 +122,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${scheherazade.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Applies the stored or system theme before anything paints, so dark
+            users never get a light flash on load. */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <JsonLd />
         <Providers>
           <GuestProvider isGuest={isGuest}>
