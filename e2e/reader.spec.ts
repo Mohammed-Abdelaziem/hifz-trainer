@@ -138,6 +138,37 @@ test.describe("Reader", () => {
     });
     console.log("NATIVE-CLICK: " + nativeClickMessage);
     await expect(page.locator(".fixed.bottom-40")).toContainText("Good");
+
+    // TEMPORARY: zoom / viewport metrics via CDP after a successful click.
+    try {
+      const cdp = await page.context().newCDPSession(page);
+      const metrics = (await cdp.send("Page.getLayoutMetrics")) as unknown as {
+        cssVisualViewport?: Record<string, number>;
+        cssLayoutViewport?: Record<string, number>;
+        cssContentSize?: Record<string, number>;
+      };
+      console.log("CDP-LAYOUT-METRICS " + JSON.stringify(metrics));
+    } catch (err) {
+      console.log("CDP-LAYOUT-METRICS-FAILED " + String(err));
+    }
+    const stamp = await page.evaluate(() => {
+      const root = document.documentElement;
+      const cs = getComputedStyle(root);
+      return JSON.stringify({
+        devicePixelRatio: window.devicePixelRatio,
+        inner: { w: window.innerWidth, h: window.innerHeight },
+        clientWidth: root.clientWidth,
+        rect: `${Math.round(root.getBoundingClientRect().width)}x${Math.round(root.getBoundingClientRect().height)}`,
+        computedZoom: cs.zoom,
+        fontSize: cs.fontSize,
+        textAutosizing: String(cs.getPropertyValue("text-size-adjust")) || "n/a",
+        visualViewportScale: window.visualViewport ? window.visualViewport.scale : null,
+        visualViewport: window.visualViewport
+          ? `${Math.round(window.visualViewport.width)}x${Math.round(window.visualViewport.height)}`
+          : null,
+      });
+    });
+    console.log("VIEWPORT-STAMP " + stamp);
   });
 
   test("toggles between word-by-word drill and full recitation", async ({ page }) => {
