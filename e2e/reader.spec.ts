@@ -99,7 +99,44 @@ test.describe("Reader", () => {
     console.log("RATING-LAYOUT-DUMP\n" + boxes);
 
     await expect(page.getByRole("button", { name: "Good" })).toBeVisible();
-    await page.getByRole("button", { name: "Good" }).click();
+
+    const target = page.getByRole("button", { name: "Good" });
+    const gb = await target.boundingBox();
+    if (gb) {
+      // Hover the exact center and re-run the hit stack — hovering must not
+      // change what intercepts.
+      await page.mouse.move(gb.x + gb.width / 2, gb.y + gb.height / 2);
+      const afterHover = await page.evaluate(() => {
+        const t = document.querySelectorAll('button[title*="Good"]');
+        let el: Element | null = null;
+        for (const c of t) {
+          const cr = c.getBoundingClientRect();
+          if (cr.width > 0) {
+            el = document.elementFromPoint(cr.x + cr.width / 2, cr.y + cr.height / 2);
+            break;
+          }
+        }
+        el ??= document.elementFromPoint(gbFallback()[0], gbFallback()[1]);
+        function gbFallback(): [number, number] {
+          const b = document.querySelector('button[title*="Good"]');
+          const r = b?.getBoundingClientRect();
+          return r ? [r.x + r.width / 2, r.y + r.height / 2] : [0, 0];
+        }
+        return el ? `${el.tagName}.${String(el.className).slice(0, 70)}` : null;
+      });
+      console.log("AFTER-HOVER-CENTER-HIT: " + afterHover);
+      await page.screenshot({ path: "test-results/rating-mobile.png", clip: { x: 0, y: Math.max(0, gb.y - 200), width: gb.x * 2 + 640, height: Math.min(824, gb.y + 90) } });
+    }
+
+    // Native DOM click bypasses Playwright's synthetic mouse entirely.
+    const nativeClickMessage = await page.evaluate(() => {
+      const buttons = Array.from(document.querySelectorAll('button[title*="Good"]'));
+      const real = buttons.find((b) => b.getBoundingClientRect().width > 0) ?? buttons[0];
+      if (!real) return "no good button";
+      (real as HTMLButtonElement).click();
+      return "native click sent";
+    });
+    console.log("NATIVE-CLICK: " + nativeClickMessage);
     await expect(page.locator(".fixed.bottom-40")).toContainText("Good");
   });
 
