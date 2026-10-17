@@ -18,8 +18,19 @@ test.describe("Reader — verse translation", () => {
       "In the name of Allah, the Entirely Merciful, the Especially Merciful."
     );
 
+    console.log(
+      "PRE-RELOAD-CHIP " +
+        (await page.getByRole("button", { name: "Verse translation" }).getAttribute("aria-pressed"))
+    );
+    console.log("PRE-RELOAD-LS " + (await page.evaluate(() => localStorage.getItem("reader-settings"))));
+
     await page.reload();
     await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
+    console.log("POST-RELOAD-LS " + (await page.evaluate(() => localStorage.getItem("reader-settings"))));
+    console.log(
+      "POST-RELOAD-CHIP " +
+        (await page.getByRole("button", { name: "Verse translation" }).getAttribute("aria-pressed"))
+    );
     await expect(lines.first()).toBeVisible();
 
     await page.getByRole("button", { name: "Verse translation" }).click();

@@ -32,4 +32,17 @@ describe("reader-store — verse translation toggle", () => {
     toggleVerseTranslation();
     expect(useReaderStore.getState().showVerseTranslation).toBe(false);
   });
+
+  it("persists the flag and restores it through rehydrate", () => {
+    useReaderStore.getState().toggleVerseTranslation();
+    const stored = JSON.parse(localStorage.getItem("reader-settings") ?? "{}");
+    expect(stored.state.showVerseTranslation).toBe(true);
+
+    useReaderStore.getState().toggleVerseTranslation();
+    expect(useReaderStore.getState().showVerseTranslation).toBe(false);
+
+    useReaderStore.getState().toggleVerseTranslation();
+    useReaderStore.persist.rehydrate();
+    expect(useReaderStore.getState().showVerseTranslation).toBe(true);
+  });
 });
