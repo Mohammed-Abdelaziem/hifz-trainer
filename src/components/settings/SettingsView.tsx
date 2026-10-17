@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
+import { ThemeSettings } from "@/components/theme/ThemeSettings";
 
 interface SettingsViewProps {
   user: {
@@ -129,6 +130,17 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
       )}
 
       <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Appearance</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-stone-500 dark:text-stone-400">
+              Theme preference is saved on this device and applied before the page loads.
+            </p>
+            <ThemeSettings />
+          </CardContent>
+        </Card>
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Spaced Repetition</CardTitle>
