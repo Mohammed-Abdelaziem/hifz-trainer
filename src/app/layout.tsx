@@ -130,15 +130,18 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             users never get a light flash on load. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         <JsonLd />
-        <Providers>
-          <GuestProvider isGuest={isGuest}>
-            <OnboardingTour />
-            <SiteHeader user={user ? { email: user.email } : null} isGuest={isGuest} />
-            <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
-            <MobileNav />
-            <SwRegister />
-          </GuestProvider>
-        </Providers>
+          <Providers>
+            <GuestProvider isGuest={isGuest}>
+              <OnboardingTour />
+              {/* No server-derived user/email here: SiteHeader ships in the
+                  HTML of pages the service worker caches for reuse across
+                  visitors, so identity is hydrated client-side via /api/session. */}
+              <SiteHeader isGuest={isGuest} />
+              <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
+              <MobileNav />
+              <SwRegister />
+            </GuestProvider>
+          </Providers>
       </body>
     </html>
   );

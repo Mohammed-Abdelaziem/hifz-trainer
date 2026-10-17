@@ -48,7 +48,18 @@ export class AudioEngine {
     this.verseChangeCallback = null;
   }
 
-  private checkVerseChange() {
+  /**
+   * Detects which verse of a loaded surah is currently being sung and fires
+   * {@link onVerseChange} when it differs from the last reported one.
+   *
+   * Howler's html5 audio emits no timeupdate events, so intrinsic hookups
+   * ("play" on load and seekMs) only catch a verse change at play start and
+   * while seeking. During smooth playback this must be called from the
+   * playback tick (see AudioSyncProvider) or the selection — which grades and
+   * highlights are keyed to — would stay pinned to the verse where playback
+   * began.
+   */
+  checkVerseChange() {
     if (!this.surahTimings || this.surahTimings.length === 0) return;
     const pos = this.nowMs();
     let idx = -1;

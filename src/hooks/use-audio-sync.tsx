@@ -150,6 +150,14 @@ export function AudioSyncProvider({
 
       if (surahAudioMode) {
         if (verseTimings && verseTimings.length > 0) {
+          // Detect verse crossings here: Howler's html5 audio emits no
+          // timeupdate, so the engine's "play"/seek hookups never fire during
+          // smooth playback. Without this tick the selection — which grading
+          // hotkeys and word highlighting are keyed to — would stay pinned to
+          // the verse playback started on. Skipped while a word is force-
+          // pinned (the early-return above) or paused, so a paused seek does
+          // not yank the user's manual selection out from under them.
+          if (playing) engine.checkVerseChange();
           const resolved = resolveSurahPlaybackPosition({
             pos,
             verseTimings,
