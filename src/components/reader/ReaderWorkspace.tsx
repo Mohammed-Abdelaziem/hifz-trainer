@@ -186,14 +186,9 @@ export function ReaderWorkspace({
   useEffect(() => {
     if (!hasAyahs) return;
     const raw = typeof window !== "undefined" ? window.localStorage.getItem("reader-settings") : null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLsAtCall(raw === null ? "LS-NULL" : "LS-OK:" + (JSON.parse(raw).state?.showVerseTranslation ?? "NOKEY"));
-    const r = useReaderStore.persist.rehydrate() as {
-      then?: (fn: () => void) => unknown;
-    };
-    setPersistDone("CALLED");
-    void r.then?.(() => {
-      setPersistDone("THEN-RAN");
-    });
+    setPersistDone("REHYDRATE-DELEGATED");
     const requested =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey

@@ -12,6 +12,7 @@ import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
 import { useReaderStore } from "@/stores/reader-store";
 import { FONT_SIZE_MIN, FONT_SIZE_MAX } from "@/lib/constants";
 import { Select } from "@/components/ui/select";
+import { ReaderStoreHydrator } from "@/components/reader/ReaderStoreHydrator";
 import { QuranAudioBar } from "@/components/reader/QuranAudioBar";
 import { TafsirDrawer } from "@/components/reader/TafsirDrawer";
 import { VerseCanvas } from "@/components/reader/VerseCanvas";
@@ -43,7 +44,6 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
 
   useEffect(() => {
     if (!hasAyahs) return;
-    useReaderStore.persist.rehydrate();
     useReaderStore.getState().setMaskMode("FULL");
     useReaderStore.getState().setSurahAudioMode(true);
     const target =
@@ -111,7 +111,9 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   const next = idx >= 0 && idx < availableSurahs.length - 1 ? availableSurahs[idx + 1] : null;
 
   return (
-    <AudioSyncProvider engine={engine} timings={effectiveSelected.timings} verseTimings={verseTimings}>
+    <>
+      <ReaderStoreHydrator />
+      <AudioSyncProvider engine={engine} timings={effectiveSelected.timings} verseTimings={verseTimings}>
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
@@ -224,6 +226,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
 
         <TafsirDrawer ayah={effectiveSelected} />
       </LiveWordsContext.Provider>
-    </AudioSyncProvider>
+      </AudioSyncProvider>
+    </>
   );
 }
