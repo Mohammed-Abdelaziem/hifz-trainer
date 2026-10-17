@@ -1,13 +1,4 @@
 import { test, expect, signIn } from "./fixtures";
-import type { Page } from "@playwright/test";
-
-async function dumpDebug(page: Page): Promise<string> {
-  try {
-    return (await page.getByTestId("reader-debug").textContent({ timeout: 5000 })) ?? "NO-NODE";
-  } catch {
-    return "NO-NODE";
-  }
-}
 
 test.describe("Reader — verse translation", () => {
   test.beforeEach(async ({ page }) => {
@@ -27,29 +18,8 @@ test.describe("Reader — verse translation", () => {
       "In the name of Allah, the Entirely Merciful, the Especially Merciful."
     );
 
-    console.log("PRE-RELOAD-CHIP " + await dumpDebug(page));
-    console.log(
-      "PRE-RELOAD-CHIP " +
-        (await page.getByRole("button", { name: "Verse translation" }).getAttribute("aria-pressed"))
-    );
-    console.log("PRE-RELOAD-LS " + (await page.evaluate(() => localStorage.getItem("reader-settings"))));
-
     await page.reload();
     await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
-    console.log("POST-RELOAD-DEBUG " + (await dumpDebug(page)));
-    console.log("POST-RELOAD-LS " + (await page.evaluate(() => localStorage.getItem("reader-settings"))));
-    console.log(
-      "POST-RELOAD-CHIP " +
-        (await page.getByRole("button", { name: "Verse translation" }).getAttribute("aria-pressed"))
-    );
-    await page.waitForTimeout(2000);
-    console.log("POST-RELOAD-2S-DEBUG " + (await dumpDebug(page)));
-    console.log(
-      "POST-RELOAD-SETS " +
-        (await page.evaluate(() =>
-          JSON.stringify((window as unknown as { __debugSets?: unknown[] }).__debugSets ?? [])
-        ))
-    );
     await expect(lines.first()).toBeVisible();
 
     await page.getByRole("button", { name: "Verse translation" }).click();
