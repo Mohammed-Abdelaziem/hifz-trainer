@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
+/* Dark mode is class-driven, not media-query driven: the boot script in the
+   root layout and the ThemeToggle put .dark on <html>, so every dark: utility
+   in the app follows the user's explicit choice. Tailwind v4's default dark:
+   variant only matches the OS media query, under which no toggle can work. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #fafaf9;
   --foreground: #1c1917;
+}
+
+html.dark {
+  --background: #0c0a09;
+  --foreground: #e7e5e4;
 }
 
 @theme inline {
@@ -11,13 +22,6 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --font-quran: var(--font-scheherazade), "Amiri", "Traditional Arabic", serif;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0c0a09;
-    --foreground: #e7e5e4;
-  }
 }
 
 body {
