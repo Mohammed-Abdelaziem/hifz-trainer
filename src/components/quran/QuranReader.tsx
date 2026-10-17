@@ -1,14 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import type { SurahBundle } from "@/types/quran";
-import type { VerseTiming } from "@/lib/audio/full-surah";
-import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
-import { useAudioEngine, useVerseData, useAudioSettings } from "@/hooks/audio";
+import { useAudioEngine, useVerseData, useAudioSettings, useSurahAudio } from "@/hooks/audio";
 import { useReaderStore } from "@/stores/reader-store";
 import { FONT_SIZE_MIN, FONT_SIZE_MAX } from "@/lib/constants";
 import { Select } from "@/components/ui/select";
@@ -34,16 +32,29 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
 
-  const [verseTimings, setVerseTimings] = useState<VerseTiming[]>([]);
-  const [audioLoading, setAudioLoading] = useState(false);
-
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const surahUrl = useCallback((id: number) => `/quran?surah=${id}`, []);
   const engine = useAudioEngine({ surah, selected, hasAyahs, availableSurahs, surahUrl });
   useAudioSettings(engine);
+  const { verseTimings, loading: audioLoading } = useSurahAudio({
+    engine,
+    surah,
+    hasAyahs,
+    surahAudioMode,
+    reciterId,
+    effectiveAudioUrl: effectiveSelected.audio_url,
+  });
 
   useEffect(() => {
     if (!hasAyahs) return;
+    // This route force-feeds mask/surah-audio overrides to present a plain
+    // reading experience. Directly mutating the PERSISTED settings rewrote
+    // the user's saved reader-settings forever — /quran went back to FULL
+    // masking for the next /reader visit. Capture what was there and put it
+    // back on unmount so the visit stays route-scoped.
+    const before = useReaderStore.getState();
+    const previousMaskMode = before.maskMode;
+    const previousSurahAudioMode = before.surahAudioMode;
     useReaderStore.getState().setMaskMode("FULL");
     useReaderStore.getState().setSurahAudioMode(true);
     const target =
@@ -52,31 +63,16 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
         : surah.ayahs[0].verse_key;
     selectAyah(target);
     resetRevealed(target);
+    return () => {
+      const restore = useReaderStore.getState();
+      if (restore.maskMode === "FULL") restore.setMaskMode(previousMaskMode);
+      // Whatever is running while unmounting (the surah audio pass) may have
+      // enabled auto-playback that picked a NEW mode — only roll back when the
+      // override is still active so actions the user took during the visit are
+      // kept.
+      restore.setSurahAudioMode(restore.surahAudioMode ? previousSurahAudioMode : false);
+    };
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
-
-  useEffect(() => {
-    if (surahAudioMode && hasAyahs) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAudioLoading(true);
-      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
-        setVerseTimings(timings);
-        setAudioLoading(false);
-      }).catch(() => {
-        setAudioLoading(false);
-      });
-      const url = getSurahAudioUrl(surah.id, reciterId);
-      engine.load(url);
-    } else {
-      setVerseTimings([]);
-      engine.load(effectiveSelected.audio_url);
-    }
-  }, [surahAudioMode, reciterId, surah.id, surah.ayah_count, engine, effectiveSelected.audio_url, hasAyahs]);
-
-  useEffect(() => {
-    if (!surahAudioMode) {
-      engine.load(effectiveSelected.audio_url);
-    }
-  }, [engine, effectiveSelected.audio_url, surahAudioMode]);
 
   if (!hasAyahs) {
     return (

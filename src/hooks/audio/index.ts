@@ -2,3 +2,4 @@ export { useAudioEngine } from "./use-audio-engine";
 export { useVerseData } from "./use-verse-data";
 export { useAudioSettings } from "./use-audio-settings";
 export { useWordTimings } from "./use-word-timings";
+export { useSurahAudio } from "./use-surah-audio";

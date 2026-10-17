@@ -3,7 +3,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { BlurScope, LayoutMode, MaskMode, PlaybackMode } from "@/types/quran";
-import { DEFAULT_RECITER_ID } from "@/lib/quran/reciters";
+import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
 import {
   FONT_SIZE_MIN,
   FONT_SIZE_MAX,
@@ -80,7 +80,74 @@ const DEFAULT_SETTINGS = {
   reciterId: DEFAULT_RECITER_ID,
   continuousPlay: false,
   surahAudioMode: false,
-};
+} satisfies Partial<ReaderSettings>;
+
+type PersistedSettings = Pick<
+  ReaderSettings,
+  | "maskMode"
+  | "blurScope"
+  | "layoutMode"
+  | "playbackMode"
+  | "showTranslation"
+  | "showVerseTranslation"
+  | "showRoots"
+  | "fontSizePx"
+  | "speed"
+  | "volume"
+  | "reciterId"
+  | "continuousPlay"
+  | "surahAudioMode"
+>;
+
+const MASK_MODES: MaskMode[] = ["FULL", "BLUR", "FIRST_LETTER", "REVEAL"];
+const BLUR_SCOPES: BlurScope[] = ["ayah", "word"];
+const LAYOUT_MODES: LayoutMode[] = ["FLOW", "MUSHAF"];
+const PLAYBACK_MODES: PlaybackMode[] = ["continuous", "word"];
+
+const oneOf = <T extends string>(modes: T[], value: unknown): T | null =>
+  modes.find((m) => value === m) ?? null;
+
+const isBool = (v: unknown): v is boolean => v === true || v === false;
+
+/**
+ * localStorage data has no schema: hand-edited, older-app or corrupt values
+ * used to bubble straight into runtime state (a bad `maskMode` for instance
+ * masked nothing a user could recover from the UI). Every persisted key is
+ * re-validated or replaced with the default, and clamped fields are re
+ * clamped.
+ */
+function sanitizePersisted(persisted: unknown): Partial<PersistedSettings> {
+  const out: Partial<PersistedSettings> = {};
+  if (typeof persisted !== "object" || persisted === null) return out;
+
+  const p = persisted as Record<string, unknown>;
+  const mask = oneOf(MASK_MODES, p.maskMode);
+  if (mask) out.maskMode = mask;
+  const blurScope = oneOf(BLUR_SCOPES, p.blurScope);
+  if (blurScope) out.blurScope = blurScope;
+  const layout = oneOf(LAYOUT_MODES, p.layoutMode);
+  if (layout) out.layoutMode = layout;
+  const playback = oneOf(PLAYBACK_MODES, p.playbackMode);
+  if (playback) out.playbackMode = playback;
+  if (isBool(p.showTranslation)) out.showTranslation = p.showTranslation;
+  if (isBool(p.showVerseTranslation)) out.showVerseTranslation = p.showVerseTranslation;
+  if (isBool(p.showRoots)) out.showRoots = p.showRoots;
+  if (isBool(p.continuousPlay)) out.continuousPlay = p.continuousPlay;
+  if (isBool(p.surahAudioMode)) out.surahAudioMode = p.surahAudioMode;
+  if (typeof p.fontSizePx === "number" && Number.isFinite(p.fontSizePx)) {
+    out.fontSizePx = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, p.fontSizePx));
+  }
+  if (typeof p.speed === "number" && Number.isFinite(p.speed)) {
+    out.speed = Math.min(SPEED_MAX, Math.max(SPEED_MIN, p.speed));
+  }
+  if (typeof p.volume === "number" && Number.isFinite(p.volume)) {
+    out.volume = Math.min(VOLUME_MAX, Math.max(VOLUME_MIN, p.volume));
+  }
+  if (typeof p.reciterId === "number" && Number.isInteger(p.reciterId) && VALID_RECITER_IDS.has(p.reciterId)) {
+    out.reciterId = p.reciterId;
+  }
+  return out;
+}
 
 export const useReaderStore = create<ReaderStore>()(
   persist(
@@ -159,6 +226,13 @@ export const useReaderStore = create<ReaderStore>()(
     }),
     {
       name: "reader-settings",
+      // v0 blobs (written before this version existed) and any junk hand-edited
+      // into localStorage pass through migrate() → sanitizePersisted(), which
+      // drops unknown values back to defaults. Skipping this was how a corrupt
+      // `maskMode` could silently render every word unmasked with no way to
+      // recover from the UI.
+      version: 1,
+      migrate: (persisted) => sanitizePersisted(persisted) as PersistedSettings,
       skipHydration: true,
       partialize: (s) => ({
         maskMode: s.maskMode,

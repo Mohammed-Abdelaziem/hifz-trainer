@@ -106,11 +106,19 @@ export function useAudioEngine({
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-      if (e.code === "Space" && !e.repeat) {
-        e.preventDefault();
-        if (engine.isPlaying()) engine.pause();
-        else engine.play();
+      // Anything interactive owns the Space key by browser default (buttons
+      // activate, ranges slide, selects open). Hijacking Space here made a
+      // masked word's Space both reveal AND toggle audio, and a focused rating
+      // button grade attempt became a play/pause instead.
+      if (
+        e.code !== "Space" ||
+        target.closest("button, a, select, input, textarea, [role='button'], [role='slider']")
+      ) {
+        return;
       }
+      e.preventDefault();
+      if (engine.isPlaying()) engine.pause();
+      else engine.play();
     },
     [engine]
   );

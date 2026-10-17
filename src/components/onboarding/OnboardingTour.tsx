@@ -60,19 +60,20 @@ export function OnboardingTour() {
   const { hasCompletedOnboarding, completeOnboarding } = useOnboardingStore();
   const [step, setStep] = useState(0);
   const [direction, setDirection] = useState(0);
+  // Nothing renders until the persisted store has been read: the store's
+  // default (tour not completed) used to SSR the full-screen overlay on every
+  // first visit, flashing an onboarding modal over the real page before
+  // hydration could hide it.
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
-    useOnboardingStore.persist.rehydrate();
+    void useOnboardingStore.persist.rehydrate();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot flip marking that the persisted store (skipHydration) has now been read; run once on mount.
+    setHydrated(true);
   }, []);
 
-  if (hasCompletedOnboarding) return null;
-
-  const current = STEPS[step];
-  const Icon = current.icon;
-  const isLast = step === STEPS.length - 1;
-
   function goNext() {
-    if (isLast) {
+    if (step === STEPS.length - 1) {
       completeOnboarding();
     } else {
       setDirection(1);
@@ -90,6 +91,24 @@ export function OnboardingTour() {
   function skip() {
     completeOnboarding();
   }
+
+  useEffect(() => {
+    if (!hydrated) return;
+    const onKey = (e: KeyboardEvent) => {
+      // Escape dismisses the modal the same way the Skip button does; the
+      // overlay had no keyboard exit at all before.
+      if (e.key === "Escape") skip();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  if (!hydrated) return null;
+  if (hasCompletedOnboarding) return null;
+
+  const current = STEPS[step];
+  const Icon = current.icon;
+  const isLast = step === STEPS.length - 1;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Onboarding tour">

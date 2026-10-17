@@ -136,8 +136,11 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
     >
       {ayahs.map((ayah) => {
         const allRevealed = ayahScoped && ayah.words.every((w) => revealedWords.has(w.id));
+        // Grade-advance (handleGrade → requestAnimationFrame scroll) finds verses
+        // by data-verse; without the anchor here the querySelector missed in
+        // Mushaf layout and scrolled the window to the top instead.
         return (
-          <span key={ayah.verse_key}>
+          <span key={ayah.verse_key} data-verse={ayah.verse_key}>
             {ayahScoped && !allRevealed ? (
               <span
                 onClick={() => {
@@ -163,8 +166,11 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
                     showTranslation={false}
                     showRoots={false}
                     ayahScoped={ayahScoped}
-                    onReveal={() => revealWord(word.id)}
-                  />{" "}
+                    // Passing the store's stable action by reference keeps the
+                    // VerseWord memo() functional; the earlier inline arrow
+                    // rebuilt every word's props on each render.
+                    onReveal={revealWord}
+                  />
                 </Fragment>
               ))
             )}
