@@ -153,6 +153,7 @@ export function ReaderWorkspace({
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
   const [persistDone, setPersistDone] = useState("idle");
+  const [lsAtCall, setLsAtCall] = useState("?");
   const debugState = useReaderStore((s) =>
     JSON.stringify({
       showVerseTranslation: s.showVerseTranslation,
@@ -160,6 +161,7 @@ export function ReaderWorkspace({
       layoutMode: s.layoutMode,
       selectedVerseKey: s.selectedVerseKey,
       persistDone,
+      lsAtCall,
     })
   );
 
@@ -183,6 +185,8 @@ export function ReaderWorkspace({
 
   useEffect(() => {
     if (!hasAyahs) return;
+    const raw = typeof window !== "undefined" ? window.localStorage.getItem("reader-settings") : null;
+    setLsAtCall(raw === null ? "LS-NULL" : "LS-OK:" + (JSON.parse(raw).state?.showVerseTranslation ?? "NOKEY"));
     const r = useReaderStore.persist.rehydrate() as {
       then?: (fn: () => void) => unknown;
     };
