@@ -152,12 +152,14 @@ export function ReaderWorkspace({
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
+  const [persistDone, setPersistDone] = useState("idle");
   const debugState = useReaderStore((s) =>
     JSON.stringify({
       showVerseTranslation: s.showVerseTranslation,
       maskMode: s.maskMode,
       layoutMode: s.layoutMode,
       selectedVerseKey: s.selectedVerseKey,
+      persistDone,
     })
   );
 
@@ -181,7 +183,13 @@ export function ReaderWorkspace({
 
   useEffect(() => {
     if (!hasAyahs) return;
-    useReaderStore.persist.rehydrate();
+    const r = useReaderStore.persist.rehydrate() as {
+      then?: (fn: () => void) => unknown;
+    };
+    setPersistDone("CALLED");
+    void r.then?.(() => {
+      setPersistDone("THEN-RAN");
+    });
     const requested =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey
