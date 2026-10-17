@@ -44,6 +44,12 @@ test.describe("Reader — verse translation", () => {
     );
     await page.waitForTimeout(2000);
     console.log("POST-RELOAD-2S-DEBUG " + (await dumpDebug(page)));
+    console.log(
+      "POST-RELOAD-SETS " +
+        (await page.evaluate(() =>
+          JSON.stringify((window as unknown as { __debugSets?: unknown[] }).__debugSets?.slice(-4) ?? [])
+        ))
+    );
     await expect(lines.first()).toBeVisible();
 
     await page.getByRole("button", { name: "Verse translation" }).click();

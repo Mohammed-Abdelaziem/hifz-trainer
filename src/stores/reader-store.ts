@@ -178,3 +178,19 @@ export const useReaderStore = create<ReaderStore>()(
     }
   )
 );
+
+if (typeof window !== "undefined") {
+  const debugSets: unknown[] = [];
+  (window as unknown as { __debugSets?: unknown[] }).__debugSets = debugSets;
+  useReaderStore.subscribe((state) => {
+    debugSets.push({
+      showVT: state.showVerseTranslation,
+      sel: state.selectedVerseKey,
+      stack: new Error().stack
+        ?.split("\n")
+        .filter((l) => !l.includes("zustand") && !l.includes("node_modules"))
+        .slice(1, 5)
+        .join(" | "),
+    });
+  });
+}
