@@ -23,6 +23,44 @@ test.describe("Reader", () => {
   });
 
   test("can rate a verse and advance", async ({ page }) => {
+    // TEMPORARY DIAGNOSTIC — print live layout boxes before clicking "Good".
+    const boxes = await page.evaluate(() => {
+      const grab = (label: string, selectors: string[]) => ({
+        label,
+        matches: selectors
+          .flatMap((sel) => Array.from(document.querySelectorAll(sel)))
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            const cs = getComputedStyle(el);
+            return {
+              cls: String(el.className).slice(0, 70),
+              x: Math.round(r.x),
+              y: Math.round(r.y),
+              w: Math.round(r.width),
+              h: Math.round(r.height),
+              pos: cs.position,
+              z: cs.zIndex,
+            };
+          }),
+      });
+      const good = document.querySelector<HTMLButtonElement>('button[title*="Good"]');
+      let atPoint: string | null = null;
+      if (good) {
+        const r = good.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+        atPoint = hit ? `${hit.tagName}.${String(hit.className).slice(0, 80)}` : null;
+      }
+      return JSON.stringify({
+        viewport: { w: window.innerWidth, h: window.innerHeight, scrollY: window.scrollY },
+        goodCenterHit: atPoint,
+        bar: grab("fixedBar", ['[class*="inset-x-0 bottom-0"]']),
+        innerCol: grab("innerCol", ['[class*="max-w-4xl flex"]']),
+        panel: grab("panel", ['[class*="space-y-2 rounded-xl border"]']),
+        good: grab("good", ['button[title*="Good"]']),
+      });
+    });
+    console.log("RATING-LAYOUT-DUMP\n" + boxes);
+
     await expect(page.getByRole("button", { name: "Good" })).toBeVisible();
     await page.getByRole("button", { name: "Good" }).click();
     await expect(page.locator(".fixed.bottom-40")).toContainText("Good");
