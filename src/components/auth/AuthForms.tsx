@@ -161,6 +161,15 @@ export function AuthForms() {
             {state.error}
           </p>
         )}
+        {state?.success && !state?.error && (
+          // Enumeration defense: an address that already holds a password
+          // account returns success without a session, so the only user-visible
+          // consequence must be deliberately neutral — it can't say whether the
+          // account existed. Pointing at sign-in is safe for both branches.
+          <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            If that email wasn&apos;t already registered, the account is ready — go ahead and sign in.
+          </p>
+        )}
         <SubmitButton label={mode === "signin" ? "Sign in" : "Create account & start"} />
       </form>
 

@@ -1,7 +1,7 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { getDb } from "@/lib/db";
 import { MAX_RETENTION, MIN_RETENTION } from "@/lib/srs/fsrs";
-import { DEFAULT_RETENTION } from "@/lib/constants";
+import { DEFAULT_RETENTION, DAILY_TARGET_MIN, DAILY_TARGET_MAX } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +14,7 @@ export async function GET() {
     return Response.json({
       scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
       requestRetention: user.requestRetention ?? DEFAULT_RETENTION,
+      dailyTargetCount: user.dailyTargetCount,
     });
   } catch (err) {
     console.error("[/api/settings]", err);
@@ -27,11 +28,11 @@ export async function POST(req: Request) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const body = (await req.json().catch(() => null)) as
-      | { scheduler?: unknown; requestRetention?: unknown }
+      | { scheduler?: unknown; requestRetention?: unknown; dailyTargetCount?: unknown }
       | null;
     if (!body) return Response.json({ error: "Invalid JSON body" }, { status: 400 });
 
-    const data: { scheduler?: string; requestRetention?: number } = {};
+    const data: { scheduler?: string; requestRetention?: number; dailyTargetCount?: number } = {};
 
     if (body.scheduler !== undefined) {
       if (typeof body.scheduler !== "string" || !VALID_SCHEDULERS.has(body.scheduler)) {
@@ -51,6 +52,17 @@ export async function POST(req: Request) {
       data.requestRetention = Math.round(r * 100) / 100;
     }
 
+    if (body.dailyTargetCount !== undefined) {
+      const count = Number(body.dailyTargetCount);
+      if (!Number.isInteger(count) || count < DAILY_TARGET_MIN || count > DAILY_TARGET_MAX) {
+        return Response.json(
+          { error: `dailyTargetCount must be between ${DAILY_TARGET_MIN} and ${DAILY_TARGET_MAX}` },
+          { status: 400 }
+        );
+      }
+      data.dailyTargetCount = count;
+    }
+
     if (Object.keys(data).length === 0) {
       return Response.json({ error: "Nothing to update" }, { status: 400 });
     }
@@ -60,12 +72,13 @@ export async function POST(req: Request) {
 
     const updated = await db.user.findUniqueOrThrow({
       where: { id: user.id },
-      select: { scheduler: true, requestRetention: true },
+      select: { scheduler: true, requestRetention: true, dailyTargetCount: true },
     });
     return Response.json({
       ok: true,
       scheduler: updated.scheduler === "fsrs" ? "fsrs" : "sm2",
       requestRetention: updated.requestRetention,
+      dailyTargetCount: updated.dailyTargetCount,
     });
   } catch (err) {
     console.error("[/api/settings]", err);

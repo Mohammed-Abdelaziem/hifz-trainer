@@ -239,7 +239,7 @@ function buildSurahNameMap(
 export async function addToSabaq(params: {
   userId: string;
   verseKeys: string[];
-}): Promise<{ added: number; skipped: number }> {
+}): Promise<{ added: number; invalid: number; duplicate: number }> {
   const db = await getDb();
   const now = new Date();
 
@@ -248,14 +248,19 @@ export async function addToSabaq(params: {
   const keys = [...new Set(params.verseKeys)].filter(
     (k) => /^\d{1,3}:\d{1,3}$/.test(k)
   );
-  if (keys.length === 0) return { added: 0, skipped: 0 };
+  if (keys.length === 0) return { added: 0, invalid: 0, duplicate: 0 };
 
   const existingVerses = await db.verse.findMany({
     where: { verseKey: { in: keys } },
     select: { verseKey: true },
   });
   const valid = existingVerses.map((v) => v.verseKey);
-  if (valid.length === 0) return { added: 0, skipped: keys.length };
+  // Three buckets so the UI can say something useful: a range may be partly
+  // real, partly already tracked, and partly reference ayah numbers that do
+  // not exist (e.g. 2:287). One merged "skipped" number couldn't distinguish
+  // those causes.
+  const invalid = keys.length - valid.length;
+  if (valid.length === 0) return { added: 0, invalid, duplicate: 0 };
 
   // Never re-add something the user already has state for; that would reset a
   // verse they have partly memorized back to Sabaq.
@@ -278,7 +283,7 @@ export async function addToSabaq(params: {
     });
   }
 
-  return { added: toAdd.length, skipped: keys.length - toAdd.length };
+  return { added: toAdd.length, invalid, duplicate: valid.length - toAdd.length };
 }
 
 export async function recordReading(params: {

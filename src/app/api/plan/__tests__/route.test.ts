@@ -26,7 +26,7 @@ const addToSabaqMock = addToSabaq as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1", role: "user" });
-  addToSabaqMock.mockResolvedValue({ added: 1, skipped: 0 });
+  addToSabaqMock.mockResolvedValue({ added: 1, invalid: 0, duplicate: 0 });
 });
 
 describe("/api/plan", () => {
@@ -121,11 +121,11 @@ describe("/api/plan", () => {
     expect(res.status).toBe(400);
   });
 
-  it("reports how many were added and skipped", async () => {
-    addToSabaqMock.mockResolvedValue({ added: 3, skipped: 2 });
+  it("reports added, invalid, and duplicate counts", async () => {
+    addToSabaqMock.mockResolvedValue({ added: 3, invalid: 1, duplicate: 2 });
     const res = await POST(makeRequest({ verseKeys: ["1:1"] }));
     const body = await res.json();
-    expect(body).toMatchObject({ ok: true, added: 3, skipped: 2 });
+    expect(body).toMatchObject({ ok: true, added: 3, invalid: 1, duplicate: 2 });
   });
 
   it("returns 500 when the service throws", async () => {

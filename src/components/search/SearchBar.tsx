@@ -20,17 +20,18 @@ export function SearchBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const search = useCallback(async (q: string) => {
+  const search = useCallback(async (q: string, signal: AbortSignal) => {
     if (q.length < 2) {
       setResults([]);
       return;
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=10`);
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=10`, { signal });
       const data = await res.json();
       setResults(data.results ?? []);
     } catch {
+      // Aborted as stale, or network failure — same handling either way.
       setResults([]);
     } finally {
       setLoading(false);
@@ -38,8 +39,15 @@ export function SearchBar() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(() => search(query), 300);
-    return () => clearTimeout(timer);
+    // Each keystroke replaces the previous in-flight fetch: without the
+    // controller a slow request for "aa" could land after one for "aab" and
+    // show results for the older query.
+    const controller = new AbortController();
+    const timer = setTimeout(() => search(query, controller.signal), 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [query, search]);
 
   useEffect(() => {

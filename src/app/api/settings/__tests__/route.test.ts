@@ -26,11 +26,17 @@ describe("/api/settings", () => {
   });
 
   it("GET returns actual settings for authenticated users", async () => {
-    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1", scheduler: "fsrs", requestRetention: 0.85 });
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "u1",
+      scheduler: "fsrs",
+      requestRetention: 0.85,
+      dailyTargetCount: 12,
+    });
     const res = await GET();
     const data = await res.json();
     expect(data.scheduler).toBe("fsrs");
     expect(data.requestRetention).toBe(0.85);
+    expect(data.dailyTargetCount).toBe(12);
   });
 
   it("GET returns 500 when getSessionUser throws", async () => {
@@ -99,7 +105,11 @@ describe("/api/settings", () => {
     const db = {
       user: {
         update: vi.fn().mockResolvedValue({}),
-        findUniqueOrThrow: vi.fn().mockResolvedValue({ scheduler: "fsrs", requestRetention: 0.85 }),
+        findUniqueOrThrow: vi.fn().mockResolvedValue({
+          scheduler: "fsrs",
+          requestRetention: 0.85,
+          dailyTargetCount: 12,
+        }),
       },
     };
     (getDb as ReturnType<typeof vi.fn>).mockResolvedValue(db);
@@ -107,12 +117,29 @@ describe("/api/settings", () => {
     const req = new Request("http://localhost/api/settings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ scheduler: "fsrs", requestRetention: 0.85 }),
+      body: JSON.stringify({ scheduler: "fsrs", requestRetention: 0.85, dailyTargetCount: 12 }),
     });
     const res = await POST(req);
     const data = await res.json();
     expect(data.ok).toBe(true);
     expect(data.scheduler).toBe("fsrs");
     expect(data.requestRetention).toBe(0.85);
+    expect(data.dailyTargetCount).toBe(12);
+    // One call now saves everything, including the daily target.
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: "u1" },
+      data: { scheduler: "fsrs", requestRetention: 0.85, dailyTargetCount: 12 },
+    });
+  });
+
+  it("POST validates dailyTargetCount bounds", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+    const req = new Request("http://localhost/api/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dailyTargetCount: 0 }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(400);
   });
 });
