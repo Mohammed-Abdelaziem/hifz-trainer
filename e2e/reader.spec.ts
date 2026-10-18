@@ -14,12 +14,13 @@ test.describe("Reader", () => {
   });
 
   test("can switch masking modes", async ({ page }) => {
-    await expect(page.getByRole("tab", { name: /Blurred/i })).toBeVisible();
-    await page.getByRole("tab", { name: /First Letters/i }).click();
-    await expect(page.getByRole("tab", { name: /First Letters/i })).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
+    // The toolbar is a radiogroup of radio buttons (not tabs), so the
+    // selected-state check uses aria-checked semantics.
+    const blurred = page.getByRole("radio", { name: /Blurred/i });
+    await expect(blurred).toBeVisible();
+    const firstLetters = page.getByRole("radio", { name: /First Letters/i });
+    await firstLetters.click();
+    await expect(firstLetters).toHaveAttribute("aria-checked", "true");
   });
 
   test("can rate a verse and advance", async ({ page }) => {
@@ -43,7 +44,7 @@ test.describe("Reader", () => {
 
   test("reveals a word with the keyboard", async ({ page }) => {
     // Switch to a masking mode so words are interactive.
-    await page.getByRole("tab", { name: /Blurred/i }).click();
+    await page.getByRole("radio", { name: /Blurred/i }).click();
     const words = page.getByRole("button", { name: "Reveal word" });
     await expect(words.first()).toBeVisible();
 
