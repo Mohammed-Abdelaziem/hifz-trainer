@@ -75,6 +75,19 @@ function verseKeyToParts(verseKey) {
   return { surahId, ayahNumber };
 }
 
+// Verses now reference Surah.id with ON DELETE RESTRICT, so the seeded
+// surah row must exist before any verse can be inserted.
+async function seedSurah() {
+  const data = {
+    nameArabic: "الفاتحة",
+    nameSimple: "Al-Fatihah",
+    englishName: "The Opening",
+    revelationPlace: "makkah",
+    ayahCount: 7,
+  };
+  await db.surah.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
+}
+
 async function seedVerses() {
   for (const [verseKey, uthmaniText, translation] of SEED_VERSES) {
     const { surahId, ayahNumber } = verseKeyToParts(verseKey);
@@ -85,7 +98,6 @@ async function seedVerses() {
       uthmaniText,
       translation,
       audioUrl: `https://example.com/${verseKey}.mp3`,
-      timestampsJson: "[]",
       wordsJson: JSON.stringify([
         { text_uthmani: uthmaniText, translation, transliteration: "" },
       ]),
@@ -103,6 +115,7 @@ try {
       update: { passwordHash, lastPasswordChangedAt: new Date() },
     });
     await db.session.deleteMany({ where: { userId: user.id } });
+    await seedSurah();
     await seedVerses();
     console.log("SETUP OK", user.id, SEED_VERSES.length, "verses");
   } else {

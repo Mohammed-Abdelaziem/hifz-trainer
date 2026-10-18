@@ -3,7 +3,7 @@ import { getDb, getDbWithTest, sanitizeUrl, toAbsoluteUrl } from "@/lib/db";
 import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
 import { fetchJson } from "@/lib/server/fetch-json";
 import { QURAN_API_BASE, VERSES_CDN, API_TIMEOUT_MEDIUM_MS } from "@/lib/constants";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../../generated/prisma";
 
 const TAFSIR_RESOURCE_ID = 169;
 

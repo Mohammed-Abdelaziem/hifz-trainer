@@ -15,7 +15,7 @@ import {
 import { getGoogleAuthUrl, getGitHubAuthUrl, createOAuthState } from "@/lib/server/oauth";
 import { isStrongPassword, PASSWORD_RULES_MESSAGE } from "@/lib/server/password";
 import { getDbWithTest } from "@/lib/db";
-import { Prisma } from "@prisma/client";
+import { Prisma } from "../../../generated/prisma";
 
 export interface AuthState {
   error?: string;
