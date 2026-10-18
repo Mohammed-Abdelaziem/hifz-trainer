@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Calendar, Clock, ArrowLeft } from "lucide-react";
 import { getPostBySlug, getAllSlugs } from "@/lib/blog/posts";
+import { SITE_URL } from "@/lib/server/site-url";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: post.title,
       description: post.description,
-      url: `https://whollyquran.me/blog/${post.slug}`,
+      url: `${SITE_URL}/blog/${post.slug}`,
       type: "article",
       publishedTime: post.publishedAt,
       modifiedTime: post.updatedAt ?? post.publishedAt,
@@ -83,26 +84,39 @@ function renderMarkdown(content: string): string {
     }
   );
 
-  // Ordered lists — wrap consecutive li in ol
+  // Lists — real markdown conversion. List items never existed as <li> before
+  // this step, so the previous wrappers keyed on <li> were dead code: "- item"
+  // lines went straight to the <br /> pass as plain text and numbered steps
+  // rendered as flat "1. … 2. …" lines with no list semantics.
+  const olClasses = 'class="my-2 ml-6 list-decimal space-y-1"';
+  const ulClasses = 'class="my-2 ml-6 list-disc space-y-1"';
+  const liClasses = 'class="mb-1 leading-relaxed"';
+
+  // Ordered: "1. item" consecutive lines (numbering tightened, marker stripped).
   html = html.replace(
-    /((?:^<li class="ml-4 list-decimal">.*<\/li>\n?)+)/gm,
-    (block) => `<ol class="my-2 ml-6 list-decimal space-y-1">${block.trim()}</ol>`
+    /(?:^|\n)((?:\d+\. .+(?:\n|$))+)/g,
+    (_m, block: string) => {
+      const items = block
+        .trim()
+        .split("\n")
+        .map((line) => line.replace(/^\d+\. /, "").trim())
+        .map((item) => `<li ${liClasses}>${item}</li>`)
+        .join("");
+      return `\n<ol ${olClasses}>${items}</ol>`;
+    }
   );
 
-  // Unordered lists — wrap consecutive li in ul
+  // Unordered: "- item" / "* item" / "+ item" consecutive lines.
   html = html.replace(
-    /((?:^<li class="ml-4 list-disc">.*<\/li>\n?)+)/gm,
-    (block) => `<ul class="my-2 ml-6 list-disc space-y-1">${block.trim()}</ul>`
-  );
-
-  // Catch any orphaned li elements and wrap them
-  html = html.replace(
-    /(<li[^>]*>.*<\/li>\n?)+/gm,
-    (block) => {
-      if (block.includes('list-decimal')) {
-        return `<ol class="my-2 ml-6 list-decimal space-y-1">${block.trim()}</ol>`;
-      }
-      return `<ul class="my-2 ml-6 list-disc space-y-1">${block.trim()}</ul>`;
+    /(?:^|\n)((?:[-*+] .+(?:\n|$))+)/g,
+    (_m, block: string) => {
+      const items = block
+        .trim()
+        .split("\n")
+        .map((line) => line.replace(/^[-*+] /, "").trim())
+        .map((item) => `<li ${liClasses}>${item}</li>`)
+        .join("");
+      return `\n<ul ${ulClasses}>${items}</ul>`;
     }
   );
 
@@ -131,16 +145,16 @@ export default async function BlogPostPage({ params }: Props) {
     author: {
       "@type": "Organization",
       name: "Wholly Quran",
-      url: "https://whollyquran.me",
+      url: SITE_URL,
     },
     publisher: {
       "@type": "Organization",
       name: "Wholly Quran",
-      url: "https://whollyquran.me",
+      url: SITE_URL,
     },
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://whollyquran.me/blog/${post.slug}`,
+      "@id": `${SITE_URL}/blog/${post.slug}`,
     },
     keywords: post.keywords.join(", "),
   };

@@ -52,23 +52,25 @@ model Surah {
   englishName     String
   revelationPlace String
   ayahCount       Int
+
+  verses Verse[]
 }
 
 model Verse {
-  verseKey       String   @id
-  surahId        Int
-  ayahNumber     Int
-  pageNumber     Int
-  uthmaniText    String
-  translation    String
-  audioUrl       String
-  timestampsJson String
-  wordsJson      String?
-  wordsSource    String   @default("synthetic")
-  recitationUrl  String?
-  tafsir         String?
-  createdAt      DateTime @default(now())
+  verseKey      String  @id
+  surahId       Int
+  ayahNumber    Int
+  pageNumber    Int
+  uthmaniText   String
+  translation   String
+  audioUrl      String
+  wordsJson     String?
+  wordsSource   String  @default("synthetic")
+  recitationUrl String?
+  tafsir        String?
+  createdAt     DateTime @default(now())
 
+  surah Surah @relation(fields: [surahId], references: [id], onDelete: Restrict)
   memoryStates  UserMemoryState[]
   reviewLogs    ReviewLog[]
   readingLogs   ReadingLog[]

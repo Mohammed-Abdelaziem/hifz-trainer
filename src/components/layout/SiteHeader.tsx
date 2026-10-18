@@ -18,9 +18,14 @@ const LINKS = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function SiteHeader({ user, isGuest }: { user?: { email: string } | null; isGuest?: boolean }) {
+export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
   const pathname = usePathname();
   const [offline, setOffline] = useState(false);
+  // undefined = not yet resolved (no fetch on the server render), null = the
+  // session lookup says signed out. Never render the email from server props:
+  // this component ships in every page's HTML, including the shells the
+  // service worker caches and later serves to a different visitor.
+  const [email, setEmail] = useState<string | null | undefined>(undefined);
 
   useEffect(() => {
     const handleOnline = () => setOffline(false);
@@ -30,6 +35,22 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    void fetch("/api/session", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { email?: string | null } | null) => {
+        if (alive) setEmail(data?.email ?? null);
+      })
+      .catch(() => {
+        // Offline or a failed lookup: keep the placeholder rather than
+        // clearing a signed-in user's identity.
+      });
+    return () => {
+      alive = false;
     };
   }, []);
 
@@ -68,40 +89,33 @@ export function SiteHeader({ user, isGuest }: { user?: { email: string } | null;
         <div className="hidden w-48 md:block">
           <SearchBar />
         </div>
-        {user || isGuest ? (
-          <>
-            <div className="flex items-center gap-2 border-l border-stone-200 pl-2 dark:border-stone-700 md:pl-3">
-              <span
-                title={user?.email ?? "Guest mode — progress saved locally"}
-                className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
-              >
-                {user?.email ?? "Guest"}
-              </span>
-              <form action={signOutAction}>
-                <button
-                  type="submit"
-                  title="Sign out"
-                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
-                >
-                  <LogOut className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Sign out</span>
-                </button>
-              </form>
-            </div>
-            {offline && (
-              <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                <WifiOff className="h-3 w-3" />
-                Offline
-              </span>
-            )}
-          </>
-        ) : (
-          <Link
-            href="/login"
-            className="rounded-lg bg-stone-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-stone-700 dark:bg-amber-600 dark:hover:bg-amber-500"
+        {/* {user || isGuest ...} used to always render the account block: a null
+            user already forced isGuest = true, so the sign-in branch in the
+            server version was unreachable. The block stays unconditional; the
+            authoritative guest flag from the server layout decides its label. */}
+        <div className="flex items-center gap-2 border-l border-stone-200 pl-2 dark:border-stone-700 md:pl-3">
+          <span
+            title={isGuest ? "Guest mode — progress saved locally" : (email ?? "Loading…")}
+            className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
           >
-            Sign in
-          </Link>
+            {isGuest ? "Guest" : (email ?? "…")}
+          </span>
+          <form action={signOutAction}>
+            <button
+              type="submit"
+              title="Sign out"
+              className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sign out</span>
+            </button>
+          </form>
+        </div>
+        {offline && (
+          <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+            <WifiOff className="h-3 w-3" />
+            Offline
+          </span>
         )}
       </div>
     </header>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { formatMs } from "@/lib/utils";
+import { PROGRESS_BAR_MIN_MS } from "@/lib/constants";
 
 export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { surahId: number; ayahCount: number }) {
   const { engine } = useAudioSyncContext();
@@ -31,7 +32,7 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { su
     engine.setVolume(volume);
   }, [engine, volume]);
 
-  const maxMs = durationMs ?? Math.max(8000, positionMs + 1000);
+  const maxMs = durationMs ?? Math.max(PROGRESS_BAR_MIN_MS, positionMs + 1000);
 
   return (
     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">

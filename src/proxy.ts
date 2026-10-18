@@ -25,12 +25,33 @@ function checkInMemoryRateLimit(key: string, limit: number, windowMs: number): b
   const now = Date.now();
   const entry = rateLimitMap.get(key);
   if (!entry || now > entry.resetAt) {
+    pruneRateLimitMap(now);
     rateLimitMap.set(key, { count: 1, resetAt: now + windowMs });
     return true;
   }
   if (entry.count >= limit) return false;
   entry.count++;
   return true;
+}
+
+// The map is keyed by client IP and never expired on its own — every unique
+// address (IPv6 makes minting them cheap for an attacker) accumulated a live
+// entry until the process restarted. Evict expired windows and, if all are
+// still live, drop the oldest half.
+const RATE_LIMIT_MAP_MAX = 10_000;
+
+function pruneRateLimitMap(now: number) {
+  if (rateLimitMap.size < RATE_LIMIT_MAP_MAX) return;
+  for (const [key, entry] of rateLimitMap) {
+    if (entry.resetAt <= now) rateLimitMap.delete(key);
+  }
+  if (rateLimitMap.size < RATE_LIMIT_MAP_MAX) return;
+  let evict = rateLimitMap.size - Math.floor(RATE_LIMIT_MAP_MAX / 2);
+  for (const key of rateLimitMap.keys()) {
+    if (evict <= 0) break;
+    rateLimitMap.delete(key);
+    evict--;
+  }
 }
 
 async function checkUpstashRateLimit(
@@ -41,9 +62,14 @@ async function checkUpstashRateLimit(
   return success;
 }
 
+// Methods that can change server state: they all need the same-origin gate
+// and the same write-rate-limit class. PATCH was previously charged as a
+// read and skipped the same-origin gate entirely.
+const UNSAFE_METHODS: string[] = ["POST", "PUT", "DELETE", "PATCH"];
+
 function isSameOrigin(request: NextRequest): boolean {
   const method = request.method;
-  if (!["POST", "PUT", "DELETE", "PATCH"].includes(method)) return true;
+  if (!UNSAFE_METHODS.includes(method)) return true;
 
   // Browsers always send Sec-Fetch-Site on cross-origin requests, and it
   // cannot be forged by page script. Prefer it.
@@ -82,7 +108,7 @@ function clientIp(request: NextRequest): string | null {
   return xff || null;
 }
 
-const AUTH_ROUTES = ["/login", "/signup"];
+const AUTH_ROUTES = ["/login"];
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60_000;
 
@@ -135,7 +161,7 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
 
-  if (method === "POST" || method === "PUT" || method === "DELETE") {
+  if (UNSAFE_METHODS.includes(method)) {
     if (!isSameOrigin(request)) {
       return NextResponse.json({ error: "Cross-origin request rejected" }, { status: 403 });
     }
@@ -145,10 +171,10 @@ export async function proxy(request: NextRequest) {
 
   await initUpstash();
 
-  // Count credential submissions only. Charging GET /login and GET /signup
-  // against the same 5-per-minute bucket meant that reloading the page a few
-  // times replaced the form with a 429 JSON body, and any visitor behind one
-  // shared address locked everyone else out.
+  // Count credential submissions only. Charging GET /login against the same
+  // 5-per-minute bucket meant that reloading the page a few times replaced
+  // the form with a 429 JSON body, and any visitor behind one shared address
+  // locked everyone else out.
   const isAuthSubmit =
     method === "POST" && AUTH_ROUTES.some((r) => pathname === r || pathname.startsWith(r + "/"));
 
@@ -174,7 +200,7 @@ export async function proxy(request: NextRequest) {
 
   if (pathname.startsWith("/api/") && limitable) {
     const isExpensive = EXPENSIVE_API_ROUTES.some((r) => pathname.startsWith(r));
-    const isWrite = method === "POST" || method === "PUT" || method === "DELETE";
+    const isWrite = UNSAFE_METHODS.includes(method);
 
     if (isExpensive) {
       let allowed = true;
@@ -221,6 +247,8 @@ export async function proxy(request: NextRequest) {
   return NextResponse.next();
 }
 
+// /signup doesn't exist as a route — signup is a tab on /login — so matching
+// it only wired the limiter to a path nothing can hit.
 export const config = {
-  matcher: ["/login", "/signup", "/api/:path*"],
+  matcher: ["/login", "/api/:path*"],
 };

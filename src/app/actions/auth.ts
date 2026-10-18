@@ -13,7 +13,9 @@ import {
   purgeExpiredSessions,
 } from "@/lib/server/auth";
 import { getGoogleAuthUrl, getGitHubAuthUrl, createOAuthState } from "@/lib/server/oauth";
+import { isStrongPassword, PASSWORD_RULES_MESSAGE } from "@/lib/server/password";
 import { getDbWithTest } from "@/lib/db";
+import { Prisma } from "../../../generated/prisma";
 
 export interface AuthState {
   error?: string;
@@ -33,16 +35,6 @@ function parseCredentials(formData: FormData): { email: string; password: string
   return { email, password };
 }
 
-function isStrongPassword(pw: string): boolean {
-  if (pw.length < 12 || pw.length > 128) return false;
-  let categories = 0;
-  if (/[A-Z]/.test(pw)) categories++;
-  if (/[a-z]/.test(pw)) categories++;
-  if (/[0-9]/.test(pw)) categories++;
-  if (/[^A-Za-z0-9]/.test(pw)) categories++;
-  return categories >= 3;
-}
-
 export async function signInAction(_prev: AuthState, formData: FormData): Promise<AuthState> {
   const creds = parseCredentials(formData);
   if (!creds) return { error: "Enter a valid email and a password (min 12 chars)." };
@@ -60,13 +52,15 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   }
 
   if (user.lockedUntil && user.lockedUntil > new Date()) {
-    return { error: "Account is temporarily locked. Please try again later." };
+    // Deliberately identical to a wrong-password failure: a distinct "locked"
+    // response would confirm the account exists to anyone willing to spam it.
+    return { error: "Incorrect email or password." };
   }
 
   if (!(await verifyPassword(creds.password, user.passwordHash))) {
     const { locked } = await recordFailedLogin(creds.email);
     if (locked) {
-      return { error: "Account is temporarily locked. Please try again later." };
+      return { error: "Incorrect email or password." };
     }
     return { error: "Incorrect email or password." };
   }
@@ -85,32 +79,54 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   if (!creds) return { error: "Enter a valid email and a password (min 12 chars)." };
 
   const db = await getDbWithTest();
-  const existing = await db.user.findUnique({ where: { email: creds.email } });
-  if (existing?.passwordHash) {
-    return { success: true, error: undefined };
-  }
-  // An account created through OAuth has no passwordHash. Attaching one here
-  // would let anyone who knows the address take the account over, so require
-  // the user to sign in with their provider first and set a password from
-  // /settings, where the session is already verified.
-  if (existing) {
-    return {
-      success: false,
-      error: "This email uses a social login. Sign in with that provider to continue.",
-    };
+
+  if (!isStrongPassword(creds.password)) {
+    return { error: PASSWORD_RULES_MESSAGE };
   }
 
-  const passwordHash = await hashPassword(creds.password);
-  const user = await db.user.create({
-    data: { email: creds.email, passwordHash, lastPasswordChangedAt: new Date() },
-  });
+  const registerOrAcceptExisting = async (): Promise<AuthState | null> => {
+    const existing = await db.user.findUnique({ where: { email: creds.email } });
+    if (existing?.passwordHash) {
+      // Pretend success so the response can't be used to enumerate which
+      // addresses hold password accounts; burn the same scrypt cost a real
+      // signup would so latency doesn't leak either.
+      await verifyPassword(creds.password, DECOY_PASSWORD_HASH);
+      return { success: true };
+    }
+    // An account created through OAuth has no passwordHash. Attaching one here
+    // would let anyone who knows the address take the account over, so require
+    // the user to sign in with their provider first and set a password from
+    // /settings, where the session is already verified.
+    if (existing) {
+      return {
+        success: false,
+        error: "This email uses a social login. Sign in with that provider to continue.",
+      };
+    }
+    return null;
+  };
 
-  await createSession(user.id, true);
-  redirect("/");
-}
+  const preExisting = await registerOrAcceptExisting();
+  if (preExisting) return preExisting;
 
-export async function guestSignInAction(): Promise<void> {
-  redirect("/");
+  try {
+    const passwordHash = await hashPassword(creds.password);
+    const user = await db.user.create({
+      data: { email: creds.email, passwordHash, lastPasswordChangedAt: new Date() },
+    });
+
+    await createSession(user.id, true);
+    redirect("/");
+  } catch (err) {
+    // Lost a create race: by now a row with this address exists, so apply the
+    // exact same policy as a pre-existing account (P2002 is a unique violation,
+    // anything else is a real failure).
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const raced = await registerOrAcceptExisting();
+      if (raced) return raced;
+    }
+    throw err;
+  }
 }
 
 export async function signOutAction(): Promise<void> {
@@ -144,7 +160,7 @@ export async function changePasswordAction(
   }
 
   if (!isStrongPassword(newPassword)) {
-    return { error: "Password must be 12+ characters with at least 3 of: uppercase, lowercase, digit, symbol." };
+    return { error: PASSWORD_RULES_MESSAGE };
   }
 
   const { getSessionUser } = await import("@/lib/server/auth");

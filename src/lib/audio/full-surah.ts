@@ -1,3 +1,5 @@
+import { DEFAULT_RECITER, RECITERS } from "@/lib/quran/reciters";
+
 export interface VerseTiming {
   verseKey: string;
   start_ms: number;
@@ -10,38 +12,21 @@ interface RawTiming {
   end_time: number;
 }
 
-interface Mp3QuranReciter {
-  readId: number;
-  server: string;
-  name: string;
+/** Falls back to the default reciter for ids the catalog doesn't carry. */
+function getReciter(reciterId: number) {
+  return RECITERS.find((r) => r.id === reciterId) ?? DEFAULT_RECITER;
 }
-
-const RECITER_MAP: Record<number, Mp3QuranReciter> = {
-  7: { readId: 123, server: "https://server8.mp3quran.net/afs/", name: "Mishary Alafasy" },
-  6: { readId: 118, server: "https://server13.mp3quran.net/husr/", name: "Mahmoud Al-Husary" },
-  12: { readId: 118, server: "https://server13.mp3quran.net/husr/", name: "Al-Husary (Muallim)" },
-  2: { readId: 53, server: "https://server7.mp3quran.net/basit/", name: "AbdulBaset (Murattal)" },
-  1: { readId: 51, server: "https://server7.mp3quran.net/basit/Almusshaf-Al-Mojawwad/", name: "AbdulBaset (Mujawwad)" },
-  3: { readId: 54, server: "https://server11.mp3quran.net/sds/", name: "Abdur-Rahman as-Sudais" },
-  9: { readId: 112, server: "https://server10.mp3quran.net/minsh/", name: "Al-Minshawi (Murattal)" },
-  4: { readId: 4, server: "https://server11.mp3quran.net/shatri/", name: "Abu Bakr al-Shatri" },
-  5: { readId: 89, server: "https://server8.mp3quran.net/hani/", name: "Hani ar-Rifai" },
-  10: { readId: 31, server: "https://server7.mp3quran.net/shur/", name: "Saud ash-Shuraym" },
-};
-
-const DEFAULT_RECITER = RECITER_MAP[7];
 
 function pad3(n: number): string {
   return String(n).padStart(3, "0");
 }
 
 export function getSurahAudioUrl(surahId: number, reciterId: number): string {
-  const reciter = RECITER_MAP[reciterId] ?? DEFAULT_RECITER;
-  return `${reciter.server}${pad3(surahId)}.mp3`;
+  return `${getReciter(reciterId).server}${pad3(surahId)}.mp3`;
 }
 
 function getReadId(reciterId: number): number {
-  return (RECITER_MAP[reciterId] ?? DEFAULT_RECITER).readId;
+  return getReciter(reciterId).readId;
 }
 
 function cacheKey(surahId: number, reciterId: number): string {

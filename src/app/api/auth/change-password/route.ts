@@ -1,17 +1,8 @@
 import { getSessionUser, hashPassword, verifyPassword, revokeAllSessions, createSession } from "@/lib/server/auth";
+import { isStrongPassword, PASSWORD_RULES_MESSAGE } from "@/lib/server/password";
 import { getDbWithTest } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
-
-function isStrongPassword(pw: string): boolean {
-  if (pw.length < 12 || pw.length > 128) return false;
-  let categories = 0;
-  if (/[A-Z]/.test(pw)) categories++;
-  if (/[a-z]/.test(pw)) categories++;
-  if (/[0-9]/.test(pw)) categories++;
-  if (/[^A-Za-z0-9]/.test(pw)) categories++;
-  return categories >= 3;
-}
 
 export async function POST(req: Request) {
   try {
@@ -32,7 +23,7 @@ export async function POST(req: Request) {
     }
 
     if (!isStrongPassword(newPassword)) {
-      return Response.json({ error: "Password must be 12+ characters with at least 3 of: uppercase, lowercase, digit, symbol." }, { status: 400 });
+      return Response.json({ error: PASSWORD_RULES_MESSAGE }, { status: 400 });
     }
 
     const db = await getDbWithTest();

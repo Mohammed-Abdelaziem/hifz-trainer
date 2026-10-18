@@ -16,6 +16,23 @@ export const E2E_PASSWORD = "testpass12345";
 const mode = process.argv[2] ?? "setup";
 const rawUrl = process.env.DATABASE_URL ?? "file:./dev.db";
 
+// Fail closed: this script mints and hard-deletes accounts, so running it
+// against a production database would corrupt real user data. CI and a
+// locally-addressable URL are always fine; anything else needs an explicit
+// E2E_DATABASE_LOCATION=test override.
+const isCi = process.env.CI === "true" || process.env.CI === "1";
+const isLocalish =
+  rawUrl.startsWith("file:") ||
+  rawUrl.includes("localhost") ||
+  rawUrl.includes("127.0.0.1");
+if (!isCi && !isLocalish && process.env.E2E_DATABASE_LOCATION !== "test") {
+  console.error(
+    `Refusing to run auth-e2e against "${rawUrl}". ` +
+      "Run it in CI (CI=true), against a local database, or set E2E_DATABASE_LOCATION=test explicitly."
+  );
+  process.exit(1);
+}
+
 function createDb() {
   return rawUrl.startsWith("postgres")
     ? new PrismaClient({ adapter: new PrismaPg({ connectionString: rawUrl, max: 2 }) })
@@ -58,6 +75,19 @@ function verseKeyToParts(verseKey) {
   return { surahId, ayahNumber };
 }
 
+// Verses now reference Surah.id with ON DELETE RESTRICT, so the seeded
+// surah row must exist before any verse can be inserted.
+async function seedSurah() {
+  const data = {
+    nameArabic: "الفاتحة",
+    nameSimple: "Al-Fatihah",
+    englishName: "The Opening",
+    revelationPlace: "makkah",
+    ayahCount: 7,
+  };
+  await db.surah.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
+}
+
 async function seedVerses() {
   for (const [verseKey, uthmaniText, translation] of SEED_VERSES) {
     const { surahId, ayahNumber } = verseKeyToParts(verseKey);
@@ -68,7 +98,6 @@ async function seedVerses() {
       uthmaniText,
       translation,
       audioUrl: `https://example.com/${verseKey}.mp3`,
-      timestampsJson: "[]",
       wordsJson: JSON.stringify([
         { text_uthmani: uthmaniText, translation, transliteration: "" },
       ]),
@@ -86,6 +115,7 @@ try {
       update: { passwordHash, lastPasswordChangedAt: new Date() },
     });
     await db.session.deleteMany({ where: { userId: user.id } });
+    await seedSurah();
     await seedVerses();
     console.log("SETUP OK", user.id, SEED_VERSES.length, "verses");
   } else {

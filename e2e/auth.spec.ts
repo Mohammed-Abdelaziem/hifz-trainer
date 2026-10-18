@@ -1,29 +1,22 @@
 import { test, expect } from "./fixtures";
 
-// Must match E2E_PASSWORD in scripts/auth-e2e.mjs. The current policy requires
-// 12+ characters and 3 of 4 character classes; shorter values are rejected by
-// parseCredentials before the credential check ever runs.
-const E2E_PASSWORD = "testpass12345";
+// The fixture user's password (sign-in specs) must match E2E_PASSWORD in
+// scripts/auth-e2e.mjs: "testpass12345". The signup spec below needs its own
+// policy-compliant constant (12+ chars, 3 of 4 classes) and a fresh one-off
+// account, so it differs from the fixture on purpose.
 
 test.describe("Authentication", () => {
   test("shows login page", async ({ page }) => {
     await page.goto("/login");
     await expect(page.locator("h1")).toContainText("Hifz Trainer");
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Continue without account" })).toBeVisible();
-  });
-
-  test("can continue without an account", async ({ page }) => {
-    await page.goto("/login");
-    await page.getByRole("button", { name: "Continue without account" }).click();
-    await expect(page).toHaveURL("/");
   });
 
   test("can sign up with new account", async ({ page }) => {
     await page.goto("/login");
     await page.getByRole("tab", { name: "Create account" }).click();
     await page.fill('input[name="email"]', `test${Date.now()}@example.com`);
-    await page.fill('input[name="password"]', E2E_PASSWORD);
+    await page.fill('input[name="password"]', "Testpass12345!");
     await page.getByRole("button", { name: "Create account & start" }).click();
     await expect(page).toHaveURL("/");
   });

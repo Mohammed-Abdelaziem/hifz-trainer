@@ -10,15 +10,20 @@ interface DayData {
 
 export function WeeklyChart({ perDay }: { perDay: DayData[] }) {
   const last7 = useMemo(() => {
+    // UTC everywhere: /api/stats keys each day by toISOString().slice(0, 10),
+    // so bucket keys and "today" must both be UTC calendar days. The old loop
+    // walked local dates but keyed UTC — for any UTC offset the bars lit the
+    // wrong day near midnight.
     const now = new Date();
+    const todayKey = now.toISOString().slice(0, 10);
     const days: { label: string; count: number }[] = [];
     for (let i = 6; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
+      const d = new Date(`${todayKey}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - i);
       const key = d.toISOString().slice(0, 10);
       const found = perDay.find((p) => p.date === key);
       days.push({
-        label: d.toLocaleDateString("en", { weekday: "short" }),
+        label: d.toLocaleDateString("en", { weekday: "short", timeZone: "UTC" }),
         count: found?.count ?? 0,
       });
     }

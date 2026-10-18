@@ -3,6 +3,7 @@ import { MushafGrid } from "@/components/analytics/MushafGrid";
 import { ReviewActivity } from "@/components/analytics/ReviewActivity";
 import { SchedulerCompare } from "@/components/analytics/SchedulerCompare";
 import { getSessionUser } from "@/lib/server/auth";
+import { SITE_URL } from "@/lib/server/site-url";
 
 export const metadata: Metadata = {
   title: "Memory Heatmap — Track Your Quran Memorization Progress",
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     title: "Quran Memorization Heatmap — Wholly Quran",
     description:
       "Interactive heatmap showing your Quran memorization strength across all 114 surahs.",
-    url: "https://whollyquran.me/analytics",
+    url: `${SITE_URL}/analytics`,
   },
 };
 

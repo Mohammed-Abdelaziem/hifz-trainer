@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Save, Loader2, Lock } from "lucide-react";
 import { MIN_RETENTION, MAX_RETENTION } from "@/lib/srs/fsrs";
-import { DAILY_TARGET_MIN, DAILY_TARGET_MAX } from "@/lib/constants";
+import { DAILY_TARGET_MAX, DAILY_TARGET_MIN, DEFAULT_DAILY_TARGET, DEFAULT_RETENTION } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -23,8 +23,8 @@ interface SettingsViewProps {
 
 export function SettingsView({ user, isGuest }: SettingsViewProps) {
   const [scheduler, setScheduler] = useState(user?.scheduler ?? "sm2");
-  const [retention, setRetention] = useState(user?.requestRetention ?? 0.9);
-  const [dailyTarget, setDailyTarget] = useState(user?.dailyTargetCount ?? 10);
+  const [retention, setRetention] = useState(user?.requestRetention ?? DEFAULT_RETENTION);
+  const [dailyTarget, setDailyTarget] = useState(user?.dailyTargetCount ?? DEFAULT_DAILY_TARGET);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,33 +36,42 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
   const [pwSaved, setPwSaved] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
 
+  // The "Saved" flashes self-expire on timers; without tracking the handles a
+  // save right before unmount would setState on a dead component and leave
+  // the timer running.
+  const savedTimerRef = useRef<number | undefined>(undefined);
+  const pwSavedTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    return () => {
+      clearTimeout(savedTimerRef.current);
+      clearTimeout(pwSavedTimerRef.current);
+    };
+  }, []);
+
   async function handleSave() {
     setSaving(true);
     setError(null);
     setSaved(false);
+    clearTimeout(savedTimerRef.current);
     try {
       const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduler, requestRetention: retention }),
+        // One call now: the route persists scheduler, retention, and the daily
+        // target together, replacing the old two-request save that could leave
+        // one field written and the other not.
+        body: JSON.stringify({
+          scheduler,
+          requestRetention: retention,
+          dailyTargetCount: dailyTarget,
+        }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "Failed to save");
       }
-      if (dailyTarget !== (user?.dailyTargetCount ?? 10)) {
-        const targetRes = await fetch("/api/settings/target", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dailyTargetCount: dailyTarget }),
-        });
-        if (!targetRes.ok) {
-          const data = await targetRes.json().catch(() => null);
-          throw new Error(data?.error ?? "Failed to save daily target");
-        }
-      }
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      savedTimerRef.current = window.setTimeout(() => setSaved(false), 2000);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -74,6 +83,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
     setPwSaving(true);
     setPwError(null);
     setPwSaved(false);
+    clearTimeout(pwSavedTimerRef.current);
     try {
       const fd = new FormData();
       fd.set("oldPassword", oldPassword);
@@ -93,7 +103,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      setTimeout(() => setPwSaved(false), 3000);
+      pwSavedTimerRef.current = window.setTimeout(() => setPwSaved(false), 3000);
     } catch (e: unknown) {
       setPwError(e instanceof Error ? e.message : "Something went wrong");
     } finally {

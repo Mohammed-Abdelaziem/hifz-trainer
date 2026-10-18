@@ -26,14 +26,17 @@ function Segmented<T extends string>({
   options,
   value,
   onChange,
+  ariaLabel,
 }: {
   options: { value: T; label: string; icon?: typeof Type }[];
   value: T;
   onChange: (v: T) => void;
+  ariaLabel: string;
 }) {
   return (
     <div
-      role="tablist"
+      role="radiogroup"
+      aria-label={ariaLabel}
       className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-0.5 dark:border-stone-700 dark:bg-stone-800"
     >
       {options.map((opt) => {
@@ -41,8 +44,8 @@ function Segmented<T extends string>({
         return (
           <button
             key={opt.value}
-            role="tab"
-            aria-selected={value === opt.value}
+            role="radio"
+            aria-checked={value === opt.value}
             onClick={() => onChange(opt.value)}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
@@ -106,11 +109,26 @@ export function MaskingToolbar() {
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-      <Segmented options={MASK_MODES} value={maskMode} onChange={setMaskMode} />
+      <Segmented
+        options={MASK_MODES}
+        value={maskMode}
+        onChange={setMaskMode}
+        ariaLabel="Masking mode"
+      />
       {maskMode === "BLUR" && (
-        <Segmented options={BLUR_SCOPES} value={blurScope} onChange={setBlurScope} />
+        <Segmented
+          options={BLUR_SCOPES}
+          value={blurScope}
+          onChange={setBlurScope}
+          ariaLabel="Blur scope"
+        />
       )}
-      <Segmented options={LAYOUT_MODES} value={layoutMode} onChange={setLayoutMode} />
+      <Segmented
+        options={LAYOUT_MODES}
+        value={layoutMode}
+        onChange={setLayoutMode}
+        ariaLabel="Layout mode"
+      />
       <ToggleChip active={showTranslation} onClick={toggleTranslation}>
         Word translation
       </ToggleChip>

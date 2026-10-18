@@ -65,6 +65,9 @@ const nextConfig: NextConfig = {
     "@prisma/adapter-better-sqlite3",
     "better-sqlite3",
   ],
+  // Stops the X-Powered-By header: it advertises framework + version info
+  // for free fingerprinting.
+  poweredByHeader: false,
 };
 
 export default nextConfig;

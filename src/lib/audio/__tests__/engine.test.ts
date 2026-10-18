@@ -112,6 +112,7 @@ vi.mock("howler", () => {
 });
 
 import { AudioEngine } from "@/lib/audio/engine";
+import type { VerseTiming } from "@/lib/audio/full-surah";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const howlerMock = await import("howler") as any;
 
@@ -647,6 +648,70 @@ describe("AudioEngine", () => {
       getLastHowl().fireEnd();
       await expect(p1).resolves.toBeUndefined();
       await expect(p2).resolves.toBeUndefined();
+    });
+
+    it("does not fall back to previous word audio when a clip URL fails into virtual mode", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/prev.mp3");
+      getLastHowl().fireLoad();
+      const promise = engine.playClip("https://example.com/broken.mp3");
+      await vi.waitFor(() => {
+        expect(getLastHowl()._src).toBe("https://example.com/broken.mp3");
+      });
+      getLastHowl().fireLoadError("fail");
+      await vi.waitFor(() => expect(engine.getMode()).toBe("virtual"));
+      // Virtual clip must still resolve via the fallback timer instead of
+      // hanging forever (transport previously stayed stuck on "Pause").
+      await expect(promise).resolves.toBeUndefined();
+      // The previous word's audio must not be replayed as a fallback.
+      expect(getAllHowls().some((h: { _src: string }) => h._src === "https://example.com/prev.mp3")).toBe(false);
+    });
+
+    it("resolves a virtual clip whose URL failed on an earlier attempt", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/broken.mp3");
+      getLastHowl().fireLoadError("fail");
+      await vi.waitFor(() => expect(engine.getMode()).toBe("virtual"));
+      const promise = engine.playClip("https://example.com/broken.mp3");
+      // The dedupe early-return skips the loaderror path entirely, so the
+      // fallback timer must be scheduled from playClip itself.
+      await expect(promise).resolves.toBeUndefined();
+    });
+  });
+
+  describe("stop suppression", () => {
+    it("does not fire onVerseChange when stop rewinds to 0", async () => {
+      const engine = new AudioEngine();
+      engine.setSurahTimings([
+        { verseKey: "1:1", start_ms: 0, end_ms: 1000 },
+        { verseKey: "1:2", start_ms: 1000, end_ms: 3000 },
+      ] satisfies VerseTiming[]);
+      const onVerseChange = vi.fn();
+      engine.onVerseChange(onVerseChange);
+
+      engine.seekMs(1500);
+      await vi.waitFor(() => expect(onVerseChange).toHaveBeenCalledWith("1:2"));
+
+      engine.stop();
+      // The rewind happened, but the user's selection must stay where it was.
+      await new Promise((r) => setTimeout(r, 30));
+      expect(onVerseChange).not.toHaveBeenCalledWith("1:1");
+    });
+
+    it("still fires onVerseChange when the user seeks across a verse boundary", async () => {
+      const engine = new AudioEngine();
+      engine.setSurahTimings([
+        { verseKey: "1:1", start_ms: 0, end_ms: 1000 },
+        { verseKey: "1:2", start_ms: 1000, end_ms: 3000 },
+      ] satisfies VerseTiming[]);
+      const onVerseChange = vi.fn();
+      engine.onVerseChange(onVerseChange);
+
+      engine.seekMs(1500);
+      await vi.waitFor(() => expect(onVerseChange).toHaveBeenCalledWith("1:2"));
+      // A user seek back into the previous verse must reselect it.
+      engine.seekMs(200);
+      await vi.waitFor(() => expect(onVerseChange).toHaveBeenCalledWith("1:1"));
     });
   });
 

@@ -11,17 +11,16 @@ import type {
   SchedulerKind,
   SurahBundle,
 } from "@/types/quran";
-import type { VerseTiming } from "@/lib/audio/full-surah";
-import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { usePassiveReadingTracker } from "@/hooks/use-passive-reading-tracker";
-import { useAudioEngine, useVerseData, useAudioSettings, useWordTimings } from "@/hooks/audio";
+import { useAudioEngine, useVerseData, useAudioSettings, useWordTimings, useSurahAudio } from "@/hooks/audio";
 import {
   schedule,
   describeOutcome,
 } from "@/lib/srs/sm2";
 import { scheduleFsrs } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
+import { GRADE_FLASH_MS, SYNC_STATUS_RESET_MS } from "@/lib/constants";
 import { useReaderStore } from "@/stores/reader-store";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -153,8 +152,6 @@ export function ReaderWorkspace({
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
 
-  const [verseTimings, setVerseTimings] = useState<VerseTiming[]>([]);
-
   const wordTimings = useWordTimings(surah.id, reciterId);
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs, wordTimings);
   const onVerseChange = useCallback(() => {
@@ -184,35 +181,14 @@ export function ReaderWorkspace({
 
   usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
 
-  useEffect(() => {
-    if (surahAudioMode && hasAyahs) {
-      // fetchVerseTimings hits a third-party host, so it rejects when the user
-      // is offline; without a catch that becomes an unhandled rejection. The
-      // flag also stops a slow response for a previous surah/reciter from
-      // landing after the selection has moved on.
-      let cancelled = false;
-      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count)
-        .then((timings) => {
-          if (!cancelled) setVerseTimings(timings);
-        })
-        .catch(() => {});
-      const url = getSurahAudioUrl(surah.id, reciterId);
-      engine.load(url);
-      return () => {
-        cancelled = true;
-      };
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVerseTimings([]);
-    engine.load(effectiveSelected.audio_url);
-    return undefined;
-  }, [surahAudioMode, reciterId, surah.id, surah.ayah_count, engine, effectiveSelected.audio_url, hasAyahs]);
-
-  useEffect(() => {
-    if (!surahAudioMode) {
-      engine.load(effectiveSelected.audio_url);
-    }
-  }, [engine, effectiveSelected.audio_url, surahAudioMode]);
+  const { verseTimings } = useSurahAudio({
+    engine,
+    surah,
+    hasAyahs,
+    surahAudioMode,
+    reciterId,
+    effectiveAudioUrl: effectiveSelected.audio_url,
+  });
 
   useEffect(() => {
     if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
@@ -222,7 +198,7 @@ export function ReaderWorkspace({
         setSyncStatus("syncing");
       } else if (data.type === "SYNC_COMPLETED") {
         setSyncStatus("completed");
-        const t = setTimeout(() => setSyncStatus("idle"), 3000);
+        const t = setTimeout(() => setSyncStatus("idle"), SYNC_STATUS_RESET_MS);
         swTimeoutsRef.current.push(t);
       } else if (data.type === "SYNC_FAILED") {
         setSyncStatus("failed");
@@ -246,7 +222,7 @@ export function ReaderWorkspace({
     memoryStatesRef.current.set(verseKey, outcome);
     setFlash(describeOutcome(outcome, grade));
     if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlash(null), 2600);
+    flashTimer.current = setTimeout(() => setFlash(null), GRADE_FLASH_MS);
 
     const queueLocally = (reason: string) => {
       offlineReviewQueue
@@ -327,9 +303,18 @@ export function ReaderWorkspace({
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      // Grading must not fire for keys pressed while an overlay or an
+      // interactive element has focus: digits inside a select jump to the
+      // matching option and also graded a verse; ? and 1-4 with the help
+      // sheet open were invisible side effects.
+      if (target.closest("select, button, a, [role='button'], [role='slider'], [role='dialog']")) {
+        return;
+      }
+      const store = useReaderStore.getState();
+      if (store.tafsirOpen || store.helpOpen) return;
       if (e.key === "?") {
         e.preventDefault();
-        setHelpOpen(!useReaderStore.getState().helpOpen);
+        setHelpOpen(!store.helpOpen);
         return;
       }
       const map: Record<string, Grade> = { "1": "AGAIN", "2": "HARD", "3": "GOOD", "4": "EASY" };
@@ -445,6 +430,8 @@ export function ReaderWorkspace({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
+                role="status"
+                aria-live="polite"
                 className="fixed bottom-40 right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
               >
                 {flash}

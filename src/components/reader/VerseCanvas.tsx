@@ -7,8 +7,7 @@ import { usePlayback } from "@/hooks/use-audio-sync";
 import { useLiveWords } from "./live-words-context";
 import { cn, toArabicDigits } from "@/lib/utils";
 import { VerseWord } from "./VerseWord";
-
-const CHUNK = 15;
+import { VERSE_CHUNK } from "@/lib/constants";
 
 function AyahMarker({ number }: { number: number }) {
   return (
@@ -53,9 +52,20 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
   return (
     <div
       data-verse={ayah.verse_key}
+      tabIndex={0}
+      role="group"
+      aria-label={`Ayah ${ayah.ayah_number}`}
       onClick={() => !isSelected && selectAyah(ayah.verse_key)}
+      onKeyDown={(e) => {
+        // Keyboard parity with click-to-select: without this only VerseWord
+        // spans were reachable and an entire ayah was unselectable by keyboard.
+        if (!isSelected && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          selectAyah(ayah.verse_key);
+        }
+      }}
       className={cn(
-        "group relative cursor-pointer rounded-xl border border-transparent px-4 py-3 transition-colors",
+        "group relative cursor-pointer rounded-xl border border-transparent px-4 py-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-500",
         isSelected
           ? "border-amber-300 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/20"
           : "hover:bg-stone-50 dark:hover:bg-stone-800/40",
@@ -136,8 +146,11 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
     >
       {ayahs.map((ayah) => {
         const allRevealed = ayahScoped && ayah.words.every((w) => revealedWords.has(w.id));
+        // Grade-advance (handleGrade â†’ requestAnimationFrame scroll) finds verses
+        // by data-verse; without the anchor here the querySelector missed in
+        // Mushaf layout and scrolled the window to the top instead.
         return (
-          <span key={ayah.verse_key}>
+          <span key={ayah.verse_key} data-verse={ayah.verse_key}>
             {ayahScoped && !allRevealed ? (
               <span
                 onClick={() => {
@@ -163,8 +176,11 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
                     showTranslation={false}
                     showRoots={false}
                     ayahScoped={ayahScoped}
-                    onReveal={() => revealWord(word.id)}
-                  />{" "}
+                    // Passing the store's stable action by reference keeps the
+                    // VerseWord memo() functional; the earlier inline arrow
+                    // rebuilt every word's props on each render.
+                    onReveal={revealWord}
+                  />
                 </Fragment>
               ))
             )}
@@ -189,13 +205,13 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
 
   const selectedIndex = surah.ayahs.findIndex((a) => a.verse_key === selectedVerseKey);
   const [visibleCount, setVisibleCount] = useState(() =>
-    Math.min(surah.ayahs.length, Math.max(CHUNK, (selectedIndex < 0 ? 0 : selectedIndex) + 5))
+    Math.min(surah.ayahs.length, Math.max(VERSE_CHUNK, (selectedIndex < 0 ? 0 : selectedIndex) + 5))
   );
   const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const minVisibleForSelection = selectedIndex >= 0
     ? Math.min(surah.ayahs.length, selectedIndex + 5)
-    : CHUNK;
+    : VERSE_CHUNK;
   if (visibleCount < minVisibleForSelection) {
     setVisibleCount(minVisibleForSelection);
   }
@@ -207,7 +223,7 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((e) => e.isIntersecting)) {
-          setVisibleCount((v) => Math.min(surah.ayahs.length, v + CHUNK));
+          setVisibleCount((v) => Math.min(surah.ayahs.length, v + VERSE_CHUNK));
         }
       },
       { rootMargin: "600px" }
@@ -230,10 +246,10 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
   const showMore = remaining > 0 && (
     <div className="mt-4 flex flex-col items-center gap-2">
       <button
-        onClick={() => setVisibleCount((v) => Math.min(surah.ayahs.length, v + CHUNK))}
+        onClick={() => setVisibleCount((v) => Math.min(surah.ayahs.length, v + VERSE_CHUNK))}
         className="cursor-pointer rounded-lg border border-stone-300 px-4 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
       >
-        Show {Math.min(CHUNK, remaining)} more verses
+        Show {Math.min(VERSE_CHUNK, remaining)} more verses
       </button>
       <p className="text-[11px] text-stone-400">
         {visibleCount} of {surah.ayahs.length} rendered

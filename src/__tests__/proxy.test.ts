@@ -74,6 +74,12 @@ describe("proxy origin checks", () => {
     const res = await proxy(makeRequest("/api/stats"));
     expect(res.status).not.toBe(403);
   });
+
+  it("applies the same-origin gate to PATCH", async () => {
+    // PATCH mutates state but was previously skipped by the method gate.
+    const res = await proxy(makeRequest("/api/reviews", { method: "PATCH" }));
+    expect(res.status).toBe(403);
+  });
 });
 
 describe("proxy rate-limit identity", () => {

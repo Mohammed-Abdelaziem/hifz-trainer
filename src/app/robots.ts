@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { SITE_URL } from "@/lib/server/site-url";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -6,9 +7,12 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/api/", "/settings/", "/dashboard/"],
+        // /dashboard/ used to be listed but no such route exists — the
+        // dashboard lives at "/". /analytics and /settings are per-user pages
+        // with nothing for a crawler to see.
+        disallow: ["/api/", "/settings", "/analytics"],
       },
     ],
-    sitemap: "https://whollyquran.me/sitemap.xml",
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

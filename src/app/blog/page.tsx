@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { BLOG_POSTS } from "@/lib/blog/posts";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
+import { SITE_URL } from "@/lib/server/site-url";
 
 export const metadata: Metadata = {
   title: "Blog — Quran Memorization Tips & Guides",
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
     title: "Blog — Wholly Quran",
     description:
       "Expert tips on Quran memorization, tajweed rules, and hifz schedules.",
-    url: "https://whollyquran.me/blog",
+    url: `${SITE_URL}/blog`,
   },
 };
 

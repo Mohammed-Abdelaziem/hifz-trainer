@@ -9,6 +9,7 @@ import type { SchedulerKind } from "@/types/quran";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { RETENTION_PERCENT_MAX, RETENTION_PERCENT_MIN } from "@/lib/constants";
 import { GoalRing, StreakCard } from "./StatsCards";
 import { TaskQueueTabs } from "./TaskQueueTabs";
 import { SyncButton } from "./SyncButton";
@@ -28,11 +29,18 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
   async function patch(payload: Record<string, unknown>) {
     setSaving(true);
     try {
-      await fetch("/api/settings", {
+      const res = await fetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      // A 4xx/5xx previously still counted as success — the queue would be
+      // re-fetched with the OLD scheduler, and the toggle silently snapped
+      // back to a state the user thought they had just changed.
+      if (!res.ok) {
+        console.error("[/api/settings] failed", res.status);
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ["queue"] });
     } finally {
       setSaving(false);
@@ -69,8 +77,8 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
           </span>
           <Slider
             value={[retentionDraft]}
-            min={70}
-            max={98}
+            min={RETENTION_PERCENT_MIN}
+            max={RETENTION_PERCENT_MAX}
             step={1}
             disabled={saving}
             onValueChange={(v) => setRetentionDraft(v[0])}
@@ -111,7 +119,7 @@ export function DashboardView({
   isGuest?: boolean;
   isAdmin?: boolean;
 }) {
-  const { data: queue, isLoading, isError } = useQueue();
+  const { data: queue, isLoading, isError } = useQueue(isGuest);
   const fullCorpus = availableSurahs.length >= 114;
 
   return (
@@ -187,7 +195,7 @@ export function DashboardView({
 
           {!isGuest && (
             <div className="mb-4">
-              <SabaqIntake />
+              <SabaqIntake availableSurahs={availableSurahs} />
             </div>
           )}
 

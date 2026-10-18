@@ -2,15 +2,12 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDbWithTest } from "@/lib/db";
 import { createSession } from "./auth";
+import { getBaseUrl } from "./site-url";
+
+export { getBaseUrl };
 
 const OAUTH_STATE_COOKIE = "hifz_oauth_state";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-export function getBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 // ── State parameter (CSRF protection) ────────────────────────
 
@@ -163,6 +160,15 @@ export async function exchangeGitHubCode(code: string): Promise<{
 
 // ── Shared: find or create user + create session ──────────────
 
+export class OAuthAccountConflictError extends Error {
+  constructor() {
+    super(
+      "This email is registered with a password. Sign in with your password to continue."
+    );
+    this.name = "OAuthAccountConflictError";
+  }
+}
+
 export async function findOrCreateOAuthUser(
   provider: string,
   profile: { email: string; name: string; picture?: string }
@@ -172,8 +178,16 @@ export async function findOrCreateOAuthUser(
   // Find existing user by email
   let user = await db.user.findUnique({ where: { email: profile.email } });
 
+  if (user?.passwordHash) {
+    // The provider proved today's user controls this address, which is not
+    // proof they own the password account that was created independently
+    // (an attacker without mail access could pre-register it). Refuse the
+    // silent sign-in; linking stays an explicitly authenticated action.
+    throw new OAuthAccountConflictError();
+  }
+
   if (user) {
-    // User exists — create session
+    // OAuth-only account — create session
     await createSession(user.id, true);
     return;
   }

@@ -71,65 +71,71 @@ export async function recordReview(params: {
   const db = await getDb();
   const now = new Date();
 
-  const user = await db.user.findUniqueOrThrow({ where: { id: params.userId } });
-  const scheduler: SchedulerKind = user.scheduler === "fsrs" ? "fsrs" : "sm2";
+  // One interactive transaction re-reading every input inside it. Previously
+  // the reads ran on the plain client, so two concurrent reviews of the same
+  // verse both computed from the same stale snapshot — lapses and ease factors
+  // silently overwrote each other, and the streak write raced to different
+  // absolute values. Serializable (Postgres default for interactive txs) makes
+  // the loser retry from a consistent view.
+  return db.$transaction(async (tx) => {
+    const user = await tx.user.findUniqueOrThrow({ where: { id: params.userId } });
+    const scheduler: SchedulerKind = user.scheduler === "fsrs" ? "fsrs" : "sm2";
 
-  const existing = await db.userMemoryState.findUnique({
-    where: { userId_verseKey: { userId: params.userId, verseKey: params.verseKey } },
-  });
+    const existing = await tx.userMemoryState.findUnique({
+      where: { userId_verseKey: { userId: params.userId, verseKey: params.verseKey } },
+    });
 
-  const prevState = (existing?.state as MemoryState) ?? "SABAQ";
-  const lapsesNow =
-    params.grade === "AGAIN" && prevState !== "SABAQ"
-      ? (existing?.lapses ?? 0) + 1
-      : existing?.lapses ?? 0;
+    const prevState = (existing?.state as MemoryState) ?? "SABAQ";
+    const lapsesNow =
+      params.grade === "AGAIN" && prevState !== "SABAQ"
+        ? (existing?.lapses ?? 0) + 1
+        : existing?.lapses ?? 0;
 
-  let state: MemoryState;
-  let intervalDays: number;
-  let easeFactor = existing?.easeFactor ?? 2.5;
-  let repetitionCount: number;
-  let difficulty: number | null = null;
-  let stability: number | null = null;
-  let dueDate: Date;
+    let state: MemoryState;
+    let intervalDays: number;
+    let easeFactor = existing?.easeFactor ?? 2.5;
+    let repetitionCount: number;
+    let difficulty: number | null = null;
+    let stability: number | null = null;
+    let dueDate: Date;
 
-  if (scheduler === "fsrs") {
-    const prevFsrs: FsrsInput = {
-      difficulty: existing?.difficulty ?? 0,
-      stability: existing?.stability ?? 0,
-      repetitionCount: existing?.repetitionCount ?? 0,
-      lapses: existing?.lapses ?? 0,
-    };
-    const out = scheduleFsrs(prevFsrs, params.grade, now, user.requestRetention ?? DEFAULT_RETENTION);
-    intervalDays = out.intervalDays;
-    dueDate = out.dueDate;
-    difficulty = out.difficulty;
-    stability = out.stability;
-    repetitionCount = prevFsrs.repetitionCount + 1;
-    state = applyHifzRouting(prevState, params.grade, intervalDays);
-  } else {
-    const prev: Sm2Input = existing
-      ? {
-          easeFactor: existing.easeFactor,
-          intervalDays: existing.intervalDays,
-          repetitionCount: existing.repetitionCount,
-          state: prevState,
-        }
-      : NEW_MEMORY_STATE;
-    const outcome = schedule(prev, params.grade, now);
-    state = outcome.state;
-    intervalDays = outcome.intervalDays;
-    easeFactor = outcome.easeFactor;
-    repetitionCount = outcome.repetitionCount;
-    dueDate = outcome.dueDate;
-  }
+    if (scheduler === "fsrs") {
+      const prevFsrs: FsrsInput = {
+        difficulty: existing?.difficulty ?? 0,
+        stability: existing?.stability ?? 0,
+        repetitionCount: existing?.repetitionCount ?? 0,
+        lapses: existing?.lapses ?? 0,
+      };
+      const out = scheduleFsrs(prevFsrs, params.grade, now, user.requestRetention ?? DEFAULT_RETENTION);
+      intervalDays = out.intervalDays;
+      dueDate = out.dueDate;
+      difficulty = out.difficulty;
+      stability = out.stability;
+      repetitionCount = prevFsrs.repetitionCount + 1;
+      state = applyHifzRouting(prevState, params.grade, intervalDays);
+    } else {
+      const prev: Sm2Input = existing
+        ? {
+            easeFactor: existing.easeFactor,
+            intervalDays: existing.intervalDays,
+            repetitionCount: existing.repetitionCount,
+            state: prevState,
+          }
+        : NEW_MEMORY_STATE;
+      const outcome = schedule(prev, params.grade, now);
+      state = outcome.state;
+      intervalDays = outcome.intervalDays;
+      easeFactor = outcome.easeFactor;
+      repetitionCount = outcome.repetitionCount;
+      dueDate = outcome.dueDate;
+    }
 
-  const streakFields = computeStreak(user, now);
+    const streakFields = computeStreak(user, now);
 
-  // The streak update is part of the same transaction: previously it ran as a
-  // third separate write, so a failure after the commit left the review logged
-  // with no streak credit and no way to reconcile.
-  await db.$transaction([
-    db.userMemoryState.upsert({
+    // The streak update is part of the same transaction: previously it ran as a
+    // third separate write, so a failure after the commit left the review logged
+    // with no streak credit and no way to reconcile.
+    await tx.userMemoryState.upsert({
       where: { userId_verseKey: { userId: params.userId, verseKey: params.verseKey } },
       create: {
         userId: params.userId,
@@ -155,8 +161,8 @@ export async function recordReview(params: {
         dueDate,
         lastReviewedAt: now,
       },
-    }),
-    db.reviewLog.create({
+    });
+    await tx.reviewLog.create({
       data: {
         userId: params.userId,
         verseKey: params.verseKey,
@@ -169,43 +175,43 @@ export async function recordReview(params: {
         scheduler,
         reviewDurationMs: Math.round(params.durationMs ?? 0),
       },
-    }),
-    db.user.update({ where: { id: params.userId }, data: streakFields }),
-  ]);
+    });
+    await tx.user.update({ where: { id: params.userId }, data: streakFields });
 
-  const todayReviewed = await db.reviewLog.count({
-    where: {
-      userId: params.userId,
-      createdAt: { gte: startOfDay(now) },
-    },
+    const todayReviewed = await tx.reviewLog.count({
+      where: {
+        userId: params.userId,
+        createdAt: { gte: startOfDay(now) },
+      },
+    });
+
+    const todayRead = await tx.readingLog.count({
+      where: {
+        userId: params.userId,
+        createdAt: { gte: startOfDay(now) },
+      },
+    });
+
+    return {
+      result: {
+        verseKey: params.verseKey,
+        scheduler,
+        state,
+        intervalDays,
+        easeFactor,
+        difficulty: difficulty ?? undefined,
+        stability: stability ?? undefined,
+        repetitionCount,
+      },
+      streak: {
+        current: streakFields.currentStreak,
+        longest: streakFields.longestStreak,
+        dailyTargetCount: user.dailyTargetCount,
+        todayReviewed,
+        todayRead,
+      },
+    };
   });
-
-  const todayRead = await db.readingLog.count({
-    where: {
-      userId: params.userId,
-      createdAt: { gte: startOfDay(now) },
-    },
-  });
-
-  return {
-    result: {
-      verseKey: params.verseKey,
-      scheduler,
-      state,
-      intervalDays,
-      easeFactor,
-      difficulty: difficulty ?? undefined,
-      stability: stability ?? undefined,
-      repetitionCount,
-    },
-    streak: {
-      current: streakFields.currentStreak,
-      longest: streakFields.longestStreak,
-      dailyTargetCount: user.dailyTargetCount,
-      todayReviewed,
-      todayRead,
-    },
-  };
 }
 
 /**
@@ -233,7 +239,7 @@ function buildSurahNameMap(
 export async function addToSabaq(params: {
   userId: string;
   verseKeys: string[];
-}): Promise<{ added: number; skipped: number }> {
+}): Promise<{ added: number; invalid: number; duplicate: number }> {
   const db = await getDb();
   const now = new Date();
 
@@ -242,14 +248,19 @@ export async function addToSabaq(params: {
   const keys = [...new Set(params.verseKeys)].filter(
     (k) => /^\d{1,3}:\d{1,3}$/.test(k)
   );
-  if (keys.length === 0) return { added: 0, skipped: 0 };
+  if (keys.length === 0) return { added: 0, invalid: 0, duplicate: 0 };
 
   const existingVerses = await db.verse.findMany({
     where: { verseKey: { in: keys } },
     select: { verseKey: true },
   });
   const valid = existingVerses.map((v) => v.verseKey);
-  if (valid.length === 0) return { added: 0, skipped: keys.length };
+  // Three buckets so the UI can say something useful: a range may be partly
+  // real, partly already tracked, and partly reference ayah numbers that do
+  // not exist (e.g. 2:287). One merged "skipped" number couldn't distinguish
+  // those causes.
+  const invalid = keys.length - valid.length;
+  if (valid.length === 0) return { added: 0, invalid, duplicate: 0 };
 
   // Never re-add something the user already has state for; that would reset a
   // verse they have partly memorized back to Sabaq.
@@ -272,7 +283,7 @@ export async function addToSabaq(params: {
     });
   }
 
-  return { added: toAdd.length, skipped: keys.length - toAdd.length };
+  return { added: toAdd.length, invalid, duplicate: valid.length - toAdd.length };
 }
 
 export async function recordReading(params: {

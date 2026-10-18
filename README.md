@@ -30,14 +30,14 @@ automated with **SM-2** or **FSRS** scheduling and active-recall tooling.
 ## Tech stack
 
 Next.js 16 (App Router, RSC, Turbopack) · TypeScript · Tailwind CSS v4 · Prisma 7 (driver
-adapters: SQLite locally, PostgreSQL/Supabase in production) · ts-fsrs · Howler.js ·
+adapters, PostgreSQL/Supabase) · ts-fsrs · Howler.js ·
 Zustand · TanStack Query · Radix primitives · Framer Motion
 
 ## Local development
 
 ```bash
 npm install                 # runs prisma generate via postinstall
-cp .env.example .env        # defaults to file:./dev.db
+cp .env.example .env        # points at local Postgres; edit credentials
 npm run db:migrate          # apply migrations (creates the schema)
 npm run dev                 # http://localhost:3000
 ```
@@ -74,10 +74,14 @@ Then:
 
 ### Offline / install
 
-The app registers a service worker on load. Static assets are cache-first, and
-`/api/ayah-data` responses are cached as you study so previously opened verses keep
-working without connectivity. Navigations to public pages fall back to an `/offline`
-page. Install via your browser's "Install app" prompt.
+The app registers a service worker on load. Static assets load through the
+browser's normal cache; navigations to the reader and blog are cached with a
+network-first policy so public pages open instantly when offline, falling back
+to an `/offline` page. As you study, `/api/ayah-data` responses are cached so
+previously opened verses keep working without connectivity. The service worker
+stores nothing user-identified — the header rehydrates the signed-in email from
+a non-cached endpoint — and stale caches are versioned and purged on update.
+Install via your browser's "Install app" prompt.
 
 Audio is **not** cached: it streams cross-origin from `verses.quran.com` and
 `everyayah.com`, and the service worker only intercepts same-origin requests, so
@@ -96,16 +100,30 @@ offline playback of previously-opened verses does not work.
    ```
    For a database that was previously built with `prisma db push` or by hand, the
    first two migrations are already-applied history — mark them rather than
-   replaying them:
+   replaying them. Note that `migrate resolve` takes one migration name at a
+   time:
    ```bash
-   npx prisma migrate resolve --applied 0_baseline 20260929000000_align_indexes_and_fks
+   DATABASE_URL="<pooler url>" npx prisma migrate resolve --applied 0_baseline
+   DATABASE_URL="<pooler url>" npx prisma migrate resolve --applied 20260929000000_align_indexes_and_fks
    ```
-4. Push the repo to GitHub and import it in Vercel. Set `DATABASE_URL`
-   (Production + Preview). Build command and `postinstall` work out of the box.
+4. Push the repo to GitHub and import it in Vercel. Set the environment
+   variables (Production + Preview; Preview additionally needs the OAuth
+   allowed-redirects updated for its domain):
+
+   | Variable | Purpose |
+   | --- | --- |
+   | `DATABASE_URL` | Postgres pooler URI (required) |
+   | `NEXT_PUBLIC_APP_URL` | Canonical origin for OAuth redirects (required in production) |
+   | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google sign-in (optional) |
+   | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | GitHub sign-in (optional) |
+   | `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` | Distributed rate limiting (optional) |
+
+   Build command and `postinstall` work out of the box.
 5. Promote yourself to admin — see the local setup steps above.
 
 Notes:
-- The SQLite file is ignored on Vercel serverless filesystems — always use Postgres there.
+- Postgres is the only supported database in production — serverless
+  filesystems cannot host SQLite, and migrations target Postgres.
 - `POST /api/sync` is admin-gated and declares `maxDuration = 300`. On a plan that
   caps function duration below 300s, a full corpus sync will not complete.
 - Regenerate the PWA icons after changing the artwork: `node scripts/generate-icons.mjs`.

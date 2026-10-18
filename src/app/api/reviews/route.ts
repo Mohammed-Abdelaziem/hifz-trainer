@@ -1,6 +1,7 @@
 import { GRADES, type Grade } from "@/types/quran";
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReview } from "@/lib/server/hifz-service";
+import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,15 @@ export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    // Existence must be checked here: the FK would otherwise only surface as
+    // a Prisma P2003, which mapped to a 500 for a request the client simply
+    // cannot fix.
+    const db = await getDb();
+    const verse = await db.verse.findUnique({
+      where: { verseKey },
+      select: { verseKey: true },
+    });
+    if (!verse) return Response.json({ error: `Unknown verse ${verseKey}` }, { status: 400 });
     const data = await recordReview({
       userId: user.id,
       verseKey,

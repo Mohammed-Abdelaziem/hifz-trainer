@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { validateOAuthState, findOrCreateOAuthUser, getBaseUrl } from "./oauth";
+import { getBaseUrl } from "./site-url";
+import {
+  validateOAuthState,
+  findOrCreateOAuthUser,
+  OAuthAccountConflictError,
+} from "./oauth";
 
 type ExchangeFn = (code: string) => Promise<{ email: string; name: string; picture?: string }>;
 
@@ -33,8 +38,10 @@ export async function handleOAuthCallback(
     return NextResponse.redirect(new URL("/", baseUrl));
   } catch (err) {
     console.error(`[OAuth ${provider}] callback error:`, err);
-    return NextResponse.redirect(
-      new URL("/login?error=Authentication+failed", baseUrl)
-    );
+    const message =
+      err instanceof OAuthAccountConflictError
+        ? "An+existing+account+already+uses+this+email.+Sign+in+with+the+password+login+instead."
+        : "Authentication+failed";
+    return NextResponse.redirect(new URL(`/login?error=${message}`, baseUrl));
   }
 }

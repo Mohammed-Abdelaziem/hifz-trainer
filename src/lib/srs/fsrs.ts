@@ -62,7 +62,13 @@ export interface FsrsOutcome {
 }
 
 function toCard(input: FsrsInput, now: Date): Card {
-  if (input.repetitionCount === 0) return createEmptyCard(now);
+  // A Review-state card must carry a positive stability: ts-fsrs divides by
+  // it, so a half-initialized row (reps > 0 but stability 0 — legacy sm2 rows
+  // switched to fsrs, or a write that never stored the stability) would
+  // produce NaN/Infinity and poison every subsequent schedule for that verse.
+  // Reset to a genuinely empty card instead so the next review re-seeds the
+  // model cleanly.
+  if (input.repetitionCount === 0 || input.stability <= 0) return createEmptyCard(now);
   return {
     due: now,
     stability: input.stability,

@@ -45,6 +45,7 @@ export function useAudioEngine({
   const reciterId = useReaderStore((s) => s.reciterId);
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
+  const setForcedActiveIndex = useReaderStore((s) => s.setForcedActiveIndex);
 
   useEffect(() => {
     engine.onEnd(() => {
@@ -75,6 +76,10 @@ export function useAudioEngine({
       engine.onVerseChange((verseKey) => {
         selectAyah(verseKey);
         resetRevealed(verseKey);
+        // A word pinned for replay belongs to the verse that just finished
+        // singing; leaving it set would keep the highlight on the old verse
+        // even though selection has moved on.
+        setForcedActiveIndex(null);
         onVerseChangeRef.current?.();
       });
       let cancelled = false;
@@ -91,7 +96,7 @@ export function useAudioEngine({
     engine.onVerseChange(null);
     engine.clearSurahTimings();
     return undefined;
-  }, [engine, surahAudioMode, hasAyahs, surah.id, surah.ayah_count, reciterId, selectAyah, resetRevealed]);
+  }, [engine, surahAudioMode, hasAyahs, surah.id, surah.ayah_count, reciterId, selectAyah, resetRevealed, setForcedActiveIndex]);
 
   useEffect(() => {
     return () => engine.destroy();
@@ -101,11 +106,19 @@ export function useAudioEngine({
     (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-      if (e.code === "Space" && !e.repeat) {
-        e.preventDefault();
-        if (engine.isPlaying()) engine.pause();
-        else engine.play();
+      // Anything interactive owns the Space key by browser default (buttons
+      // activate, ranges slide, selects open). Hijacking Space here made a
+      // masked word's Space both reveal AND toggle audio, and a focused rating
+      // button grade attempt became a play/pause instead.
+      if (
+        e.code !== "Space" ||
+        target.closest("button, a, select, input, textarea, [role='button'], [role='slider']")
+      ) {
+        return;
       }
+      e.preventDefault();
+      if (engine.isPlaying()) engine.pause();
+      else engine.play();
     },
     [engine]
   );

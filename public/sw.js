@@ -1,4 +1,9 @@
-const VERSION = "hifz-v3";
+// v4: /offline, /blog and /quran shells stopped embedding a server-rendered
+// session email (SiteHeader hydrates identity via /api/session now), so their
+// cached copies are identical for every visitor. Bumping the version purges
+// the v3 caches, whose /offline and /quran entries held one user's email and
+// would leak it to the next visitor of the same browser.
+const VERSION = "hifz-v4";
 const SHELL_CACHE = `${VERSION}-shell`;
 const STATIC_CACHE = `${VERSION}-static`;
 const DATA_CACHE = `${VERSION}-data`;
@@ -58,6 +63,9 @@ function isAyahData(url) {
 // (dashboard, settings, analytics, reader) embeds the caller's session data,
 // and `res.headers.has("set-cookie")` cannot be used to detect that because
 // Set-Cookie is a forbidden response header name and never appears in Headers.
+// The identical-HTML claim above holds because SiteHeader — the only
+// personalized fragment in the layout — receives no server-rendered identity
+// anymore; it hydrates via /api/session (never intercepted by this worker).
 const CACHEABLE_NAVIGATIONS = ["/offline", "/blog", "/quran"];
 
 function isCacheableNavigation(url) {
@@ -237,7 +245,11 @@ self.addEventListener("fetch", (event) => {
   // service-worker-intercepted fetch are different "worlds", the browser
   // discarded every preload as unused. It also grew STATIC_CACHE without
   // bound, since nothing evicted it.
-  if (url.origin === self.location.origin && isStaticAsset(url)) {
+  if (
+    url.origin === self.location.origin &&
+    isStaticAsset(url) &&
+    !url.pathname.startsWith("/_next/static/")
+  ) {
     event.respondWith(fetch(request));
   }
 });

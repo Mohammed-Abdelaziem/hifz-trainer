@@ -35,15 +35,19 @@ export async function GET() {
     const user = await getSessionUser();
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
     const db = await getDb();
-    const since = new Date();
-    since.setDate(since.getDate() - 29);
-    since.setHours(0, 0, 0, 0);
+    // One UTC convention: rows are keyed by createdAt.toISOString() below, so
+    // the 30-day window must be built from UTC midnights too. The old
+    // local-midnight window skewed against the UTC keys — reviews logged in
+    // the local evening fell into the next day's bucket (or dropped from the
+    // window edge entirely) depending on the server's timezone.
+    const since = new Date(Date.now() - 29 * DAY_MS);
+    since.setUTCHours(0, 0, 0, 0);
 
     const [logs, reads] = await Promise.all([
       db.reviewLog.findMany({
         where: {
           userId: user.id,
-          createdAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
+          createdAt: { gte: since },
         },
         select: {
           createdAt: true,
@@ -57,7 +61,7 @@ export async function GET() {
       db.readingLog.findMany({
         where: {
           userId: user.id,
-          createdAt: { gte: new Date(Date.now() - 30 * DAY_MS) },
+          createdAt: { gte: since },
         },
         select: {
           createdAt: true,
@@ -69,7 +73,7 @@ export async function GET() {
     const perDayMap = new Map<string, { count: number; reads: number }>();
     for (let i = 0; i < 30; i++) {
       const d = new Date(since);
-      d.setDate(d.getDate() + i);
+      d.setUTCDate(d.getUTCDate() + i);
       perDayMap.set(d.toISOString().slice(0, 10), { count: 0, reads: 0 });
     }
 

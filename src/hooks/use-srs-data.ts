@@ -10,11 +10,14 @@ async function fetchJson<T>(url: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function useQueue() {
+export function useQueue(isGuest = false) {
   return useQuery({
     queryKey: ["queue"],
     queryFn: () => fetchJson<DailyQueue>("/api/queue"),
-    refetchInterval: 60_000,
+    // Guests have no queue — the API just 401s for them — so polling it every
+    // minute only generated a permanent error chat and useless traffic. The
+    // initial fetch still runs so the dashboard can show its guest explainer.
+    refetchInterval: isGuest ? false : 60_000,
   });
 }
 

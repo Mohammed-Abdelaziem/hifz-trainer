@@ -28,6 +28,8 @@ export class AudioEngine {
   private surahTimings: VerseTiming[] | null = null;
   private currentVerseIndex = -1;
   private verseChangeCallback: ((verseKey: string) => void) | null = null;
+  /** Set while an internal rewind (stop()) seeks so it does not reselect. */
+  private suppressVerseChange = false;
 
   onEnd(callback: (() => void) | null) {
     this.endCallback = callback;
@@ -48,7 +50,18 @@ export class AudioEngine {
     this.verseChangeCallback = null;
   }
 
-  private checkVerseChange() {
+  /**
+   * Detects which verse of a loaded surah is currently being sung and fires
+   * {@link onVerseChange} when it differs from the last reported one.
+   *
+   * Howler's html5 audio emits no timeupdate events, so intrinsic hookups
+   * ("play" on load and seekMs) only catch a verse change at play start and
+   * while seeking. During smooth playback this must be called from the
+   * playback tick (see AudioSyncProvider) or the selection — which grades and
+   * highlights are keyed to — would stay pinned to the verse where playback
+   * began.
+   */
+  checkVerseChange() {
     if (!this.surahTimings || this.surahTimings.length === 0) return;
     const pos = this.nowMs();
     let idx = -1;
@@ -69,7 +82,10 @@ export class AudioEngine {
     }
   }
 
-  async load(url: string) {
+  async load(
+    url: string,
+    opts: { fallback?: boolean } = {}
+  ): Promise<void> {
     if (!url) return;
     // Deduped on the URL alone. Excluding "virtual" from this check meant a
     // load that had failed into virtual mode was retried on every subsequent
@@ -78,6 +94,7 @@ export class AudioEngine {
     // began handing back objects that were still locked. Retry a virtual URL
     // only via an explicit load() with force, or a different URL.
     if (this.url === url && this.mode !== "idle") return;
+    const allowFallback = opts.fallback ?? true;
     const previousUrl = this.url;
     this.softStop();
     this.unload();
@@ -141,11 +158,18 @@ export class AudioEngine {
         howl.off();
         howl.unload();
         // Fall back only to a URL that has not already failed. Comparing against
-// lastGoodUrl did not work: in the normal case the previous URL *is* the last
-// good one, so that blocked the legitimate fallback. Tracking failures is what
-// actually prevents two failing URLs from ping-ponging through the fallback
-// recursively and spawning overlapping loads.
-if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
+        // lastGoodUrl did not work: in the normal case the previous URL *is* the
+        // last good one, so that blocked the legitimate fallback. Tracking
+        // failures is what actually prevents two failing URLs from ping-ponging
+        // through the fallback recursively and spawning overlapping loads.
+        // Clips (playClip) opt out entirely: falling back to previousUrl would
+        // replay the previous word's audio for a word whose file is broken.
+        if (
+          allowFallback &&
+          previousUrl &&
+          previousUrl !== url &&
+          !this.failedUrls.has(previousUrl)
+        ) {
           void this.load(previousUrl);
           return;
         }
@@ -154,13 +178,7 @@ if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
           this.pendingPlay = false;
           this.playVirtual();
         }
-        if (this.clipResolve && !this.virtualClipTimer) {
-          const fallbackLoad = myLoad;
-          this.virtualClipTimer = setTimeout(() => {
-            this.virtualClipTimer = null;
-            this.resolveClipIfCurrent(fallbackLoad);
-          }, WORD_CLIP_FALLBACK_MS / this.rateFactor);
-        }
+        this.scheduleVirtualClipFallback(myLoad);
       });
       this.howl = howl;
       created = howl;
@@ -174,12 +192,26 @@ if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
         created.off();
         created.unload();
       }
-      if (previousUrl && previousUrl !== url && previousUrl !== this.lastGoodUrl) {
+      if (
+        allowFallback &&
+        previousUrl &&
+        previousUrl !== url &&
+        previousUrl !== this.lastGoodUrl
+      ) {
         void this.load(previousUrl);
         return;
       }
       this.mode = "virtual";
     }
+  }
+
+  /** Resolves a pending clip promise in virtual mode when no real audio can end. */
+  private scheduleVirtualClipFallback(loadSeq: number) {
+    if (!this.clipResolve || this.virtualClipTimer) return;
+    this.virtualClipTimer = setTimeout(() => {
+      this.virtualClipTimer = null;
+      this.resolveClipIfCurrent(loadSeq);
+    }, WORD_CLIP_FALLBACK_MS / this.rateFactor);
   }
 
   async playClip(url: string): Promise<void> {
@@ -190,12 +222,19 @@ if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
       // gating on clipSeq meant abortClips() (which bumps clipSeq first) left
       // the promise permanently pending.
       this.clipResolve = () => resolve();
-      void this.load(url).then(() => {
+      void this.load(url, { fallback: false }).then(() => {
         if (myClip !== this.clipSeq) {
           resolve();
           return;
         }
         this.play();
+        // A clip whose URL already failed earlier (or reselecting the same
+        // word) skipped the load path entirely through the dedupe early-return,
+        // so no fallback timer was ever scheduled — in virtual mode the clip
+        // promise then hung forever and every later clip stayed queued with the
+        // transport stuck on "Pause". Schedule it from here so resolution is
+        // guaranteed either way.
+        if (this.getMode() === "virtual") this.scheduleVirtualClipFallback(myClip);
       });
     });
   }
@@ -250,7 +289,16 @@ if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
   stop() {
     this.pause();
     if (this.howl) this.howl.stop();
-    this.seekMs(0);
+    // Rewinding to 0 inside a stop must not fire the verse-change callback:
+    // the user's selection is where they stopped studying, and yanking it to
+    // verse 1 on an explicit stop (or a mode switch) lost their place mid
+    // session.
+    this.suppressVerseChange = true;
+    try {
+      this.seekMs(0);
+    } finally {
+      this.suppressVerseChange = false;
+    }
   }
 
   seekMs(ms: number) {
@@ -259,7 +307,7 @@ if (previousUrl && previousUrl !== url && !this.failedUrls.has(previousUrl)) {
     }
     this.anchorPos = Math.max(0, ms);
     this.anchorWall = Date.now();
-    if (this.surahTimings) this.checkVerseChange();
+    if (this.surahTimings && !this.suppressVerseChange) this.checkVerseChange();
   }
 
   setRate(rate: number) {
