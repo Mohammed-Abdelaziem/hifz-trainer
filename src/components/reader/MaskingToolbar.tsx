@@ -95,14 +95,12 @@ export function MaskingToolbar() {
   const maskMode = useReaderStore((s) => s.maskMode);
   const blurScope = useReaderStore((s) => s.blurScope);
   const layoutMode = useReaderStore((s) => s.layoutMode);
-  const showTranslation = useReaderStore((s) => s.showTranslation);
   const showVerseTranslation = useReaderStore((s) => s.showVerseTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
   const setMaskMode = useReaderStore((s) => s.setMaskMode);
   const setBlurScope = useReaderStore((s) => s.setBlurScope);
   const setLayoutMode = useReaderStore((s) => s.setLayoutMode);
-  const toggleTranslation = useReaderStore((s) => s.toggleTranslation);
   const toggleVerseTranslation = useReaderStore((s) => s.toggleVerseTranslation);
   const toggleRoots = useReaderStore((s) => s.toggleRoots);
   const setFontSize = useReaderStore((s) => s.setFontSize);
@@ -129,9 +127,6 @@ export function MaskingToolbar() {
         onChange={setLayoutMode}
         ariaLabel="Layout mode"
       />
-      <ToggleChip active={showTranslation} onClick={toggleTranslation}>
-        Word translation
-      </ToggleChip>
       <ToggleChip
         active={showVerseTranslation}
         onClick={toggleVerseTranslation}

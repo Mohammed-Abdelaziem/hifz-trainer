@@ -18,7 +18,6 @@ describe("VerseCanvas — full-verse English translation", () => {
     useReaderStore.setState(
       {
         maskMode: "FULL",
-        showTranslation: false,
         showVerseTranslation: false,
         showRoots: false,
       },
