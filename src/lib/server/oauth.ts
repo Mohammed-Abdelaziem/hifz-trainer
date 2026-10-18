@@ -2,15 +2,12 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
 import { getDbWithTest } from "@/lib/db";
 import { createSession } from "./auth";
+import { getBaseUrl } from "./site-url";
+
+export { getBaseUrl };
 
 const OAUTH_STATE_COOKIE = "hifz_oauth_state";
 const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
-export function getBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_APP_URL) return process.env.NEXT_PUBLIC_APP_URL;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 // ── State parameter (CSRF protection) ────────────────────────
 

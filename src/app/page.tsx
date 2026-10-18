@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getAvailableSurahs } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
+import { SITE_URL } from "@/lib/server/site-url";
 import { DashboardView } from "@/components/dashboard/DashboardView";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
     title: "Hifz Trainer — Quran Memorization Dashboard",
     description:
       "Track your Quran memorization with spaced-repetition. Sabaq intake, Sabqi review, Manzil rotation.",
-    url: "https://whollyquran.me",
+    url: SITE_URL,
   },
 };
 

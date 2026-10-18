@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, Save, Loader2, Lock } from "lucide-react";
 import { MIN_RETENTION, MAX_RETENTION } from "@/lib/srs/fsrs";
-import { DAILY_TARGET_MIN, DAILY_TARGET_MAX } from "@/lib/constants";
+import { DAILY_TARGET_MAX, DAILY_TARGET_MIN, DEFAULT_DAILY_TARGET, DEFAULT_RETENTION } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -23,8 +23,8 @@ interface SettingsViewProps {
 
 export function SettingsView({ user, isGuest }: SettingsViewProps) {
   const [scheduler, setScheduler] = useState(user?.scheduler ?? "sm2");
-  const [retention, setRetention] = useState(user?.requestRetention ?? 0.9);
-  const [dailyTarget, setDailyTarget] = useState(user?.dailyTargetCount ?? 10);
+  const [retention, setRetention] = useState(user?.requestRetention ?? DEFAULT_RETENTION);
+  const [dailyTarget, setDailyTarget] = useState(user?.dailyTargetCount ?? DEFAULT_DAILY_TARGET);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);

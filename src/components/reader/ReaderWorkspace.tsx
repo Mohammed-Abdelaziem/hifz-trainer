@@ -20,6 +20,7 @@ import {
 } from "@/lib/srs/sm2";
 import { scheduleFsrs } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
+import { GRADE_FLASH_MS, SYNC_STATUS_RESET_MS } from "@/lib/constants";
 import { useReaderStore } from "@/stores/reader-store";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -197,7 +198,7 @@ export function ReaderWorkspace({
         setSyncStatus("syncing");
       } else if (data.type === "SYNC_COMPLETED") {
         setSyncStatus("completed");
-        const t = setTimeout(() => setSyncStatus("idle"), 3000);
+        const t = setTimeout(() => setSyncStatus("idle"), SYNC_STATUS_RESET_MS);
         swTimeoutsRef.current.push(t);
       } else if (data.type === "SYNC_FAILED") {
         setSyncStatus("failed");
@@ -221,7 +222,7 @@ export function ReaderWorkspace({
     memoryStatesRef.current.set(verseKey, outcome);
     setFlash(describeOutcome(outcome, grade));
     if (flashTimer.current) clearTimeout(flashTimer.current);
-    flashTimer.current = setTimeout(() => setFlash(null), 2600);
+    flashTimer.current = setTimeout(() => setFlash(null), GRADE_FLASH_MS);
 
     const queueLocally = (reason: string) => {
       offlineReviewQueue
@@ -429,6 +430,8 @@ export function ReaderWorkspace({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
+                role="status"
+                aria-live="polite"
                 className="fixed bottom-40 right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
               >
                 {flash}

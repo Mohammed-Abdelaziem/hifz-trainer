@@ -143,7 +143,6 @@ export async function syncFullQuran(): Promise<SyncReport> {
               uthmaniText: v.text_uthmani,
               translation: v.translations?.[0]?.text ?? "",
               audioUrl: safeAudioUrl ?? audioUrl,
-              timestampsJson: "[]",
             },
             // Only overwrite when the upstream call actually carried a
             // translation so a degraded retry can't wipe existing content.

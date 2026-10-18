@@ -11,6 +11,7 @@ import { Select } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { formatMs } from "@/lib/utils";
 import { SPEED_MIN, SPEED_MAX } from "@/lib/constants";
+import { PROGRESS_BAR_MIN_MS } from "@/lib/constants";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -141,7 +142,7 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
 
   const isWord = playbackMode === "word";
   const isPlaying = isWord ? seqActive : playing;
-  const maxMs = engine.durationMs() ?? Math.max(8000, positionMs + 1000);
+  const maxMs = engine.durationMs() ?? Math.max(PROGRESS_BAR_MIN_MS, positionMs + 1000);
 
   return (
     <div className="space-y-2 rounded-xl border border-stone-200 bg-white p-3 shadow-sm dark:border-stone-800 dark:bg-stone-900">

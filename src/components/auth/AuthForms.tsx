@@ -6,7 +6,6 @@ import { Loader2 } from "lucide-react";
 import {
   signInAction,
   signUpAction,
-  guestSignInAction,
   googleSignInAction,
   githubSignInAction,
   type AuthState,
@@ -173,20 +172,9 @@ export function AuthForms() {
         <SubmitButton label={mode === "signin" ? "Sign in" : "Create account & start"} />
       </form>
 
-      <div className="my-4 flex items-center gap-3 text-xs text-stone-400">
-        <span className="h-px flex-1 bg-stone-200 dark:bg-stone-700" />
-        or
-        <span className="h-px flex-1 bg-stone-200 dark:bg-stone-700" />
-      </div>
-
-      <form action={guestSignInAction}>
-        <Button type="submit" variant="outline" className="w-full">
-          Continue without account
-        </Button>
-      </form>
-      <p className="mt-2 text-center text-[11px] text-stone-400">
-        Your progress stays on this device. No account needed.
-      </p>
+      {/* The old "Continue without account" button was removed: it created no
+          guest session — it only redirected to the dashboard, which an
+          unauthenticated visitor lands on anyway by browsing there. */}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Calendar, Clock, ArrowLeft } from "lucide-react";
 import { getPostBySlug, getAllSlugs } from "@/lib/blog/posts";
+import { SITE_URL } from "@/lib/server/site-url";
 
 type Props = {
   params: Promise<{ slug: string }>;
@@ -24,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: post.title,
       description: post.description,
-      url: `https://whollyquran.me/blog/${post.slug}`,
+      url: `${SITE_URL}/blog/${post.slug}`,
       type: "article",
       publishedTime: post.publishedAt,
       modifiedTime: post.updatedAt ?? post.publishedAt,
@@ -144,16 +145,16 @@ export default async function BlogPostPage({ params }: Props) {
     author: {
       "@type": "Organization",
       name: "Wholly Quran",
-      url: "https://whollyquran.me",
+      url: SITE_URL,
     },
     publisher: {
       "@type": "Organization",
       name: "Wholly Quran",
-      url: "https://whollyquran.me",
+      url: SITE_URL,
     },
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": `https://whollyquran.me/blog/${post.slug}`,
+      "@id": `${SITE_URL}/blog/${post.slug}`,
     },
     keywords: post.keywords.join(", "),
   };

@@ -102,12 +102,18 @@ let pendingClient: Promise<PrismaClient> | null = null;
 export async function getDb(): Promise<PrismaClient> {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
   const rawUrl = process.env.DATABASE_URL;
-  if (!rawUrl && process.env.NODE_ENV === "production") {
-    throw new Error("DATABASE_URL is required in production");
+  // No silent default: the old "file:./dev.db" fallback silently steered a
+  // misconfigured deployment/developer into the sqlite adapter even though
+  // the schema and every migration now target Postgres, surfacing much later
+  // as baffling Prisma errors mid-request.
+  if (!rawUrl) {
+    throw new Error(
+      "DATABASE_URL is not set. Copy .env.example to .env.local and set a Postgres connection string."
+    );
   }
   if (!pendingClient) {
     pendingClient = (async () => {
-      const adapter = await createAdapter(rawUrl ?? "file:./dev.db");
+      const adapter = await createAdapter(rawUrl);
       return new PrismaClient({ adapter });
     })().catch((err: unknown) => {
       // A rejected module-level promise here would otherwise be cached

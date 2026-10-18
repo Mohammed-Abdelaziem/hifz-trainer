@@ -9,6 +9,7 @@ import { SwRegister } from "@/components/pwa/SwRegister";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { GuestProvider } from "@/components/auth/GuestContext";
 import { getSessionUser } from "@/lib/server/auth";
+import { SITE_URL } from "@/lib/server/site-url";
 import { JsonLd } from "@/components/seo/JsonLd";
 
 const geistSans = Geist({
@@ -51,14 +52,14 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: "https://whollyquran.me",
+    url: SITE_URL,
     siteName: "Wholly Quran",
     title: "Hifz Trainer — Memorize the Quran with Spaced Repetition",
     description:
       "Free Quran memorization platform with spaced-repetition scheduling, an interactive word-by-word reader with per-word audio highlighting, and progress tracking.",
     images: [
       {
-        url: "https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition",
+        url: `${SITE_URL}/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition`,
         width: 1200,
         height: 630,
         alt: "Wholly Quran — Quran Memorization Platform",
@@ -70,7 +71,7 @@ export const metadata: Metadata = {
     title: "Hifz Trainer — Memorize the Quran",
     description:
       "Free Quran memorization platform with spaced-repetition, a word-by-word reader with per-word audio highlighting, and progress tracking.",
-    images: ["https://whollyquran.me/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition"],
+    images: [`${SITE_URL}/api/og?title=Hifz+Trainer&subtitle=Memorize+the+Quran+with+Spaced+Repetition`],
   },
   manifest: "/manifest.webmanifest",
   // Raster icons are required for installability: Chrome wants a >=192px PNG
@@ -86,7 +87,7 @@ export const metadata: Metadata = {
   // Without this, "Add to Home Screen" on iOS opens Safari chrome rather than a
   // standalone window.
   appleWebApp: { capable: true, title: "Hifz Trainer", statusBarStyle: "black-translucent" },
-  metadataBase: new URL("https://whollyquran.me"),
+  metadataBase: new URL(SITE_URL),
 };
 
 export const viewport: Viewport = {

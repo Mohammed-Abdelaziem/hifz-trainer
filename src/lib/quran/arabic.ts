@@ -18,8 +18,6 @@ const TATWEEL = /ـ/g;
 /** Quranic annotation signs and small high letters. */
 const ANNOTATION = /[ۖ-ࣰࣱࣲۭࣿ]/g;
 
-const ARABIC_RANGE = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/g;
-
 /** Letter and mark pairs that must be produced in a fixed order. */
 const COMBINING = /[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g;
 
@@ -74,8 +72,9 @@ export function normalizeArabic(input: string): string {
   // Latin is lowercased so case-insensitive matching stays case-insensitive.
   out = out.replace(/[A-Z]/g, (c) => c.toLowerCase());
 
-  // Collapse whitespace and drop anything outside Arabic/Latin/digits.
-  out = out.replace(ARABIC_RANGE, (c) => c);
+  // Collapse whitespace. Note this deliberately matches the Postgres-side
+  // fold in the VerseSearch migration, which also does not pre-filter
+  // non-Arabic runes, so the two sides stay byte-for-byte comparable.
   out = out.replace(/\s+/g, " ").trim();
 
   return out;

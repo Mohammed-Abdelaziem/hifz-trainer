@@ -1,7 +1,8 @@
 import type { MetadataRoute } from "next";
 import { getAllSlugs } from "@/lib/blog/posts";
+import { SITE_URL } from "@/lib/server/site-url";
 
-const BASE_URL = "https://whollyquran.me";
+const BASE_URL = SITE_URL;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

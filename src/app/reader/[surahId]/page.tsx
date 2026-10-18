@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
+import { DEFAULT_RETENTION } from "@/lib/constants";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
 import { ReaderStoreHydrator } from "@/components/reader/ReaderStoreHydrator";
 
@@ -90,7 +91,7 @@ export default async function ReaderPage(props: Props) {
         surah={surah}
         initialVerseKey={initialVerseKey}
         scheduler={!user ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
-        requestRetention={!user ? 0.9 : (user?.requestRetention ?? 0.9)}
+        requestRetention={!user ? DEFAULT_RETENTION : (user?.requestRetention ?? DEFAULT_RETENTION)}
         isGuest={!user}
         availableSurahs={navItems}
       />

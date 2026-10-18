@@ -129,10 +129,6 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   }
 }
 
-export async function guestSignInAction(): Promise<void> {
-  redirect("/");
-}
-
 export async function signOutAction(): Promise<void> {
   const user = await (await import("@/lib/server/auth")).getSessionUser();
   if (user) {

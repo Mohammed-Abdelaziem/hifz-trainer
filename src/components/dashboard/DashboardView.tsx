@@ -9,6 +9,7 @@ import type { SchedulerKind } from "@/types/quran";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
+import { RETENTION_PERCENT_MAX, RETENTION_PERCENT_MIN } from "@/lib/constants";
 import { GoalRing, StreakCard } from "./StatsCards";
 import { TaskQueueTabs } from "./TaskQueueTabs";
 import { SyncButton } from "./SyncButton";
@@ -76,8 +77,8 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
           </span>
           <Slider
             value={[retentionDraft]}
-            min={70}
-            max={98}
+            min={RETENTION_PERCENT_MIN}
+            max={RETENTION_PERCENT_MAX}
             step={1}
             disabled={saving}
             onValueChange={(v) => setRetentionDraft(v[0])}

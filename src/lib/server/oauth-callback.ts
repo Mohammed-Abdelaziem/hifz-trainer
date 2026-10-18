@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import { getBaseUrl } from "./site-url";
 import {
   validateOAuthState,
   findOrCreateOAuthUser,
-  getBaseUrl,
   OAuthAccountConflictError,
 } from "./oauth";
 
