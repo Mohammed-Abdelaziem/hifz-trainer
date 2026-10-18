@@ -13,7 +13,7 @@ import type {
 } from "@/types/quran";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { usePassiveReadingTracker } from "@/hooks/use-passive-reading-tracker";
-import { useAudioEngine, useVerseData, useAudioSettings, useWordTimings, useSurahAudio } from "@/hooks/audio";
+import { useAudioEngine, useVerseData, useAudioSettings, useSurahAudio } from "@/hooks/audio";
 import {
   schedule,
   describeOutcome,
@@ -152,8 +152,7 @@ export function ReaderWorkspace({
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
 
-  const wordTimings = useWordTimings(surah.id, reciterId);
-  const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs, wordTimings);
+  const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const onVerseChange = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -181,7 +180,7 @@ export function ReaderWorkspace({
 
   usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
 
-  const { verseTimings } = useSurahAudio({
+  useSurahAudio({
     engine,
     surah,
     hasAyahs,
@@ -338,7 +337,7 @@ export function ReaderWorkspace({
   }
 
   return (
-    <AudioSyncProvider engine={engine} timings={effectiveSelected.timings} verseTimings={verseTimings}>
+    <AudioSyncProvider engine={engine}>
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >

@@ -10,7 +10,7 @@ import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 
 function withProvider(ui: React.ReactElement) {
   const engine = new AudioEngine();
-  return <AudioSyncProvider engine={engine} timings={[]}>{ui}</AudioSyncProvider>;
+  return <AudioSyncProvider engine={engine}>{ui}</AudioSyncProvider>;
 }
 
 describe("VerseCanvas — full-verse English translation", () => {

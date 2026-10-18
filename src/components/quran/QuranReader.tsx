@@ -36,7 +36,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   const surahUrl = useCallback((id: number) => `/quran?surah=${id}`, []);
   const engine = useAudioEngine({ surah, selected, hasAyahs, availableSurahs, surahUrl });
   useAudioSettings(engine);
-  const { verseTimings, loading: audioLoading } = useSurahAudio({
+  const { loading: audioLoading } = useSurahAudio({
     engine,
     surah,
     hasAyahs,
@@ -109,7 +109,7 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
   return (
     <>
       <ReaderStoreHydrator />
-      <AudioSyncProvider engine={engine} timings={effectiveSelected.timings} verseTimings={verseTimings}>
+      <AudioSyncProvider engine={engine}>
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >

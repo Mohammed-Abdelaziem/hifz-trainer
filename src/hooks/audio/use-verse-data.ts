@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Ayah, QuranWord, SurahBundle } from "@/types/quran";
-import { synthTimings, toWordTimings, type MergedSegment } from "@/lib/quran/timings";
 import { useReaderStore } from "@/stores/reader-store";
 
 interface LiveState {
@@ -12,11 +11,7 @@ interface LiveState {
   tafsir: string | null;
 }
 
-export function useVerseData(
-  surah: SurahBundle,
-  hasAyahs: boolean,
-  timingsByVerse?: Record<string, MergedSegment[]>
-) {
+export function useVerseData(surah: SurahBundle, hasAyahs: boolean) {
   const [liveState, setLiveState] = useState<LiveState | null>(null);
 
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
@@ -71,18 +66,13 @@ export function useVerseData(
       };
     if (!live) return selected;
 
-    const merged = timingsByVerse?.[selected.verse_key];
-    const real = merged ? toWordTimings(merged, live.words.length) : [];
-    const timings = real.length > 0 ? real : synthTimings(live.words);
-
     return {
       ...selected,
       words: live.words,
       audio_url: live.audioUrl ?? selected.audio_url,
-      timings,
       tafsir: selected.tafsir || live.tafsir || "",
     };
-  }, [selected, live, timingsByVerse]);
+  }, [selected, live]);
 
   return { selected, live, effectiveSelected };
 }

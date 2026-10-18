@@ -130,48 +130,6 @@ describe("useVerseData", () => {
     expect(result.current.effectiveSelected.audio_url).toBe("https://example.com/101.mp3");
   });
 
-  it("uses real word timings when provided for the verse", async () => {
-    const { useVerseData } = await import("@/hooks/audio/use-verse-data");
-    const timingsByVerse = { "1:1": [[0, 60, 610] as [number, number, number]] };
-    const { result } = renderHook(() => useVerseData(mockSurah, true, timingsByVerse));
-    await waitFor(() => {
-      expect(result.current.live).not.toBeNull();
-    });
-    expect(result.current.effectiveSelected.timings).toEqual([{ start_ms: 60, end_ms: 610 }]);
-  });
-
-  it("falls back to synthetic timings when coverage is incomplete", async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: () =>
-        Promise.resolve({
-          words: [
-            { id: "1:1:1", text_uthmani: "بِسْمِ", translation: "In the name" },
-            { id: "1:1:2", text_uthmani: "ٱللَّهِ", translation: "of Allah" },
-          ],
-          recitationUrl: null,
-          tafsir: null,
-        }),
-    });
-    const { useVerseData } = await import("@/hooks/audio/use-verse-data");
-    const timingsByVerse = { "1:1": [[0, 60, 610] as [number, number, number]] };
-    const { result } = renderHook(() => useVerseData(mockSurah, true, timingsByVerse));
-    await waitFor(() => {
-      expect(result.current.live?.words).toHaveLength(2);
-    });
-    expect(result.current.effectiveSelected.timings).toHaveLength(2);
-    expect(result.current.effectiveSelected.timings[0].start_ms).toBe(300);
-  });
-
-  it("falls back to synthetic timings when the verse has no real timings", async () => {
-    const { useVerseData } = await import("@/hooks/audio/use-verse-data");
-    const { result } = renderHook(() => useVerseData(mockSurah, true, {}));
-    await waitFor(() => {
-      expect(result.current.live).not.toBeNull();
-    });
-    expect(result.current.effectiveSelected.timings[0].start_ms).toBe(300);
-  });
-
   it("uses original surah words when fetch has no words", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
