@@ -2,19 +2,16 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { AudioEngine } from "@/lib/audio/engine";
-import type { VerseTiming } from "@/lib/audio/full-surah";
-import type { WordTiming } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 
 export interface PlaybackSnapshot {
   positionMs: number;
   activeIndex: number;
   playing: boolean;
-  activeVerseKey: string | null;
   durationMs: number | null;
 }
 
-const INITIAL_SNAPSHOT: PlaybackSnapshot = { positionMs: 0, activeIndex: -1, playing: false, activeVerseKey: null, durationMs: null };
+const INITIAL_SNAPSHOT: PlaybackSnapshot = { positionMs: 0, activeIndex: -1, playing: false, durationMs: null };
 
 interface SyncStore {
   snapshot: PlaybackSnapshot;
@@ -29,79 +26,18 @@ interface SyncContextValue {
 
 const AudioSyncContext = createContext<SyncContextValue | null>(null);
 
-function indexForPosition(timings: WordTiming[], pos: number): number {
-  for (let i = 0; i < timings.length; i++) {
-    if (pos >= timings[i].start_ms && pos < timings[i].end_ms) return i;
-    if (pos < timings[i].start_ms) break;
-  }
-  return -1;
-}
-
-function verseKeyForPosition(verseTimings: VerseTiming[], pos: number): string | null {
-  for (let i = 0; i < verseTimings.length; i++) {
-    if (pos >= verseTimings[i].start_ms && pos < verseTimings[i].end_ms) {
-      return verseTimings[i].verseKey;
-    }
-  }
-  if (verseTimings.length > 0 && pos >= verseTimings[verseTimings.length - 1].start_ms) {
-    return verseTimings[verseTimings.length - 1].verseKey;
-  }
-  return null;
-}
-
-function verseStartFor(verseTimings: VerseTiming[], verseKey: string): number | undefined {
-  return verseTimings.find((t) => t.verseKey === verseKey)?.start_ms;
-}
-
 /**
- * Resolves which verse is playing and which word inside it, for continuous
- * full-surah playback.
+ * Tracks playback while highlighting and advancing verses only.
  *
- * Two different coordinate spaces are involved: `pos` is an absolute position
- * in the whole-surah MP3, while `wordTimings` are relative to the start of a
- * single ayah. The verse offset has to be subtracted before they can be
- * compared — without that step no word is ever highlighted.
- *
- * `wordTimings` belongs to whichever verse the reader has selected, which lags
- * `pos` by a render when the audio crosses a boundary. So the index is reset to
- * -1 for the tick on which the verse changes rather than highlighting against
- * timings that still describe the previous verse.
+ * Word-level karaoke highlighting was removed from this path: the per-word
+ * timings returned by the recitation API drifted from real audio, so the
+ * highlight jumped across words and missed the voice it was supposed to
+ * follow. During playback the current verse still follows the reciter (the
+ * engine's verse-crossing callback drives selection below), but words inside
+ * a verse stay neutral. The only word highlight remaining is the explicit
+ * word drill (forcedActiveIndex), which plays real per-word audio clips.
  */
-export function resolveSurahPlaybackPosition(args: {
-  pos: number;
-  verseTimings: VerseTiming[];
-  wordTimings: WordTiming[];
-  previousVerseKey: string | null;
-}): { activeVerseKey: string | null; activeIndex: number } {
-  const { pos, verseTimings, wordTimings, previousVerseKey } = args;
-  const found = verseKeyForPosition(verseTimings, pos);
-  const activeVerseKey = found ?? previousVerseKey;
-
-  if (!activeVerseKey) return { activeVerseKey, activeIndex: -1 };
-  if (found !== null && found !== previousVerseKey) {
-    // Verse boundary crossed; word timings still describe the old verse.
-    return { activeVerseKey, activeIndex: -1 };
-  }
-
-  const verseStart = verseStartFor(verseTimings, activeVerseKey);
-  if (verseStart === undefined || wordTimings.length === 0) {
-    return { activeVerseKey, activeIndex: -1 };
-  }
-
-  return { activeVerseKey, activeIndex: indexForPosition(wordTimings, pos - verseStart) };
-}
-
-export function AudioSyncProvider({
-  engine,
-  timings,
-  verseTimings,
-  children,
-}: {
-  engine: AudioEngine;
-  timings: WordTiming[];
-  verseTimings?: VerseTiming[];
-  children: React.ReactNode;
-}) {
+export function AudioSyncProvider({ engine, children }: { engine: AudioEngine; children: React.ReactNode }) {
   const [store] = useState<SyncStore>(() => ({
     snapshot: INITIAL_SNAPSHOT,
     listeners: new Set(),
@@ -135,7 +71,6 @@ export function AudioSyncProvider({
             positionMs: store.snapshot.positionMs,
             activeIndex: forcedActiveIndex,
             playing,
-            activeVerseKey: store.snapshot.activeVerseKey,
             durationMs: store.snapshot.durationMs,
           };
           store.listeners.forEach((l) => l());
@@ -145,30 +80,14 @@ export function AudioSyncProvider({
 
       const pos = engine.nowMs();
       const dur = engine.durationMs();
-      let idx = -1;
-      let activeVerseKey = store.snapshot.activeVerseKey;
 
-      if (surahAudioMode) {
-        if (verseTimings && verseTimings.length > 0) {
-          // Detect verse crossings here: Howler's html5 audio emits no
-          // timeupdate, so the engine's "play"/seek hookups never fire during
-          // smooth playback. Without this tick the selection — which grading
-          // hotkeys and word highlighting are keyed to — would stay pinned to
-          // the verse playback started on. Skipped while a word is force-
-          // pinned (the early-return above) or paused, so a paused seek does
-          // not yank the user's manual selection out from under them.
-          if (playing) engine.checkVerseChange();
-          const resolved = resolveSurahPlaybackPosition({
-            pos,
-            verseTimings,
-            wordTimings: timings,
-            previousVerseKey: activeVerseKey,
-          });
-          activeVerseKey = resolved.activeVerseKey;
-          idx = resolved.activeIndex;
-        }
-      } else if (timings.length > 0 && pos >= timings[0].start_ms) {
-        idx = indexForPosition(timings, pos);
+      if (playing && surahAudioMode) {
+        // Howler's html5 audio emits no timeupdate, so the engine's
+        // "play"/seek hookups never fire during smooth playback. This tick is
+        // what makes the selection (and the verse highlight) follow the
+        // reciter across verse boundaries. Paused seeks are skipped so the
+        // user's manual selection is not yanked out from under them.
+        engine.checkVerseChange();
       }
 
       // Both bounds are required. With only B set, seeking to `loopA ?? 0`
@@ -179,25 +98,23 @@ export function AudioSyncProvider({
       }
       if (
         pos === store.snapshot.positionMs &&
-        idx === store.snapshot.activeIndex &&
+        store.snapshot.activeIndex === -1 &&
         playing === store.snapshot.playing &&
-        activeVerseKey === store.snapshot.activeVerseKey &&
         dur === store.snapshot.durationMs
       ) {
         return;
       }
       store.snapshot = {
         positionMs: pos,
-        activeIndex: idx,
+        activeIndex: -1,
         playing,
-        activeVerseKey,
         durationMs: dur,
       };
       store.listeners.forEach((l) => l());
     };
     const id = setInterval(tick, 50);
     return () => clearInterval(id);
-  }, [engine, timings, verseTimings, store]);
+  }, [engine, store]);
 
   useEffect(() => () => engine.pause(), [engine]);
 
