@@ -41,6 +41,15 @@ export interface MemoryCell {
   readCount: number;
 }
 
+/** Per-surah tracking counts shown in the reader header. */
+export interface SurahProgress {
+  total: number;
+  sabaq: number;
+  sabqi: number;
+  manzil: number;
+  known: number;
+}
+
 export interface MemoryMapPayload {
   verses: MemoryCell[];
 }

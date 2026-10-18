@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Minus, Plus, RotateCcw } from "lucide-react";
+import { Check, Minus, Plus, RotateCcw, Star } from "lucide-react";
 import type { Grade } from "@/types/quran";
 import { cn } from "@/lib/utils";
 
@@ -53,9 +53,12 @@ const GRADE_BUTTONS: {
 export function RatingBar({
   verseKey,
   onGrade,
+  onKnown,
 }: {
   verseKey: string;
   onGrade: (grade: Grade) => void;
+  /** Signed-in only: skips the hifz process for this verse. */
+  onKnown?: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -80,6 +83,23 @@ export function RatingBar({
             </kbd>
           </button>
         ))}
+        {onKnown && (
+          <button
+            onClick={onKnown}
+            title="I already know this — skip the hifz process (key: 5)"
+            aria-label={`I already know ${verseKey} — skip the hifz process`}
+            className={cn(
+              "group inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition-all sm:flex-none sm:px-3",
+              "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 dark:border-teal-800/60 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/40"
+            )}
+          >
+            <Star className="h-3.5 w-3.5" />
+            <span>Know</span>
+            <kbd className="ml-0.5 hidden rounded border border-current/20 bg-current/5 px-1 text-[10px] opacity-50 transition-opacity group-hover:opacity-100 lg:inline">
+              5
+            </kbd>
+          </button>
+        )}
       </div>
     </div>
   );

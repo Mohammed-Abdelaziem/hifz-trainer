@@ -12,24 +12,43 @@ import { cn } from "@/lib/utils";
 const TOTAL_SURAHS = 114;
 const TOTAL_PAGES = 604;
 
+/** Color for verses/surahs the user marked as already memorized — KNOWN is
+ *  excluded from the stability heat scale because it is not "growing". */
+const KNOWN_COLOR = "#0d9488";
+
 type GridMode = "pages" | "surahs";
 
-function aggregate(cells: MemoryCell[]): { score: number | null; total: number; tracked: number; read: number } {
+function aggregate(cells: MemoryCell[]): {
+  score: number | null;
+  total: number;
+  tracked: number;
+  read: number;
+  known: number;
+} {
   const trackedCells = cells.filter((c) => c.stability !== null);
+  const knownCells = trackedCells.filter((c) => c.state === "KNOWN");
+  // KNOWN is fully stable by definition; averaging its 100s would drown the
+  // real signal of verses still in the hifz cycle.
+  const heatCells = trackedCells.filter((c) => c.state !== "KNOWN");
   const readCells = cells.filter((c) => c.readCount > 0 && c.stability === null);
-  if (trackedCells.length === 0) return { score: null, total: cells.length, tracked: 0, read: readCells.length };
-  const avg =
-    trackedCells.reduce((sum, c) => sum + (c.stability ?? 0), 0) / trackedCells.length;
+  const score =
+    heatCells.length > 0
+      ? Math.round(
+          heatCells.reduce((sum, c) => sum + (c.stability ?? 0), 0) / heatCells.length
+        )
+      : null;
   return {
-    score: Math.round(avg),
+    score,
     total: cells.length,
     tracked: trackedCells.length,
     read: readCells.length,
+    known: knownCells.length,
   };
 }
 
 function Cell({
   score,
+  knownFull,
   readCount,
   label,
   sublabel,
@@ -37,6 +56,7 @@ function Cell({
   href,
 }: {
   score: number | null;
+  knownFull?: boolean;
   readCount?: number;
   label: string;
   sublabel?: string;
@@ -44,7 +64,7 @@ function Cell({
   href?: string;
 }) {
   const isRead = (!score && score !== 0) && (readCount ?? 0) > 0;
-  const bgColor = isRead ? "#bae6fd" : stabilityColor(score);
+  const bgColor = knownFull ? KNOWN_COLOR : isRead ? "#bae6fd" : stabilityColor(score);
   const body = (
     <motion.div
       initial={{ opacity: 0 }}
@@ -57,8 +77,8 @@ function Cell({
       )}
       style={{
         backgroundColor: bgColor,
-        color: score !== null && score >= 60 ? "#fff" : undefined,
-        outline: score !== null && score < 20 ? "2px solid #fecaca" : "none",
+        color: knownFull || (score !== null && score >= 60) ? "#fff" : undefined,
+        outline: !knownFull && score !== null && score < 20 ? "2px solid #fecaca" : "none",
       }}
     >
       {large ? label : ""}
@@ -99,7 +119,7 @@ export function MushafGrid() {
 
   const stats = useMemo(() => {
     const verses = data?.verses ?? [];
-    const counts = { SABAQ: 0, SABQI: 0, MANZIL: 0 };
+    const counts = { SABAQ: 0, SABQI: 0, MANZIL: 0, KNOWN: 0 };
     let tracked = 0;
     let readOnly = 0;
     let sum = 0;
@@ -107,7 +127,9 @@ export function MushafGrid() {
       if (v.state && v.stability !== null) {
         counts[v.state] += 1;
         tracked += 1;
-        sum += v.stability;
+        // KNOWN is deliberately out of the average: a fixed 100 would mask
+        // the actual decay signal of verses still being memorized.
+        if (v.state !== "KNOWN") sum += v.stability;
       } else if (v.readCount > 0) {
         readOnly += 1;
       }
@@ -116,7 +138,8 @@ export function MushafGrid() {
       ...counts,
       readOnly,
       untracked: verses.length - tracked - readOnly,
-      avgStability: tracked > 0 ? Math.round(sum / tracked) : null,
+      avgStability:
+        tracked > counts.KNOWN ? Math.round(sum / (tracked - counts.KNOWN)) : null,
     };
   }, [data]);
 
@@ -158,6 +181,9 @@ export function MushafGrid() {
             </span>
           ))}
           <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
+            <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: KNOWN_COLOR }} /> Already known
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
             <span className="h-3 w-3 rounded-sm bg-sky-200" /> Read only
           </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
@@ -176,15 +202,32 @@ export function MushafGrid() {
               const agg = aggregate(cells);
               const name = cells[0]?.surahName ?? `Surah ${n}`;
               const readCount = cells.reduce((sum, c) => sum + c.readCount, 0);
+              const fullyKnown = agg.total > 0 && agg.known === agg.total;
+              // Surahs mixing known and in-process verses need both numbers;
+              // stability only describes the in-process remainder.
+              const sublabel = fullyKnown
+                ? `${name} · ${agg.known}/${agg.total} verses · fully known`
+                : `${name}${
+                    agg.known > 0 ? ` · ${agg.known}/${agg.total} already known` : ""
+                  }${
+                    agg.tracked - agg.known > 0
+                      ? ` · ${agg.tracked - agg.known}/${agg.total} in hifz · stability ${agg.score}`
+                      : agg.known === 0
+                        ? agg.read > 0
+                          ? ` · ${agg.read} read`
+                          : " · not started"
+                        : ""
+                  }`;
               return (
                 <Cell
                   key={n}
                   large
                   score={agg.score}
+                  knownFull={fullyKnown}
                   readCount={readCount}
                   label={String(n)}
                   href={agg.tracked > 0 || agg.read > 0 ? `/reader/${n}` : undefined}
-                  sublabel={`${name}${agg.tracked ? ` · ${agg.tracked}/${agg.total} verses · stability ${agg.score}` : agg.read > 0 ? ` · ${agg.read} read` : " · not started"}`}
+                  sublabel={sublabel}
                 />
               );
             })}
@@ -212,7 +255,8 @@ export function MushafGrid() {
           </div>
         )}
 
-        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-4 text-center sm:grid-cols-5 dark:border-stone-800">
+        <div className="mt-5 grid grid-cols-2 gap-3 border-t border-stone-100 pt-4 text-center sm:grid-cols-6 dark:border-stone-800">
+          <Stat value={stats.KNOWN} label="Known" accentClass="text-teal-600" />
           <Stat value={stats.SABAQ} label="Sabaq" accentClass="text-amber-600" />
           <Stat value={stats.SABQI} label="Sabqi" accentClass="text-emerald-600" />
           <Stat value={stats.MANZIL} label="Manzil" accentClass="text-sky-600" />

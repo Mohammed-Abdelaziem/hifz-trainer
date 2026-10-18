@@ -54,6 +54,18 @@ describe("applyHifzRouting", () => {
     expect(applyHifzRouting("MANZIL", "AGAIN", 0)).toBe("SABQI");
   });
 
+  it("KNOWN + AGAIN weakens into SABQI", () => {
+    expect(applyHifzRouting("KNOWN", "AGAIN", 0)).toBe("SABQI");
+    expect(applyHifzRouting("KNOWN", "AGAIN", 30)).toBe("SABQI");
+  });
+
+  it("KNOWN + any passing grade stays KNOWN (no silent demotion)", () => {
+    for (const grade of ["HARD", "GOOD", "EASY"] as const) {
+      expect(applyHifzRouting("KNOWN", grade, 0.5)).toBe("KNOWN");
+      expect(applyHifzRouting("KNOWN", grade, 45)).toBe("KNOWN");
+    }
+  });
+
   it("SABQI + EASY at exactly 21 promotes to MANZIL", () => {
     expect(applyHifzRouting("SABQI", "EASY", 21)).toBe("MANZIL");
   });
