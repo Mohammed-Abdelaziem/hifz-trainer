@@ -21,7 +21,6 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
   const ayah = surah.ayahs[ayahIndex];
   const maskMode = useReaderStore((s) => s.maskMode);
   const blurScope = useReaderStore((s) => s.blurScope);
-  const showTranslation = useReaderStore((s) => s.showTranslation);
   const showVerseTranslation = useReaderStore((s) => s.showVerseTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
   const revealedWords = useReaderStore((s) => s.revealedWords);
@@ -69,7 +68,7 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
         isSelected
           ? "border-amber-300 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/20"
           : "hover:bg-stone-50 dark:hover:bg-stone-800/40",
-        showTranslation || showRoots ? "pb-12" : ""
+        showRoots ? "pb-12" : ""
       )}
     >
       <p dir="rtl" lang="ar" className="text-right leading-[2.3]">
@@ -97,7 +96,6 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
                 mode={maskMode}
                 revealed={revealedWords.has(word.id)}
                 active={i === activeIndex}
-                showTranslation={showTranslation && isSelected}
                 showRoots={showRoots && isSelected}
                 ayahScoped={ayahScoped}
                 onReveal={handleReveal}
@@ -115,9 +113,9 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
             data-testid="verse-translation"
             className={cn(
               "border-s-2 border-sky-300/70 ps-3 text-sm font-normal leading-relaxed text-stone-600 dark:border-sky-500/50 dark:text-stone-400",
-              // Clear the absolutely-positioned word-translation layer when
-              // both toggles are active so the lines never collide.
-              showTranslation || showRoots ? "mt-12" : "mt-2"
+              // Clear the absolutely-positioned roots layer when the toggle is
+              // active so the lines never collide.
+              showRoots ? "mt-12" : "mt-2"
             )}
           >
             {ayah.translation}
@@ -173,7 +171,6 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
                     mode={maskMode}
                     revealed={revealedWords.has(word.id)}
                     active={false}
-                    showTranslation={false}
                     showRoots={false}
                     ayahScoped={ayahScoped}
                     // Passing the store's stable action by reference keeps the

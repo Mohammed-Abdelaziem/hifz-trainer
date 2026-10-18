@@ -10,7 +10,6 @@ interface VerseWordProps {
   mode: MaskMode;
   revealed: boolean;
   active: boolean;
-  showTranslation: boolean;
   showRoots: boolean;
   ayahScoped: boolean;
   onReveal: (wordId: string) => void;
@@ -28,7 +27,6 @@ export const VerseWord = memo(function VerseWord({
   mode,
   revealed,
   active,
-  showTranslation,
   showRoots,
   ayahScoped,
   onReveal,
@@ -70,13 +68,8 @@ export const VerseWord = memo(function VerseWord({
       )}
     >
       <span className="whitespace-pre">{display}</span>
-      {(showTranslation || showRoots) && !masked && (
+      {showRoots && !masked && (
         <span className="pointer-events-none absolute top-full mt-1 flex flex-col items-center whitespace-nowrap">
-          {showTranslation && (
-            <span dir="ltr" className="text-[10px] leading-tight text-sky-700/90 dark:text-sky-300/90">
-              {word.translation}
-            </span>
-          )}
           {showRoots && word.root && (
             <span dir="rtl" className="text-[10px] leading-tight text-emerald-700/90 dark:text-emerald-300/90">
               ({word.root})

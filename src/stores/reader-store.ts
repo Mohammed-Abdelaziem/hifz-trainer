@@ -19,7 +19,6 @@ interface ReaderSettings {
   blurScope: BlurScope;
   layoutMode: LayoutMode;
   playbackMode: PlaybackMode;
-  showTranslation: boolean;
   showVerseTranslation: boolean;
   showRoots: boolean;
   fontSizePx: number;
@@ -45,7 +44,6 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setBlurScope: (s: BlurScope) => void;
   setLayoutMode: (m: LayoutMode) => void;
   setPlaybackMode: (m: PlaybackMode) => void;
-  toggleTranslation: () => void;
   toggleVerseTranslation: () => void;
   toggleRoots: () => void;
   setFontSize: (px: number) => void;
@@ -71,7 +69,6 @@ const DEFAULT_SETTINGS = {
   blurScope: "word" as BlurScope,
   layoutMode: "FLOW" as LayoutMode,
   playbackMode: "continuous" as PlaybackMode,
-  showTranslation: false,
   showVerseTranslation: false,
   showRoots: false,
   fontSizePx: FONT_SIZE_DEFAULT,
@@ -88,7 +85,6 @@ type PersistedSettings = Pick<
   | "blurScope"
   | "layoutMode"
   | "playbackMode"
-  | "showTranslation"
   | "showVerseTranslation"
   | "showRoots"
   | "fontSizePx"
@@ -129,7 +125,6 @@ function sanitizePersisted(persisted: unknown): Partial<PersistedSettings> {
   if (layout) out.layoutMode = layout;
   const playback = oneOf(PLAYBACK_MODES, p.playbackMode);
   if (playback) out.playbackMode = playback;
-  if (isBool(p.showTranslation)) out.showTranslation = p.showTranslation;
   if (isBool(p.showVerseTranslation)) out.showVerseTranslation = p.showVerseTranslation;
   if (isBool(p.showRoots)) out.showRoots = p.showRoots;
   if (isBool(p.continuousPlay)) out.continuousPlay = p.continuousPlay;
@@ -166,7 +161,6 @@ export const useReaderStore = create<ReaderStore>()(
       setLayoutMode: (layoutMode) => set({ layoutMode }),
       setPlaybackMode: (playbackMode) =>
         set({ playbackMode, forcedActiveIndex: null, loopA: null, loopB: null }),
-      toggleTranslation: () => set((s) => ({ showTranslation: !s.showTranslation })),
       toggleVerseTranslation: () =>
         set((s) => ({ showVerseTranslation: !s.showVerseTranslation })),
       toggleRoots: () => set((s) => ({ showRoots: !s.showRoots })),
@@ -239,7 +233,6 @@ export const useReaderStore = create<ReaderStore>()(
         blurScope: s.blurScope,
         layoutMode: s.layoutMode,
         playbackMode: s.playbackMode,
-        showTranslation: s.showTranslation,
         showVerseTranslation: s.showVerseTranslation,
         showRoots: s.showRoots,
         fontSizePx: s.fontSizePx,
