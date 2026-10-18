@@ -53,8 +53,8 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
     <div
       data-verse={ayah.verse_key}
       tabIndex={0}
-      role="button"
-      aria-pressed={isSelected}
+      role="group"
+      aria-label={`Ayah ${ayah.ayah_number}`}
       onClick={() => !isSelected && selectAyah(ayah.verse_key)}
       onKeyDown={(e) => {
         // Keyboard parity with click-to-select: without this only VerseWord
