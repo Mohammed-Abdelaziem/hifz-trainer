@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
 import { DEFAULT_RETENTION } from "@/lib/constants";
+import { SITE_URL } from "@/lib/server/site-url";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
 import { ReaderStoreHydrator } from "@/components/reader/ReaderStoreHydrator";
 
@@ -38,7 +39,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       openGraph: {
         title: `${surah.name_simple} — Wholly Quran`,
         description,
-        url: `https://whollyquran.me/reader/${surah.id}`,
+        url: `${SITE_URL}/reader/${surah.id}`,
       },
       twitter: {
         title: `${surah.name_simple} — Wholly Quran`,

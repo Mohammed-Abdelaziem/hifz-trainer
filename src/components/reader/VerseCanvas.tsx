@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
 import type { SurahBundle } from "@/types/quran";
