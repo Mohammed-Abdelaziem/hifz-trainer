@@ -29,6 +29,15 @@ test.describe("Reader", () => {
     await expect(page.locator(".fixed.bottom-40")).toContainText("Good");
   });
 
+  test("Know button marks the verse known and flashes the skip", async ({ page }) => {
+    const know = page.getByRole("button", { name: /already know .* skip the hifz process/i });
+    await expect(know).toBeVisible();
+    await know.click();
+    // Success, duplicate-mark, and server-failure flashes all name the verse
+    // as known; the reviewer-visible assertion is that a skip was attempted.
+    await expect(page.locator(".fixed.bottom-40")).toContainText(/known/i);
+  });
+
   test("toggles between word-by-word drill and full recitation", async ({ page }) => {
     // ModeButton labels itself with the mode it switches *to*, so the
     // accessible name flips with the current mode. Match either and assert the

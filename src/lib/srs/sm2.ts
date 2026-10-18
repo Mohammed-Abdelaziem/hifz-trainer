@@ -44,7 +44,7 @@ export function schedule(prev: Sm2Input, grade: Grade, now = new Date()): Sm2Out
   if (grade === "AGAIN") {
     repetitionCount = 0;
     intervalDays = 10 / 1440;
-    if (prev.state === "MANZIL") state = "SABQI";
+    if (prev.state === "MANZIL" || prev.state === "KNOWN") state = "SABQI";
   } else if (grade === "HARD") {
     repetitionCount += 1;
     intervalDays =

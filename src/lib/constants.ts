@@ -10,6 +10,18 @@ export const DAILY_TARGET_MAX = 50;
 /** Largest number of verses that can be added to the plan in one request. */
 export const SABAQ_BATCH_MAX = 50;
 
+/** Largest ayah number in the Quran (Al-Baqarah 2:286) — also the longest
+ *  possible surah, and the natural sanity bound for any "to ayah" input. */
+export const MAX_AYAH_COUNT = 286;
+
+/**
+ * Largest number of verses that can be marked already-known in one request.
+ * Unlike Sabaq intake (a learning slice), marking known is a bulk import of
+ * memorized material — whole surahs are common — so the cap is the largest
+ * ayah count in the Quran rather than the daily slice.
+ */
+export const KNOWN_RANGE_MAX = 286;
+
 // Day in milliseconds
 export const DAY_MS = 86_400_000;
 

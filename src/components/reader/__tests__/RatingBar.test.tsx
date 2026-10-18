@@ -23,4 +23,23 @@ describe("RatingBar", () => {
     expect(onGrade).toHaveBeenNthCalledWith(1, "GOOD");
     expect(onGrade).toHaveBeenNthCalledWith(2, "AGAIN");
   });
+
+  it("hides the Know button for guests (no onKnown)", () => {
+    render(<RatingBar verseKey="112:1" onGrade={() => {}} />);
+    expect(
+      screen.queryByRole("button", { name: /already know 112:1/i })
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the Know button when signed in and fires onKnown", async () => {
+    const onKnown = vi.fn();
+    const user = userEvent.setup();
+    render(<RatingBar verseKey="112:1" onGrade={() => {}} onKnown={onKnown} />);
+
+    const button = screen.getByRole("button", {
+      name: /already know 112:1 — skip the hifz process/i,
+    });
+    await user.click(button);
+    expect(onKnown).toHaveBeenCalledTimes(1);
+  });
 });

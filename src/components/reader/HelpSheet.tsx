@@ -10,6 +10,7 @@ const SHORTCUTS: { keys: string[]; action: string }[] = [
   { keys: ["2"], action: "Rate Hard — short interval" },
   { keys: ["3"], action: "Rate Good — extend interval" },
   { keys: ["4"], action: "Rate Easy — long interval / Manzil push" },
+  { keys: ["5"], action: "Mark known — skip the hifz process for it" },
   { keys: ["Space"], action: "Play / pause recitation (continuous mode)" },
   { keys: ["?"], action: "Toggle this help panel" },
 ];

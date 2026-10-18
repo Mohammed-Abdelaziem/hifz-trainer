@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
+import { getSurahProgress } from "@/lib/server/hifz-service";
 import { DEFAULT_RETENTION } from "@/lib/constants";
 import { SITE_URL } from "@/lib/server/site-url";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
@@ -84,6 +85,18 @@ export default async function ReaderPage(props: Props) {
   const verseParam = (await searchParams).verse;
   const initialVerseKey = typeof verseParam === "string" ? verseParam : undefined;
 
+  // Real per-surah tracking counts for the header chip (was a decorative
+  // "Sabqi" badge on every surah). Guests and DB failures render the guest
+  // state instead.
+  let progress = null;
+  if (user) {
+    try {
+      progress = await getSurahProgress(user.id, id);
+    } catch {
+      progress = null;
+    }
+  }
+
   return (
     <>
       <ReaderStoreHydrator />
@@ -93,6 +106,7 @@ export default async function ReaderPage(props: Props) {
         initialVerseKey={initialVerseKey}
         scheduler={!user ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
         requestRetention={!user ? DEFAULT_RETENTION : (user?.requestRetention ?? DEFAULT_RETENTION)}
+        progress={progress}
         isGuest={!user}
         availableSurahs={navItems}
       />

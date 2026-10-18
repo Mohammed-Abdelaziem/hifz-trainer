@@ -9,7 +9,13 @@ export type SchedulerKind = "sm2" | "fsrs";
 
 export type Grade = "AGAIN" | "HARD" | "GOOD" | "EASY";
 
-export type MemoryState = "SABAQ" | "SABQI" | "MANZIL";
+/**
+ * KNOWN marks a verse the user already memorized before using this app.
+ * It never enters the SRS rotation (the daily queue filters it out), so a
+ * known part skips the hifz process; grading it later turns it into an
+ * ordinary tracked verse again.
+ */
+export type MemoryState = "SABAQ" | "SABQI" | "MANZIL" | "KNOWN";
 
 export interface QuranWord {
   id: string;

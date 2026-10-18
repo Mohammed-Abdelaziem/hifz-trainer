@@ -73,6 +73,12 @@ describe("stabilityScore", () => {
       expect(score).toBeGreaterThan(0);
     }
   });
+
+  it("scores KNOWN as maximally stable regardless of interval or overdue status", () => {
+    const past = new Date("2026-01-01T00:00:00Z");
+    expect(stabilityScore("KNOWN", 0, null)).toBe(100);
+    expect(stabilityScore("KNOWN", 30, past, new Date("2026-06-01T00:00:00Z"))).toBe(100);
+  });
 });
 
 describe("stabilityColor", () => {

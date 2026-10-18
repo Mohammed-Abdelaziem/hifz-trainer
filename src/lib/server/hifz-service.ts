@@ -1,5 +1,11 @@
 import type { Grade, MemoryState, SchedulerKind } from "@/types/quran";
-import type { DailyQueue, MemoryCell, QueueItem, StreakInfo } from "@/types/srs";
+import type {
+  DailyQueue,
+  MemoryCell,
+  QueueItem,
+  StreakInfo,
+} from "@/types/srs";
+import type { SurahProgress } from "@/types/srs";
 import { getDb } from "@/lib/db";
 import { DAY_MS, DEFAULT_RETENTION } from "@/lib/constants";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
@@ -286,6 +292,175 @@ export async function addToSabaq(params: {
   return { added: toAdd.length, invalid, duplicate: valid.length - toAdd.length };
 }
 
+export interface KnownMarkResult {
+  /** Rows transitioned into (known=true) or out of (known=false) KNOWN. */
+  changed: number;
+  /** New tracking rows created by known=true for verses never tracked before. */
+  created: number;
+  /** Verses that were already KNOWN and stayed untouched (known=true only). */
+  alreadyKnown: number;
+  /** Tracked verses intentionally left alone: non-KNOWN rows on known=false
+   *  are part of the active hifz cycle and must not be silently wiped. */
+  untouched: number;
+  /** Reference ayah numbers that do not exist in the Quran (e.g. 4:177). */
+  invalid: number;
+}
+
+/**
+ * Labels a set of verses as already memorized (or removes that label).
+ *
+ * KNOWN is the "I already know this part" state the audit established: it
+ * skips the Sabaq → Sabqi → Manzil hifz process entirely (the daily queue
+ * filters it out), shows as fully stable on the memory map, and only weakens
+ * into Sabqi if the user grades it AGAIN in the reader.
+ *
+ * known=true also works for verses that were never added to the plan — the
+ * bulk-import case for someone who arrives with passages already memorized:
+ * untracked verse keys are validated against the Verse table and given fresh
+ * KNOWN rows instead of being rejected.
+ */
+export async function markKnown(params: {
+  userId: string;
+  verseKeys: string[];
+  known: boolean;
+}): Promise<KnownMarkResult> {
+  const db = await getDb();
+  const now = new Date();
+
+  const keys = [...new Set(params.verseKeys)].filter(
+    (k) => /^\d{1,3}:\d{1,3}$/.test(k)
+  );
+  const empty: KnownMarkResult = {
+    changed: 0,
+    created: 0,
+    alreadyKnown: 0,
+    untouched: 0,
+    invalid: keys.length,
+  };
+  if (keys.length === 0) return empty;
+
+  const states = await db.userMemoryState.findMany({
+    where: { userId: params.userId, verseKey: { in: keys } },
+    select: { verseKey: true, state: true },
+  });
+  const statesByKey = new Map(states.map((s) => [s.verseKey, s.state]));
+
+  if (params.known) {
+    // Rows exist only for verses that were validated against the Verse table
+    // on the way in, so only the keys with no row need a fresh check — and
+    // only they can be truly invalid (e.g. "4:177" or "5:160").
+    const untrackedKeys = keys.filter((k) => !statesByKey.has(k));
+    let creatableKeys: string[] = [];
+    let invalid = 0;
+    if (untrackedKeys.length > 0) {
+      const found = await db.verse.findMany({
+        where: { verseKey: { in: untrackedKeys } },
+        select: { verseKey: true },
+      });
+      const foundKeys = new Set(found.map((f) => f.verseKey));
+      creatableKeys = untrackedKeys.filter((k) => foundKeys.has(k));
+      invalid = untrackedKeys.length - creatableKeys.length;
+    }
+
+    const toChange: string[] = [];
+    let already = 0;
+    for (const [verseKey, state] of statesByKey) {
+      if (state === "KNOWN") already += 1;
+      else toChange.push(verseKey);
+    }
+    const toCreate = [...toChange, ...creatableKeys];
+    if (toCreate.length > 0) {
+      // Delete + recreate the relabeled rows in one transaction so a graded
+      // verse's SRS fields (ease factor, interval, lapses, Streak-cache row)
+      // are replaced by a clean KNOWN label instead of updated in place
+      // through a dozen branch clauses. Newly importable verses only add:
+      // skipDuplicates guards concurrent relabels of the same key. Review
+      // rows stay in ReviewLog as history.
+      await db.$transaction([
+        ...(toChange.length > 0
+          ? [
+              db.userMemoryState.deleteMany({
+                where: { userId: params.userId, verseKey: { in: toChange } },
+              }),
+            ]
+          : []),
+        db.userMemoryState.createMany({
+          data: toCreate.map((verseKey) => ({
+            userId: params.userId,
+            verseKey,
+            state: "KNOWN",
+            // The daily queue filters state != "KNOWN", so a due-now
+            // dueDate never surfaces; stability ignores dueDate for KNOWN.
+            dueDate: now,
+            repetitionCount: 1,
+            lastReviewedAt: now,
+          })),
+          skipDuplicates: true,
+        }),
+      ]);
+    }
+    return {
+      changed: toChange.length,
+      created: creatableKeys.length,
+      alreadyKnown: already,
+      untouched: 0,
+      invalid,
+    };
+  }
+
+  let cleared = 0;
+  let untouched = 0;
+  for (const [, state] of statesByKey) {
+    if (state === "KNOWN") cleared += 1;
+    else untouched += 1;
+  }
+  if (cleared > 0) {
+    // Only KNOWN rows are deleted; a verse the user is actively learning
+    // must not be silently wiped by an unmark request.
+    const knownKeys = states
+      .filter((s) => s.state === "KNOWN")
+      .map((s) => s.verseKey);
+    await db.userMemoryState.deleteMany({
+      where: { userId: params.userId, verseKey: { in: knownKeys } },
+    });
+  }
+  return {
+    changed: cleared,
+    created: 0,
+    alreadyKnown: 0,
+    untouched,
+    invalid: keys.length - states.length,
+  };
+}
+
+export async function getSurahProgress(
+  userId: string,
+  surahId: number
+): Promise<SurahProgress> {
+  const db = await getDb();
+  const [total, states] = await Promise.all([
+    db.verse.count({ where: { surahId } }),
+    db.userMemoryState.findMany({
+      where: { userId, verse: { surahId } },
+      select: { state: true },
+    }),
+  ]);
+  const progress: SurahProgress = {
+    total,
+    sabaq: 0,
+    sabqi: 0,
+    manzil: 0,
+    known: 0,
+  };
+  for (const s of states) {
+    if (s.state === "SABAQ") progress.sabaq += 1;
+    else if (s.state === "SABQI") progress.sabqi += 1;
+    else if (s.state === "MANZIL") progress.manzil += 1;
+    else if (s.state === "KNOWN") progress.known += 1;
+  }
+  return progress;
+}
+
 export async function recordReading(params: {
   userId: string;
   verseKey: string;
@@ -383,7 +558,7 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     // wordsJson) for every due verse. The mapper below needs four fields, and
     // the due set grows with the corpus, so the result set is also capped.
     db.userMemoryState.findMany({
-      where: { userId, dueDate: { lte: endOfToday } },
+      where: { userId, dueDate: { lte: endOfToday }, state: { not: "KNOWN" } },
       select: {
         verseKey: true,
         state: true,
@@ -411,6 +586,9 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
 
   const buckets: Record<string, QueueItem[]> = { SABAQ: [], SABQI: [], MANZIL: [] };
   for (const s of states) {
+    // KNOWN is excluded by the query's state filter; this guard keeps any
+    // straggler (old rows, race windows) from landing in the Sabqi bucket.
+    if (s.state === "KNOWN") continue;
     const bucket = buckets[s.state] ?? buckets.SABQI;
     bucket.push(toItem(s));
   }
@@ -442,3 +620,7 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     },
   };
 }
+
+// SurahProgress moved to types/srs so client components consume it without
+// importing a server module.
+export type { SurahProgress };

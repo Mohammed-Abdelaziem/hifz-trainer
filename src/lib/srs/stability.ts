@@ -8,6 +8,7 @@ export function stabilityScore(
   now = new Date()
 ): number | null {
   if (state === null) return null;
+  if (state === "KNOWN") return 100;
   if (intervalDays <= 0) return 4;
 
   const base = Math.min(100, Math.round(Math.log2(1 + intervalDays) * 18));
