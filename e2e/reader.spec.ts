@@ -39,8 +39,20 @@ test.describe("Reader", () => {
   });
 
   test("known marking survives a reload", async ({ page }) => {
-    // The progress badge is server-fetched; other grading specs may already
-    // have marked verses, so assert on a known-count delta, not an absolute.
+    // Pick a surah no other spec grades and de-duplicate it first: the API
+    // unmark path deletes only KNOWN rows, so re-running this test (suite
+    // retries, local runs against a kept DB) always starts from a stable
+    // baseline instead of a duplicate-know no-op.
+    const unmark = await page.request.post("/api/memory-state", {
+      data: { verseKeys: ["112:1"], known: false },
+    });
+    expect(unmark.ok()).toBe(true);
+
+    await page.goto("/reader/112");
+    await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
+
+    // The progress badge is server-fetched; count the known verses as they
+    // stand after the unmark.
     const badge = page.locator("header").getByText(/\d+\/\d+ known/);
     let before = 0;
     if (await badge.count()) {
@@ -50,7 +62,9 @@ test.describe("Reader", () => {
     const know = page.getByRole("button", { name: /already know .* skip the hifz process/i });
     await expect(know).toBeVisible();
     await know.click();
-    await expect(page.locator(".fixed.bottom-40")).toContainText(/known/i);
+    // Only the success flash names the verse with a guarantee tick; a
+    // duplicate-mark or a server failure would say something else.
+    await expect(page.locator(".fixed.bottom-40")).toContainText(/Known ✓/);
 
     await page.reload();
     await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
