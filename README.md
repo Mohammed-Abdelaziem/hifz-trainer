@@ -10,15 +10,18 @@ automated with **SM-2** or **FSRS** scheduling and active-recall tooling.
 ## Features
 
 - **Daily task dashboard** — Sabaq/Sabqi/Manzil queue, streak tracking, daily goal ring,
-  estimated session time, and an **Add to Sabaq** control for putting new verses into your plan
+  estimated session time, an **Add to Sabaq** control for putting new verses into your plan,
+  and an **I already know it** mode that labels verses you have memorized as known so they
+  skip the hifz process
 - **Interactive reader (RTL)** — masking modes (full / blurred / first-letter prompts /
-  tap-to-reveal), word-by-word translations + transliteration + roots, tafsir drawer,
+  tap-to-reveal), verse translation + transliteration + roots, tafsir drawer,
   adjustable font
 - **Audio engine** — continuous recitation with A→B looping and 0.5–1.5× speed, plus a
   **word-by-word drill mode** that plays each word's own clip in sequence (perfectly synced)
 - **10 reciters** (quran.com CDN), lazily cached per verse per reciter
 - **SRS engines** — SM-2 or FSRS (via official `ts-fsrs`), selectable per user, with desired
-  retention control (70–98%) for FSRS; weak verses auto-route back into Sabqi
+  retention control (70–98%) for FSRS; weak verses auto-route back into Sabqi; verses marked
+  **Known** sit outside the rotation entirely (grade them Again to re-enter it)
 - **Analytics** — 604-page / 114-surah mushaf heatmap with decay indicators, 30-day review
   activity chart, interval-distribution comparison between schedulers
 - **Search** — Arabic-aware: diacritics, tatweel and hamza/alef variants are folded, so

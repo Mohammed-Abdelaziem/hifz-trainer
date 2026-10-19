@@ -195,7 +195,7 @@ The traditional method of memorizing the Quran with a teacher is irreplaceable. 
 - **Spaced repetition scheduling** — so you review at the optimal time
 - **Progress tracking** — so you know exactly where you stand
 - **Multiple reciters** — so you can listen and reinforce
-- **Word-level audio highlighting** — so you can follow along as it recites
+- **Verse-level audio highlighting** — so you can follow along as it recites
 
 ## Top Quran Memorization Apps in 2026
 
@@ -208,7 +208,7 @@ The traditional method of memorizing the Quran with a teacher is irreplaceable. 
 - 3-tier review system: Sabaq, Sabqi, Manzil
 - Interactive word-by-word Quran reader
 - 10 reciters including Mishary Alafasy and Abdul Basit
-- Per-word highlighting that follows the recitation
+- Verse-following recitation with A→B looping
 - Memory heatmap showing strength across all 114 surahs
 - Fully free and open-source
 
@@ -256,7 +256,7 @@ The traditional method of memorizing the Quran with a teacher is irreplaceable. 
 | Pronunciation Feedback | ❌ | ❌ | ✅ Voice |
 | Reciters | 10 | 20+ | 5 |
 | Word-by-Word | ✅ | ✅ | ❌ |
-| Per-Word Highlighting | ✅ | ❌ | ❌ |
+| Audio Highlighting | ✅ Verse | ❌ | ❌ |
 | Heatmap | ✅ | ❌ | ❌ |
 | Price | Free | Free | $9.99/mo |
 
