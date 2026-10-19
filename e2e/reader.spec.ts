@@ -38,6 +38,28 @@ test.describe("Reader", () => {
     await expect(page.locator(".fixed.bottom-40")).toContainText(/known/i);
   });
 
+  test("known marking survives a reload", async ({ page }) => {
+    // The progress badge is server-fetched; other grading specs may already
+    // have marked verses, so assert on a known-count delta, not an absolute.
+    const badge = page.locator("header").getByText(/\d+\/\d+ known/);
+    let before = 0;
+    if (await badge.count()) {
+      before = Number((await badge.textContent())?.match(/(\d+)\/\d+/)?.[1] ?? 0);
+    }
+
+    const know = page.getByRole("button", { name: /already know .* skip the hifz process/i });
+    await expect(know).toBeVisible();
+    await know.click();
+    await expect(page.locator(".fixed.bottom-40")).toContainText(/known/i);
+
+    await page.reload();
+    await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
+    const refreshed = page.locator("header").getByText(/\d+\/\d+ known/);
+    await expect(refreshed).toBeVisible();
+    const after = Number((await refreshed.textContent())?.match(/(\d+)\/\d+/)?.[1] ?? 0);
+    expect(after).toBe(before + 1);
+  });
+
   test("toggles between word-by-word drill and full recitation", async ({ page }) => {
     // ModeButton labels itself with the mode it switches *to*, so the
     // accessible name flips with the current mode. Match either and assert the

@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ surah?: string; verse?: string; page?: string }>;
+  searchParams: Promise<{ surah?: string; verse?: string; page?: string; play?: string }>;
 };
 
 export default async function QuranPage(props: Props) {
@@ -82,12 +82,16 @@ export default async function QuranPage(props: Props) {
   if (!surah) notFound();
 
   const initialVerseKey = searchParams.verse ?? undefined;
+  // Set by the auto-advance flow: the previous surah finished playing and
+  // handed the baton to this one, which should start audio without a click.
+  const autoPlay = searchParams.play === "1";
 
   return (
     <QuranReader
       key={surahId}
       surah={surah}
       initialVerseKey={initialVerseKey}
+      autoPlay={autoPlay}
       availableSurahs={navItems}
     />
   );

@@ -60,6 +60,16 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // The blog reads content/blog/*.md through node:fs at request time (slugs
+  // outside generateStaticParams fall through to a dynamic render, and the
+  // sitemap lists them too). File tracing cannot see a readdirSync target, so
+  // the directory must be declared here or serverless deployments ship an
+  // empty blog.
+  outputFileTracingIncludes: {
+    "/blog": ["./content/blog/**"],
+    "/blog/[slug]": ["./content/blog/**"],
+    "/sitemap.xml": ["./content/blog/**"],
+  },
   serverExternalPackages: [
     "@prisma/client",
     "@prisma/adapter-better-sqlite3",

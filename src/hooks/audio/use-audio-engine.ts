@@ -14,6 +14,13 @@ interface UseAudioEngineOptions {
   onVerseChange?: () => void;
   availableSurahs?: { id: number }[];
   surahUrl?: (surahId: number) => string;
+  /**
+   * Called when the whole-surah MP3 finishes (surah-audio mode). Verse-clip
+   * playback never reaches this branch, so /reader keeps its verse-level
+   * continuous flow and surfaces like /quran advance the tutor's next surah
+   * instead.
+   */
+  onSurahEnd?: () => void;
 }
 
 export function useAudioEngine({
@@ -24,6 +31,7 @@ export function useAudioEngine({
   onVerseChange,
   availableSurahs = [],
   surahUrl = (id) => `/reader/${id}`,
+  onSurahEnd,
 }: UseAudioEngineOptions): AudioEngine {
   const engine = useMemo(() => new AudioEngine(), []);
 
@@ -33,11 +41,13 @@ export function useAudioEngine({
   const onVerseChangeRef = useRef(onVerseChange);
   const surahUrlRef = useRef(surahUrl);
   const availableSurahsRef = useRef(availableSurahs);
+  const onSurahEndRef = useRef(onSurahEnd);
 
   useEffect(() => {
     onVerseChangeRef.current = onVerseChange;
     surahUrlRef.current = surahUrl;
     availableSurahsRef.current = availableSurahs;
+    onSurahEndRef.current = onSurahEnd;
   });
 
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
@@ -49,6 +59,15 @@ export function useAudioEngine({
 
   useEffect(() => {
     engine.onEnd(() => {
+      // In surah-audio mode the engine just played the whole-surah MP3, so
+      // verse-clip continuous logic must not run against a ended surah file
+      // (it would "advance" to the next verse and leave the transport stuck).
+      // surahAudioMode lives in the deps below, so this read is never stale —
+      // the /quran route flips it on right after mount.
+      if (surahAudioMode) {
+        onSurahEndRef.current?.();
+        return;
+      }
       if (!continuousPlay || !hasAyahs || !selected) return;
       const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
       if (idx < 0) return;
@@ -69,7 +88,7 @@ export function useAudioEngine({
         }
       }
     });
-  }, [engine, continuousPlay, hasAyahs, selected, surah.ayahs, surah.id, selectAyah, resetRevealed]);
+  }, [engine, continuousPlay, surahAudioMode, hasAyahs, selected, surah.ayahs, surah.id, selectAyah, resetRevealed]);
 
   useEffect(() => {
     if (surahAudioMode && hasAyahs) {

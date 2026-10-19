@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import type { SurahBundle } from "@/types/quran";
@@ -19,10 +19,12 @@ import { LiveWordsContext } from "@/components/reader/live-words-context";
 interface QuranReaderProps {
   surah: SurahBundle;
   initialVerseKey?: string;
+  /** `?play=1` — the previous surah finished and handed playback here. */
+  autoPlay?: boolean;
   availableSurahs: { id: number; name_simple: string; ayah_count: number }[];
 }
 
-export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranReaderProps) {
+export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs }: QuranReaderProps) {
   const router = useRouter();
   const hasAyahs = surah.ayahs.length > 0;
   const selectAyah = useReaderStore((s) => s.selectAyah);
@@ -34,7 +36,26 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const surahUrl = useCallback((id: number) => `/quran?surah=${id}`, []);
-  const engine = useAudioEngine({ surah, selected, hasAyahs, availableSurahs, surahUrl });
+  const autoAdvance = useReaderStore((s) => s.autoAdvance);
+
+  // Fired when the whole-surah MP3 ends: hand playback to the next surah.
+  // The engine is remounted per surah (page keys on surahId), so the push
+  // always lands on a fresh engine that's sitting idle.
+  const handleSurahEnd = useCallback(() => {
+    if (!autoAdvance) return;
+    const idx = availableSurahs.findIndex((s) => s.id === surah.id);
+    if (idx < 0 || idx >= availableSurahs.length - 1) return;
+    router.push(`/quran?surah=${availableSurahs[idx + 1].id}&play=1`);
+  }, [autoAdvance, availableSurahs, surah.id, router]);
+
+  const engine = useAudioEngine({
+    surah,
+    selected,
+    hasAyahs,
+    availableSurahs,
+    surahUrl,
+    onSurahEnd: handleSurahEnd,
+  });
   useAudioSettings(engine);
   const { loading: audioLoading } = useSurahAudio({
     engine,
@@ -44,6 +65,22 @@ export function QuranReader({ surah, initialVerseKey, availableSurahs }: QuranRe
     reciterId,
     effectiveAudioUrl: effectiveSelected.audio_url,
   });
+
+  // Autoplay pass-through: engine.play() while the surah file is still
+  // loading parks playback into pendingPlay until the Howl fires its load
+  // event, so starting before the audio is ready is safe. Gated on
+  // surahAudioMode so the first render's verse-clip load (the mode is forced
+  // on by the route override effect one commit later) cannot consume the
+  // pending play before the whole-surah file is on its way. Consumed once —
+  // later engine loads (reciter switch) may not re-trigger it.
+  const autoPlayConsumed = useRef(false);
+  useEffect(() => {
+    if (!autoPlay || autoPlayConsumed.current || !surahAudioMode || !hasAyahs || audioLoading) {
+      return;
+    }
+    autoPlayConsumed.current = true;
+    engine.play();
+  }, [autoPlay, autoPlayConsumed, surahAudioMode, hasAyahs, audioLoading, engine]);
 
   useEffect(() => {
     if (!hasAyahs) return;

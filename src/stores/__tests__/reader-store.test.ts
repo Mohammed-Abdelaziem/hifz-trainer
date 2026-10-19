@@ -38,6 +38,51 @@ describe("reader-store — verse translation toggle", () => {
   });
 });
 
+describe("reader-store — auto-advance toggle", () => {
+  beforeEach(() => {
+    useReaderStore.setState({ autoAdvance: true }, false);
+  });
+
+  it("defaults to on so continuous listening keeps moving", () => {
+    expect(useReaderStore.getState().autoAdvance).toBe(true);
+  });
+
+  it("round-trips on and off", () => {
+    useReaderStore.getState().setAutoAdvance(false);
+    expect(useReaderStore.getState().autoAdvance).toBe(false);
+    useReaderStore.getState().setAutoAdvance(true);
+    expect(useReaderStore.getState().autoAdvance).toBe(true);
+  });
+
+  it("rehydrates a persisted false over an in-memory true", async () => {
+    useReaderStore.setState({ autoAdvance: true }, false);
+    localStorage.setItem(
+      "reader-settings",
+      JSON.stringify({
+        state: { ...DEFAULT_STUB, autoAdvance: false },
+        version: 0,
+      })
+    );
+
+    await useReaderStore.persist.rehydrate();
+    expect(useReaderStore.getState().autoAdvance).toBe(false);
+  });
+
+  it("drops junk persisted values back to the in-memory default", async () => {
+    useReaderStore.setState({ autoAdvance: true }, false);
+    localStorage.setItem(
+      "reader-settings",
+      JSON.stringify({
+        state: { ...DEFAULT_STUB, autoAdvance: "nope" },
+        version: 0,
+      })
+    );
+
+    await useReaderStore.persist.rehydrate();
+    expect(useReaderStore.getState().autoAdvance).toBe(true);
+  });
+});
+
 const DEFAULT_STUB = {
   maskMode: "HIDDEN",
   blurScope: "word",
