@@ -7,6 +7,7 @@ import type {
 } from "@/types/srs";
 import type { SurahProgress } from "@/types/srs";
 import { getDb } from "@/lib/db";
+import { isVerseKey } from "@/lib/quran/verse-key";
 import { DAY_MS, DEFAULT_RETENTION } from "@/lib/constants";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 import {
@@ -57,7 +58,7 @@ function computeStreak(
   };
 }
 
-export interface ReviewResult {
+interface ReviewResult {
   verseKey: string;
   scheduler: SchedulerKind;
   state: MemoryState;
@@ -251,9 +252,7 @@ export async function addToSabaq(params: {
 
   // Only verses that exist can be added, and the shape is validated here as
   // well as at the route edge.
-  const keys = [...new Set(params.verseKeys)].filter(
-    (k) => /^\d{1,3}:\d{1,3}$/.test(k)
-  );
+  const keys = [...new Set(params.verseKeys)].filter((k) => isVerseKey(k));
   if (keys.length === 0) return { added: 0, invalid: 0, duplicate: 0 };
 
   const existingVerses = await db.verse.findMany({
@@ -292,7 +291,7 @@ export async function addToSabaq(params: {
   return { added: toAdd.length, invalid, duplicate: valid.length - toAdd.length };
 }
 
-export interface KnownMarkResult {
+interface KnownMarkResult {
   /** Rows transitioned into (known=true) or out of (known=false) KNOWN. */
   changed: number;
   /** New tracking rows created by known=true for verses never tracked before. */
@@ -327,9 +326,7 @@ export async function markKnown(params: {
   const db = await getDb();
   const now = new Date();
 
-  const keys = [...new Set(params.verseKeys)].filter(
-    (k) => /^\d{1,3}:\d{1,3}$/.test(k)
-  );
+  const keys = [...new Set(params.verseKeys)].filter((k) => isVerseKey(k));
   const empty: KnownMarkResult = {
     changed: 0,
     created: 0,

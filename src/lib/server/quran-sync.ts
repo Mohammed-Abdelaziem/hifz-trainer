@@ -7,7 +7,7 @@ const TOTAL_PAGES = 604;
 const CONCURRENCY = 12;
 const UPSERT_CHUNK = 300;
 
-export interface SyncReport {
+interface SyncReport {
   ok: boolean;
   surahs: number;
   verses: number;
@@ -181,7 +181,7 @@ export async function syncFullQuran(): Promise<SyncReport> {
   }
 }
 
-export interface SyncStatus {
+interface SyncStatus {
   synced: boolean;
   surahs: number;
   verses: number;

@@ -6,7 +6,7 @@ import { fetchVerseTimings } from "@/lib/audio/full-surah";
 import type { Ayah, SurahBundle } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 
-export interface UseAudioEngineOptions {
+interface UseAudioEngineOptions {
   surah: SurahBundle;
   selected: Ayah | null;
   hasAyahs: boolean;

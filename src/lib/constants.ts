@@ -30,7 +30,6 @@ export const QURAN_API_BASE = "https://api.quran.com/api/v4";
 export const VERSES_CDN = "https://verses.quran.com/";
 
 // API timeouts (ms)
-export const API_TIMEOUT_SHORT_MS = 2500;
 export const API_TIMEOUT_MEDIUM_MS = 12_000;
 export const API_TIMEOUT_LONG_MS = 20_000;
 

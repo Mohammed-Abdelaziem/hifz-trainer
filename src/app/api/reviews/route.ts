@@ -1,6 +1,7 @@
 import { GRADES, type Grade } from "@/types/quran";
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReview } from "@/lib/server/hifz-service";
+import { isVerseKey } from "@/lib/quran/verse-key";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
 
   const { verseKey, grade, durationMs } = body;
 
-  if (typeof verseKey !== "string" || !/^\d{1,3}:\d{1,3}$/.test(verseKey)) {
+  if (!isVerseKey(verseKey)) {
     return Response.json({ error: "verseKey must match 'surah:ayah'" }, { status: 400 });
   }
   if (typeof grade !== "string" || !GRADES.includes(grade as Grade)) {

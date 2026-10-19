@@ -138,54 +138,6 @@ export async function signOutAction(): Promise<void> {
   redirect("/login");
 }
 
-export interface PasswordChangeState {
-  error?: string;
-  success?: boolean;
-}
-
-export async function changePasswordAction(
-  _prev: PasswordChangeState,
-  formData: FormData
-): Promise<PasswordChangeState> {
-  const oldPassword = formData.get("oldPassword");
-  const newPassword = formData.get("newPassword");
-  const confirmPassword = formData.get("confirmPassword");
-
-  if (typeof oldPassword !== "string" || typeof newPassword !== "string" || typeof confirmPassword !== "string") {
-    return { error: "All fields are required." };
-  }
-
-  if (newPassword !== confirmPassword) {
-    return { error: "New passwords do not match." };
-  }
-
-  if (!isStrongPassword(newPassword)) {
-    return { error: PASSWORD_RULES_MESSAGE };
-  }
-
-  const { getSessionUser } = await import("@/lib/server/auth");
-  const user = await getSessionUser();
-  if (!user) return { error: "You must be signed in." };
-
-  const db = await getDbWithTest();
-  const fullUser = await db.user.findUnique({ where: { id: user.id } });
-  if (!fullUser?.passwordHash) return { error: "No password set for this account." };
-
-  if (!(await verifyPassword(oldPassword, fullUser.passwordHash))) {
-    return { error: "Current password is incorrect." };
-  }
-
-  const passwordHash = await hashPassword(newPassword);
-  await db.user.update({
-    where: { id: user.id },
-    data: { passwordHash, lastPasswordChangedAt: new Date() },
-  });
-  await revokeAllSessions(user.id);
-  await createSession(user.id);
-
-  return { success: true };
-}
-
 export async function googleSignInAction(): Promise<void> {
   const state = await createOAuthState();
   const url = getGoogleAuthUrl(state);

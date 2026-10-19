@@ -14,7 +14,7 @@ interface SurahNavItem {
 const MIN_SURAH = 1;
 const MAX_SURAH = 114;
 
-export function isValidSurahId(surahId: number): boolean {
+function isValidSurahId(surahId: number): boolean {
   return Number.isInteger(surahId) && surahId >= MIN_SURAH && surahId <= MAX_SURAH;
 }
 

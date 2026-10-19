@@ -3,7 +3,7 @@
 import { createContext, useContext } from "react";
 import type { QuranWord } from "@/types/quran";
 
-export interface LiveWords {
+interface LiveWords {
   verseKey: string;
   words: QuranWord[];
 }

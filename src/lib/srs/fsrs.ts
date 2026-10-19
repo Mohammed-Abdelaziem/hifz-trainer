@@ -33,7 +33,7 @@ function getEngine(requestRetention: number) {
   return engine;
 }
 
-export const GRADE_TO_RATING: Record<Grade, FsrsRating> = {
+const GRADE_TO_RATING: Record<Grade, FsrsRating> = {
   AGAIN: Rating.Again,
   HARD: Rating.Hard,
   GOOD: Rating.Good,
@@ -54,7 +54,7 @@ export const EMPTY_FSRS_INPUT: FsrsInput = {
   lapses: 0,
 };
 
-export interface FsrsOutcome {
+interface FsrsOutcome {
   intervalDays: number;
   dueDate: Date;
   difficulty: number;

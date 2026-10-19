@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReview } from "@/lib/server/hifz-service";
+import { isVerseKey } from "@/lib/quran/verse-key";
 import { getDb } from "@/lib/db";
 
 const VALID_GRADES = ["AGAIN", "HARD", "GOOD", "EASY"];
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     for (const review of body.reviews) {
       if (!review.verseKey || !review.grade) continue;
       if (!VALID_GRADES.includes(review.grade)) continue;
-      if (!/^\d{1,3}:\d{1,3}$/.test(review.verseKey)) continue;
+      if (!isVerseKey(review.verseKey)) continue;
 
       if (!knownKeys.has(review.verseKey)) {
         results.push({ verseKey: review.verseKey, ok: false, error: `Unknown verse ${review.verseKey}` });
