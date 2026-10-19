@@ -8,7 +8,7 @@ export const GRADE_QUALITY: Record<Grade, number> = {
   EASY: 5,
 };
 
-export const MIN_EASE_FACTOR = 1.3;
+const MIN_EASE_FACTOR = 1.3;
 export const MAX_INTERVAL_DAYS = 365;
 export const MANZIL_PROMOTION_DAYS = 21;
 
@@ -19,7 +19,7 @@ export interface Sm2Input {
   state: MemoryState;
 }
 
-export interface Sm2Outcome extends Sm2Input {
+interface Sm2Outcome extends Sm2Input {
   dueDate: Date;
 }
 

@@ -7,7 +7,7 @@ import { Prisma } from "../../../generated/prisma";
 
 const TAFSIR_RESOURCE_ID = 169;
 
-export interface AyahData {
+interface AyahData {
   verseKey: string;
   words: QuranWord[];
   recitationUrl: string | null;
@@ -194,7 +194,7 @@ async function enrichAyahData(verseKey: string, reciterId: number): Promise<Ayah
   return result;
 }
 
-export interface BulkWarmReport {
+interface BulkWarmReport {
   processed: number;
   enriched: number;
   failed: number;

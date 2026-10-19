@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { recordReading } from "@/lib/server/hifz-service";
+import { isVerseKey } from "@/lib/quran/verse-key";
 import { getDb } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
 
   const { verseKey, durationMs } = body;
 
-  if (typeof verseKey !== "string" || !/^\d{1,3}:\d{1,3}$/.test(verseKey)) {
+  if (!isVerseKey(verseKey)) {
     return Response.json({ error: "verseKey must match 'surah:ayah'" }, { status: 400 });
   }
 

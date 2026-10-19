@@ -1,5 +1,6 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { markKnown } from "@/lib/server/hifz-service";
+import { isVerseKey } from "@/lib/quran/verse-key";
 import { KNOWN_RANGE_MAX, MAX_AYAH_COUNT } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
@@ -32,9 +33,7 @@ export async function POST(req: Request) {
     let verseKeys: string[] = [];
 
     if (Array.isArray(body.verseKeys)) {
-      verseKeys = body.verseKeys.filter(
-        (k): k is string => typeof k === "string" && /^\d{1,3}:\d{1,3}$/.test(k)
-      );
+      verseKeys = body.verseKeys.filter((k) => isVerseKey(k));
     } else if (body.surahId !== undefined) {
       const surahId = Number(body.surahId);
       const fromAyah = Number(body.fromAyah ?? 1);

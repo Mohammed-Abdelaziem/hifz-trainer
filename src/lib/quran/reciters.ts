@@ -1,4 +1,4 @@
-export interface ReciterOption {
+interface ReciterOption {
   id: number;
   name: string;
   /** mp3quran.net folder for full-surah audio, trailing slash included. */

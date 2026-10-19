@@ -9,7 +9,7 @@ export function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && (THEMES as readonly string[]).includes(value);
 }
 
-export type ResolvedTheme = "light" | "dark";
+type ResolvedTheme = "light" | "dark";
 
 /** "light"/"dark" follow the stored choice; "system" defers to the OS. */
 export function resolveTheme(theme: Theme, systemPrefersDark: boolean): ResolvedTheme {

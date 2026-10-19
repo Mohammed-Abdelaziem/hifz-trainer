@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { KNOWN_RANGE_MAX, SABAQ_BATCH_MAX } from "@/lib/constants";
 
-export interface IntakeSurah {
+interface IntakeSurah {
   id: number;
   name_simple: string;
   ayah_count: number;

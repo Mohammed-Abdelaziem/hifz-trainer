@@ -1,4 +1,4 @@
-export interface FetchJsonOptions {
+interface FetchJsonOptions {
   timeout?: number;
   retries?: number;
   backoffMs?: number;

@@ -11,7 +11,7 @@ const scryptAsync = promisify(scryptCb) as (
   options: { N: number; r: number; p: number; maxmem: number }
 ) => Promise<Buffer>;
 
-export const SESSION_COOKIE = "hifz_session";
+const SESSION_COOKIE = "hifz_session";
 const SESSION_TTL_DAYS = 30;
 const KEY_LEN = 64;
 // maxmem must be stated explicitly: OpenSSL's 32MB default is below what

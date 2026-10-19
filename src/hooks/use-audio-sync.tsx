@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useSyncExterna
 import type { AudioEngine } from "@/lib/audio/engine";
 import { useReaderStore } from "@/stores/reader-store";
 
-export interface PlaybackSnapshot {
+interface PlaybackSnapshot {
   positionMs: number;
   activeIndex: number;
   playing: boolean;

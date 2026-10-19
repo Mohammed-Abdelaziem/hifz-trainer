@@ -6,7 +6,7 @@ import type { VerseTiming } from "@/lib/audio/full-surah";
 import { getSurahAudioUrl, fetchVerseTimings } from "@/lib/audio/full-surah";
 import type { SurahBundle } from "@/types/quran";
 
-export interface UseSurahAudioOptions {
+interface UseSurahAudioOptions {
   engine: AudioEngine;
   surah: SurahBundle;
   hasAyahs: boolean;
@@ -16,7 +16,7 @@ export interface UseSurahAudioOptions {
   effectiveAudioUrl: string;
 }
 
-export interface UseSurahAudioResult {
+interface UseSurahAudioResult {
   verseTimings: VerseTiming[];
   loading: boolean;
 }
