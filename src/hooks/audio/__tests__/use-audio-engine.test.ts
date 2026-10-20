@@ -6,6 +6,7 @@ const mockEngineInstance = {
   onVerseChange: vi.fn(),
   setSurahTimings: vi.fn(),
   clearSurahTimings: vi.fn(),
+  setRepeat: vi.fn(),
   load: vi.fn(() => Promise.resolve()),
   play: vi.fn(),
   pause: vi.fn(),
@@ -37,6 +38,7 @@ const storeState: Record<string, unknown> = {
   continuousPlay: true,
   surahAudioMode: false,
   reciterId: 7,
+  repeatTotal: 0,
   speed: 1,
   volume: 1,
 };

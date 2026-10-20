@@ -8,6 +8,7 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { SwRegister } from "@/components/pwa/SwRegister";
 import { OnboardingTour } from "@/components/onboarding/OnboardingTour";
 import { GuestProvider } from "@/components/auth/GuestContext";
+import { GuestUpgradePrompt } from "@/components/auth/GuestUpgradePrompt";
 import { getSessionUser } from "@/lib/server/auth";
 import { SITE_URL } from "@/lib/server/site-url";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -138,6 +139,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
                   HTML of pages the service worker caches for reuse across
                   visitors, so identity is hydrated client-side via /api/session. */}
               <SiteHeader isGuest={isGuest} />
+              <div className="mx-auto w-full max-w-5xl px-4">
+                <GuestUpgradePrompt />
+              </div>
               <main className="flex flex-1 flex-col pb-16 md:pb-0">{children}</main>
               <MobileNav />
               <SwRegister />

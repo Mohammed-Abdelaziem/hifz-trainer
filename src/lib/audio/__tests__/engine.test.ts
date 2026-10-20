@@ -734,4 +734,108 @@ describe("AudioEngine", () => {
       expect(engine.getMode()).toBe("howler");
     });
   });
+
+  describe("repeat", () => {
+    function endListenerCounts(howl: { _listeners: Record<string, Array<() => void>> }) {
+      return howl._listeners["end"]?.length ?? 0;
+    }
+
+    it("defaults to no repeat: end still unloads and fires callback", async () => {
+      const engine = new AudioEngine();
+      const cb = vi.fn();
+      engine.onEnd(cb);
+      await engine.load("https://example.com/a.mp3");
+      getLastHowl().fireLoad();
+      getLastHowl().fireEnd();
+      await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+      expect(engine.getMode()).toBe("idle");
+    });
+
+    it("replays the same Howl until the budget is exhausted", async () => {
+      const engine = new AudioEngine();
+      const cb = vi.fn();
+      engine.onEnd(cb);
+      engine.setRepeat(2);
+      await engine.load("https://example.com/a.mp3");
+      const howl = getLastHowl();
+      howl.fireLoad();
+      howl.play();
+
+      howl.fireEnd();
+      expect(howl._seekPos).toBe(0);
+      expect(howl._playing).toBe(true);
+      expect(howl._unloaded).toBe(false);
+      expect(cb).not.toHaveBeenCalled();
+
+      howl.fireEnd();
+      expect(howl._playing).toBe(true);
+      expect(howl._unloaded).toBe(false);
+      expect(cb).not.toHaveBeenCalled();
+
+      howl.fireEnd();
+      await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+      expect(howl._unloaded).toBe(true);
+      expect(engine.getMode()).toBe("idle");
+    });
+
+    it("loops forever on -1 and never fires the end callback", async () => {
+      const engine = new AudioEngine();
+      const cb = vi.fn();
+      engine.onEnd(cb);
+      engine.setRepeat(-1);
+      await engine.load("https://example.com/a.mp3");
+      const howl = getLastHowl();
+      howl.fireLoad();
+      for (let i = 0; i < 6; i += 1) howl.fireEnd();
+      expect(endListenerCounts(howl)).toBeGreaterThan(0);
+      expect(cb).not.toHaveBeenCalled();
+      // Seeking back to the start each rep keeps the transport usable.
+      expect(howl._seekPos).toBe(0);
+    });
+
+    it("ignores junk totals", async () => {
+      const engine = new AudioEngine();
+      engine.setRepeat(Number.NaN);
+      await engine.load("https://example.com/a.mp3");
+      getLastHowl().fireLoad();
+      const howl = getLastHowl();
+      howl.fireEnd();
+      await vi.waitFor(() => expect(engine.getMode()).toBe("idle"));
+    });
+
+    it("a new load resets the leftover budget", async () => {
+      const engine = new AudioEngine();
+      const cb = vi.fn();
+      engine.onEnd(cb);
+      engine.setRepeat(3);
+      await engine.load("https://example.com/a.mp3");
+      const howl = getLastHowl();
+      howl.fireLoad();
+      howl.fireEnd();
+      howl.fireEnd();
+      // Switch tracks mid-run: the new URL gets a full budget again.
+      await engine.load("https://example.com/b.mp3");
+      const next = getLastHowl();
+      next.fireLoad();
+      next.fireEnd();
+      next.fireEnd();
+      next.fireEnd();
+      expect(cb).not.toHaveBeenCalled();
+      next.fireEnd();
+      await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+    });
+
+    it("resolves the clip promise on the first end even while repeating", async () => {
+      const engine = new AudioEngine();
+      engine.setRepeat(3);
+      const promise = engine.playClip("https://example.com/clip.mp3");
+      await vi.waitFor(() => {
+        getLastHowl().fireLoad();
+        getLastHowl().fireEnd();
+      });
+      // Study UI unblocks after the first listen, audio keeps looping.
+      await expect(promise).resolves.toBeUndefined();
+      expect(getLastHowl()._playing).toBe(true);
+    });
+  });
 });

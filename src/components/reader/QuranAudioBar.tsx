@@ -25,6 +25,8 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { su
   const setReciterId = useReaderStore((s) => s.setReciterId);
   const autoAdvance = useReaderStore((s) => s.autoAdvance);
   const setAutoAdvance = useReaderStore((s) => s.setAutoAdvance);
+  const repeatTotal = useReaderStore((s) => s.repeatTotal);
+  const setRepeatTotal = useReaderStore((s) => s.setRepeatTotal);
 
   useEffect(() => {
     engine.setRate(speed);
@@ -116,6 +118,19 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { su
         />
         Auto-advance
       </label>
+
+      <Select
+        value={String(repeatTotal)}
+        onChange={(e) => setRepeatTotal(Number(e.target.value))}
+        aria-label="Repeat"
+        className="max-w-[82px] shrink-0"
+        options={[
+          { value: "0", label: "Repeat off" },
+          { value: "3", label: "Repeat ×3" },
+          { value: "5", label: "Repeat ×5" },
+          { value: "-1", label: "Repeat loop" },
+        ]}
+      />
 
       <Select
         value={String(reciterId)}

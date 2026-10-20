@@ -11,6 +11,11 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { RETENTION_PERCENT_MAX, RETENTION_PERCENT_MIN } from "@/lib/constants";
 import { GoalRing, StreakCard } from "./StatsCards";
+import { PacePlannerCard } from "./PacePlannerCard";
+import {
+  useRemindersSetting,
+  useDueReviewNotification,
+} from "@/hooks/use-review-reminders";
 import { TaskQueueTabs } from "./TaskQueueTabs";
 import { SyncButton } from "./SyncButton";
 import { SabaqIntake } from "./SabaqIntake";
@@ -122,6 +127,15 @@ export function DashboardView({
   const { data: queue, isLoading, isError } = useQueue(isGuest);
   const fullCorpus = availableSurahs.length >= 114;
 
+  // Due-review reminder: one browser notification per UTC day when the
+  // dashboard is open. The 60s refetch tick also covers long-lived tabs.
+  const reminders = useRemindersSetting();
+  const dueCount =
+    queue && !isGuest
+      ? queue.sabaq.length + queue.sabqi.length + queue.manzil.length
+      : 0;
+  useDueReviewNotification(!isGuest && reminders.enabled, dueCount);
+
   return (
     <div className="mx-auto max-w-5xl flex-1 px-4 py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -179,6 +193,12 @@ export function DashboardView({
             <GoalRing streak={queue.streak} />
             <StreakCard streak={queue.streak} />
           </div>
+
+          {!isGuest && (
+            <div className="mb-4">
+              <PacePlannerCard />
+            </div>
+          )}
 
           {queue.streak.todayRead > 0 && (
             <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-800 dark:bg-sky-950/20">
