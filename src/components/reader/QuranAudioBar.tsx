@@ -23,6 +23,8 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { su
   const setVolume = useReaderStore((s) => s.setVolume);
   const reciterId = useReaderStore((s) => s.reciterId);
   const setReciterId = useReaderStore((s) => s.setReciterId);
+  const autoAdvance = useReaderStore((s) => s.autoAdvance);
+  const setAutoAdvance = useReaderStore((s) => s.setAutoAdvance);
 
   useEffect(() => {
     engine.setRate(speed);
@@ -104,6 +106,16 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { su
           aria-label="Speed"
         />
       </div>
+
+      <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-stone-500 dark:text-stone-400">
+        <input
+          type="checkbox"
+          checked={autoAdvance}
+          onChange={(e) => setAutoAdvance(e.target.checked)}
+          className="accent-amber-600"
+        />
+        Auto-advance
+      </label>
 
       <Select
         value={String(reciterId)}

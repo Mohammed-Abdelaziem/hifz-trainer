@@ -38,6 +38,49 @@ test.describe("Reader", () => {
     await expect(page.locator(".fixed.bottom-40")).toContainText(/known/i);
   });
 
+  test("known marking survives a reload", async ({ page }) => {
+    // Pick a surah no other spec grades and de-duplicate it first: the API
+    // unmark path deletes only KNOWN rows, so re-running this test (suite
+    // retries, local runs against a kept DB) always starts from a stable
+    // baseline instead of a duplicate-know no-op.
+    const unmark = await page.request.post("/api/memory-state", {
+      data: { verseKeys: ["112:1"], known: false },
+      // play-wright APIRequestContext is not a browser fetch: neither
+      // Sec-Fetch-Site nor Origin is attached, and proxy.ts fails closed on
+      // mutating verbs without one.
+      headers: { "sec-fetch-site": "same-origin" },
+    });
+    expect(
+      unmark.ok(),
+      `unmark ${unmark.status()} — ${(await unmark.text()).slice(0, 200)}`
+    ).toBe(true);
+
+    await page.goto("/reader/112");
+    await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
+
+    // The progress badge is server-fetched; count the known verses as they
+    // stand after the unmark.
+    const badge = page.locator("header").getByText(/\d+\/\d+ known/);
+    let before = 0;
+    if (await badge.count()) {
+      before = Number((await badge.textContent())?.match(/(\d+)\/\d+/)?.[1] ?? 0);
+    }
+
+    const know = page.getByRole("button", { name: /already know .* skip the hifz process/i });
+    await expect(know).toBeVisible();
+    await know.click();
+    // Only the success flash names the verse with a guarantee tick; a
+    // duplicate-mark or a server failure would say something else.
+    await expect(page.locator(".fixed.bottom-40")).toContainText(/Known ✓/);
+
+    await page.reload();
+    await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
+    const refreshed = page.locator("header").getByText(/\d+\/\d+ known/);
+    await expect(refreshed).toBeVisible();
+    const after = Number((await refreshed.textContent())?.match(/(\d+)\/\d+/)?.[1] ?? 0);
+    expect(after).toBe(before + 1);
+  });
+
   test("toggles between word-by-word drill and full recitation", async ({ page }) => {
     // ModeButton labels itself with the mode it switches *to*, so the
     // accessible name flips with the current mode. Match either and assert the

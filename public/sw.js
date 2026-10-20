@@ -47,6 +47,17 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+// Test hook for the offline-sync e2e: bundled headless shells have Background
+// Sync permanently disabled, so the suite cannot wait for a sync event. The
+// drain itself (syncPendingReviews) is identical to the one the "sync"
+// handler runs — post FORCE_SYNC from the page to exercise the same
+// queue → POST → markSynced → SYNC_* messages path.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "FORCE_SYNC") {
+    event.waitUntil(syncPendingReviews());
+  }
+});
+
 function isStaticAsset(url) {
   return (
     url.pathname.startsWith("/_next/static/") ||
@@ -150,9 +161,15 @@ function getPendingReviews() {
       const db = request.result;
       const tx = db.transaction("review-queue", "readonly");
       const store = tx.objectStore("review-queue");
-      const index = store.index("synced");
-      const req = index.getAll(IDBKeyRange.only(false));
-      req.onsuccess = () => resolve(req.result);
+      // Store-level scan rather than the "synced" index: boolean values are
+      // not valid IndexedDB keys, so IDBKeyRange.only(false) on that index
+      // threw DataError inside onsuccess and left this promise pending
+      // forever — the sync event then retried for eternity and no offline
+      // grade ever reached the server. The app copy
+      // (src/lib/offline/review-queue.ts) mirrors this fix.
+      const req = store.getAll();
+      req.onsuccess = () =>
+        resolve(req.result.filter((item) => item && item.synced === false));
       req.onerror = () => reject(req.error);
     };
   });

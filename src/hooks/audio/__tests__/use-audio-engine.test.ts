@@ -249,6 +249,80 @@ describe("useAudioEngine", () => {
     expect(assignSpy).not.toHaveBeenCalled();
   });
 
+  it("invokes onSurahEnd instead of verse advancing in surah-audio mode", () => {
+    storeState.surahAudioMode = true;
+    const surah = makeSurah(3);
+    const onSurahEnd = vi.fn();
+
+    renderHook(() =>
+      useAudioEngine({
+        surah,
+        selected: surah.ayahs[0],
+        hasAyahs: true,
+        enableKeyboard: false,
+        onSurahEnd,
+      })
+    );
+
+    const endCb = mockEngineInstance.onEnd.mock.calls[0][0];
+    endCb();
+
+    expect(onSurahEnd).toHaveBeenCalledTimes(1);
+    // The whole-surah file just ended "advancing" the selection would leave
+    // the transport pointing at a verse clip nobody asked for.
+    expect(mockSelectAyah).not.toHaveBeenCalled();
+    expect(mockEngineInstance.play).not.toHaveBeenCalled();
+  });
+
+  it("reads the freshest onSurahEnd without re-registering", () => {
+    storeState.surahAudioMode = true;
+    const surah = makeSurah(3);
+    const first = vi.fn();
+    const second = vi.fn();
+
+    const { rerender } = renderHook(
+      ({ cb }: { cb: () => void }) =>
+        useAudioEngine({
+          surah,
+          selected: surah.ayahs[0],
+          hasAyahs: true,
+          enableKeyboard: false,
+          onSurahEnd: cb,
+        }),
+      { initialProps: { cb: first } }
+    );
+
+    expect(mockEngineInstance.onEnd).toHaveBeenCalledTimes(1);
+    const endCb = mockEngineInstance.onEnd.mock.calls[0][0];
+    endCb();
+    expect(first).toHaveBeenCalledTimes(1);
+
+    rerender({ cb: second });
+    endCb();
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(mockEngineInstance.onEnd).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing on surah end when no onSurahEnd was given", () => {
+    storeState.surahAudioMode = true;
+    const surah = makeSurah(3);
+
+    renderHook(() =>
+      useAudioEngine({
+        surah,
+        selected: surah.ayahs[0],
+        hasAyahs: true,
+        enableKeyboard: false,
+      })
+    );
+
+    const endCb = mockEngineInstance.onEnd.mock.calls[0][0];
+    expect(() => endCb()).not.toThrow();
+    expect(mockSelectAyah).not.toHaveBeenCalled();
+    expect(mockResetRevealed).not.toHaveBeenCalled();
+  });
+
   describe("effect stability", () => {
     it("does not refetch verse timings when inline callbacks change identity", async () => {
       storeState.surahAudioMode = true;

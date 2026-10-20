@@ -56,19 +56,52 @@ function hash(password) {
   });
 }
 
-// Al-Fatiha, enough for the reader specs to open a surah and rate a verse.
-// Reviews carry a foreign key to Verse, so rating anything in a database with
-// no corpus rows fails with ForeignKeyConstraintViolation and the reader shows
-// "Server error - review queued" instead of the grade.
+// Al-Fatiha + Al-Ikhlas, enough for the reader specs to open a surah and rate
+// or mark a verse. Reviews and memory-states carry a foreign key to Verse, so
+// anything in a database with no corpus rows fails with
+// ForeignKeyConstraintViolation and the reader shows
+// "Server error - review queued" instead of the grade. markKnown additionally
+// refuses to create untracked rows for verse keys the corpus does not know:
+// without 112:1-112:4, the known-persist spec would see no badge after a
+// reload even though the click flashed optimistically.
 const SEED_VERSES = [
   ["1:1", "بِسْمِ ٱللَّهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ", "In the name of Allah, the Entirely Merciful, the Especially Merciful."],
   ["1:2", "ٱلْحَمْدُ لِلَّهِ رَبِّ ٱلْعَٰلَمِينَ", "[All] praise is [due] to Allah, Lord of the worlds -"],
   ["1:3", "ٱلرَّحْمَٰنِ ٱلرَّحِيمِ", "The Entirely Merciful, the Especially Merciful,"],
   ["1:4", "مَٰلِكِ يَوْمِ ٱلدِّينِ", "Sovereign of the Day of Recompense."],
   ["1:5", "إِيَّاكَ نَعْبُدُ وَإِيَّاكَ نَسْتَعِينُ", "It is You we worship and You we ask for help."],
-  ["1:6", "ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمَ", "Guide us to the straight path -"],
+  ["1:6", "ٱهْدِنَا ٱلصِّرَٰطَ ٱلْمُسْتَقِيمِ", "Guide us to the straight path -"],
   ["1:7", "صِرَٰطَ ٱلَّذِينَ أَنْعَمْتَ عَلَيْهِمْ غَيْرِ ٱلْمَغْضُوبِ عَلَيْهِمْ وَلَا ٱلضَّآلِّينَ", "The path of those upon whom You have bestowed favor, not of those who have evoked [Your] anger or of those who are astray."],
+  ["112:1", "قُلْ هُوَ ٱللَّهُ أَحَدٌ", "Say, 'He is Allah, [who is] One,'"],
+  ["112:2", "ٱللَّهُ ٱلصَّمَدُ", "Allah, the Eternal Refuge."],
+  ["112:3", "لَمْ يَلِدْ وَلَمْ يُولَدْ", "He neither begets nor is born,"],
+  ["112:4", "وَلَمْ يَكُن لَّهُۥ كُفُوًا أَحَدٌ", "Nor is there to Him any equivalent."],
 ];
+
+// verseKey -> ayahCount drives the "n/m known" header badge the reader spec
+// reads, so keep these consistent with the seeded verse lists above.
+const SEED_SURAHS = new Map([
+  [
+    1,
+    {
+      nameArabic: "الفاتحة",
+      nameSimple: "Al-Fatihah",
+      englishName: "The Opening",
+      revelationPlace: "makkah",
+      ayahCount: 7,
+    },
+  ],
+  [
+    112,
+    {
+      nameArabic: "الإخلاص",
+      nameSimple: "Al-Ikhlas",
+      englishName: "Sincerity",
+      revelationPlace: "makkah",
+      ayahCount: 4,
+    },
+  ],
+]);
 
 function verseKeyToParts(verseKey) {
   const [surahId, ayahNumber] = verseKey.split(":").map(Number);
@@ -76,16 +109,11 @@ function verseKeyToParts(verseKey) {
 }
 
 // Verses now reference Surah.id with ON DELETE RESTRICT, so the seeded
-// surah row must exist before any verse can be inserted.
-async function seedSurah() {
-  const data = {
-    nameArabic: "الفاتحة",
-    nameSimple: "Al-Fatihah",
-    englishName: "The Opening",
-    revelationPlace: "makkah",
-    ayahCount: 7,
-  };
-  await db.surah.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
+// surah rows must exist before any verse can be inserted.
+async function seedSurahs() {
+  for (const [id, data] of SEED_SURAHS) {
+    await db.surah.upsert({ where: { id }, create: { id, ...data }, update: data });
+  }
 }
 
 async function seedVerses() {
@@ -115,7 +143,7 @@ try {
       update: { passwordHash, lastPasswordChangedAt: new Date() },
     });
     await db.session.deleteMany({ where: { userId: user.id } });
-    await seedSurah();
+    await seedSurahs();
     await seedVerses();
     console.log("SETUP OK", user.id, SEED_VERSES.length, "verses");
   } else {

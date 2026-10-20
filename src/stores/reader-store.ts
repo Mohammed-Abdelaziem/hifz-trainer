@@ -27,6 +27,7 @@ interface ReaderSettings {
   reciterId: number;
   continuousPlay: boolean;
   surahAudioMode: boolean;
+  autoAdvance: boolean;
 }
 
 interface ReaderSessionState {
@@ -52,6 +53,7 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setReciterId: (id: number) => void;
   setContinuousPlay: (on: boolean) => void;
   setSurahAudioMode: (on: boolean) => void;
+  setAutoAdvance: (on: boolean) => void;
   selectAyah: (verseKey: string) => void;
   revealWord: (wordId: string) => void;
   revealAll: (wordIds: string[]) => void;
@@ -77,6 +79,7 @@ const DEFAULT_SETTINGS = {
   reciterId: DEFAULT_RECITER_ID,
   continuousPlay: false,
   surahAudioMode: false,
+  autoAdvance: true,
 } satisfies Partial<ReaderSettings>;
 
 type PersistedSettings = Pick<
@@ -93,6 +96,7 @@ type PersistedSettings = Pick<
   | "reciterId"
   | "continuousPlay"
   | "surahAudioMode"
+  | "autoAdvance"
 >;
 
 const MASK_MODES: MaskMode[] = ["FULL", "BLUR", "FIRST_LETTER", "REVEAL"];
@@ -129,6 +133,7 @@ function sanitizePersisted(persisted: unknown): Partial<PersistedSettings> {
   if (isBool(p.showRoots)) out.showRoots = p.showRoots;
   if (isBool(p.continuousPlay)) out.continuousPlay = p.continuousPlay;
   if (isBool(p.surahAudioMode)) out.surahAudioMode = p.surahAudioMode;
+  if (isBool(p.autoAdvance)) out.autoAdvance = p.autoAdvance;
   if (typeof p.fontSizePx === "number" && Number.isFinite(p.fontSizePx)) {
     out.fontSizePx = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, p.fontSizePx));
   }
@@ -171,6 +176,7 @@ export const useReaderStore = create<ReaderStore>()(
       setReciterId: (reciterId) => set({ reciterId }),
       setContinuousPlay: (continuousPlay) => set({ continuousPlay }),
       setSurahAudioMode: (surahAudioMode) => set({ surahAudioMode }),
+      setAutoAdvance: (autoAdvance) => set({ autoAdvance }),
 
       selectAyah: (selectedVerseKey) =>
         set({
@@ -241,6 +247,7 @@ export const useReaderStore = create<ReaderStore>()(
         reciterId: s.reciterId,
         continuousPlay: s.continuousPlay,
         surahAudioMode: s.surahAudioMode,
+        autoAdvance: s.autoAdvance,
       }),
     }
   )
