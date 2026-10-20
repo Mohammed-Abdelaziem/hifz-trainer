@@ -65,9 +65,16 @@ class OfflineReviewQueue {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readonly");
       const store = tx.objectStore(STORE_NAME);
-      const index = store.index("synced");
-      const req = index.getAll(IDBKeyRange.only(false));
-      req.onsuccess = () => resolve(req.result);
+      // Scans the whole store instead of the "synced" index: booleans are not
+      // valid IndexedDB keys, so enumerating that index with
+      // IDBKeyRange.only(false) threw DataError — which is how the offline
+      // queue drained nothing for its entire life. The index still exists
+      // (harmless; records keyed on a boolean never enter it), but the
+      // filtering now happens in JS. public/sw.js getPendingReviews carries
+      // the same fix — keep them in step.
+      const req = store.getAll();
+      req.onsuccess = () =>
+        resolve((req.result as ReviewQueueItem[]).filter((item) => item?.synced === false));
       req.onerror = () => reject(req.error);
     });
   }
@@ -130,14 +137,17 @@ class OfflineReviewQueue {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, "readwrite");
       const store = tx.objectStore(STORE_NAME);
-      const index = store.index("synced");
-      const req = index.openCursor(IDBKeyRange.only(true));
+      // Same boolean-key pitfall as getPending: the "synced" index was never
+      // enumerable, so this scans the store and deletes matching rows.
+      const req = store.openCursor();
       let count = 0;
       req.onsuccess = (event) => {
         const cursor = (event.target as IDBRequest).result;
         if (cursor) {
-          cursor.delete();
-          count++;
+          if (cursor.value?.synced === true) {
+            cursor.delete();
+            count++;
+          }
           cursor.continue();
         } else {
           resolve(count);

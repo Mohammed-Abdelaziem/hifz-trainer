@@ -29,13 +29,16 @@ function readQueueOnce(page: Page): Promise<QueuedReview[]> {
             };
             req.onsuccess = () => {
               const tx = req.result.transaction("review-queue", "readonly");
-              const index = tx.objectStore("review-queue").index("synced");
-              const pending = index.getAll(IDBKeyRange.only(false));
-              pending.onsuccess = () => {
+              const store = tx.objectStore("review-queue");
+              // Store-level scan, mirroring the sw.js/review-queue.ts fix:
+              // the "synced" index is not enumerable (booleans are not
+              // valid IndexedDB keys), so IDBKeyRange.only(false) throws.
+              const all = store.getAll();
+              all.onsuccess = () => {
                 clearTimeout(bail);
-                resolve(pending.result);
+                resolve(all.result.filter((item) => item && item.synced === false));
               };
-              pending.onerror = () => {
+              all.onerror = () => {
                 clearTimeout(bail);
                 resolve([]);
               };

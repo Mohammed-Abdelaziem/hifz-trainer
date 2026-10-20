@@ -150,9 +150,15 @@ function getPendingReviews() {
       const db = request.result;
       const tx = db.transaction("review-queue", "readonly");
       const store = tx.objectStore("review-queue");
-      const index = store.index("synced");
-      const req = index.getAll(IDBKeyRange.only(false));
-      req.onsuccess = () => resolve(req.result);
+      // Store-level scan rather than the "synced" index: boolean values are
+      // not valid IndexedDB keys, so IDBKeyRange.only(false) on that index
+      // threw DataError inside onsuccess and left this promise pending
+      // forever — the sync event then retried for eternity and no offline
+      // grade ever reached the server. The app copy
+      // (src/lib/offline/review-queue.ts) mirrors this fix.
+      const req = store.getAll();
+      req.onsuccess = () =>
+        resolve(req.result.filter((item) => item && item.synced === false));
       req.onerror = () => reject(req.error);
     };
   });

@@ -45,8 +45,15 @@ test.describe("Reader", () => {
     // baseline instead of a duplicate-know no-op.
     const unmark = await page.request.post("/api/memory-state", {
       data: { verseKeys: ["112:1"], known: false },
+      // play-wright APIRequestContext is not a browser fetch: neither
+      // Sec-Fetch-Site nor Origin is attached, and proxy.ts fails closed on
+      // mutating verbs without one.
+      headers: { "sec-fetch-site": "same-origin" },
     });
-    expect(unmark.ok()).toBe(true);
+    expect(
+      unmark.ok(),
+      `unmark ${unmark.status()} — ${(await unmark.text()).slice(0, 200)}`
+    ).toBe(true);
 
     await page.goto("/reader/112");
     await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });
