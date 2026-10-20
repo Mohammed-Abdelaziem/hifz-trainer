@@ -1,6 +1,12 @@
 import { test, expect, signIn } from "./fixtures";
 import type { Page } from "@playwright/test";
 
+// Background Sync needs its feature flag explicitly enabled in automation —
+// without it, sync.register() throws "Background Sync is disabled." before
+// the worker can ever wake. Must be top-level: test.use({ launchOptions })
+// inside a describe group forces a new worker and is rejected by Playwright.
+test.use({ launchOptions: { args: ["--enable-features=BackgroundSync"] } });
+
 interface QueuedReview {
   id: string;
   verseKey: string;
@@ -55,13 +61,8 @@ function readQueueOnce(page: Page): Promise<QueuedReview[]> {
 test.describe("Offline review queue", () => {
   // Pinned to the desktop viewport on every project (including mobile-chrome):
   // at phone widths the fixed bottom bar can overflow and let the transport
-  // card intercept the grade buttons. Background Sync needs its feature flag
-  // explicitly enabled in automation — without it, sync.register() throws
-  // "Background Sync is disabled." before the worker can ever wake.
-  test.use({
-    viewport: { width: 1280, height: 720 },
-    launchOptions: { args: ["--enable-features=BackgroundSync"] },
-  });
+  // card intercept the grade buttons.
+  test.use({ viewport: { width: 1280, height: 720 } });
 
   test("queues a grade offline and the service worker syncs it back", async ({
     page,
