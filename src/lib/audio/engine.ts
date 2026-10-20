@@ -24,6 +24,9 @@ export class AudioEngine {
   private clipSeq = 0;
   private virtualClipTimer: ReturnType<typeof setTimeout> | null = null;
   private endCallback: (() => void) | null = null;
+  /** -1 = loop forever; 0 = no repeats; n = replay n extra times. */
+  private repeatTotal = 0;
+  private repeatRemaining = 0;
 
   private surahTimings: VerseTiming[] | null = null;
   private currentVerseIndex = -1;
@@ -33,6 +36,22 @@ export class AudioEngine {
 
   onEnd(callback: (() => void) | null) {
     this.endCallback = callback;
+  }
+
+  /**
+   * Replays the loaded audio on natural end: doubles for both the whole-surah
+   * MP3 and verse clips. Numbers count EXTRA replays (2 = three listens); -1
+   * loops until the user stops; 0 disables. Each new load restarts the budget.
+   */
+  setRepeat(total: number) {
+    if (total === -1) {
+      this.repeatTotal = -1;
+    } else if (Number.isFinite(total) && Number.isInteger(total) && total >= 0) {
+      this.repeatTotal = total;
+    } else {
+      this.repeatTotal = 0;
+    }
+    this.repeatRemaining = this.repeatTotal;
   }
 
   onVerseChange(callback: ((verseKey: string) => void) | null) {
@@ -99,6 +118,10 @@ export class AudioEngine {
     this.softStop();
     this.unload();
     this.url = url;
+    // A fresh playback run gets a fresh repeat budget: left-over repeats from
+    // the previous clip must not leak into the next one and skew a ×3 into a
+    // ×5 when the user navigates mid-play.
+    this.repeatRemaining = this.repeatTotal;
     this.anchorPos = 0;
     if (typeof window === "undefined") return;
     this.mode = "loading";
@@ -117,10 +140,21 @@ export class AudioEngine {
         rate: this.rateFactor,
         volume: this.volumeFactor,
       });
-      howl.once("end", () => {
+      howl.on("end", () => {
         if (this.loadSeq !== myLoad) return;
         this.anchorPos = Number(howl.duration() || 0) * 1000;
         this.resolveClipIfCurrent(myLoad);
+        // Repeat budget exists and the source is still healthy: reset and
+        // replay in place. Seeking+playing the same Howl avoids a refetch of
+        // the MP3 between reps. The clip promise has already been resolved
+        // above, so looping is invisible to the study UI; onVerseChange keeps
+        // firing from the play event, pinning the same verse each rep.
+        if (this.repeatRemaining !== 0 && this.url) {
+          if (this.repeatRemaining > 0) this.repeatRemaining -= 1;
+          this.seekMs(0);
+          howl.play();
+          return;
+        }
         this.loadSeq++;
         howl.off();
         howl.unload();

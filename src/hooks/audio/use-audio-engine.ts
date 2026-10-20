@@ -53,9 +53,14 @@ export function useAudioEngine({
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
+  const repeatTotal = useReaderStore((s) => s.repeatTotal);
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const setForcedActiveIndex = useReaderStore((s) => s.setForcedActiveIndex);
+
+  useEffect(() => {
+    engine.setRepeat(repeatTotal);
+  }, [engine, repeatTotal]);
 
   useEffect(() => {
     engine.onEnd(() => {

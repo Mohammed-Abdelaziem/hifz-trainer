@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { ArrowLeft, Save, Loader2, Lock } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Lock, Download, Upload, Bell, BellOff } from "lucide-react";
 import { MIN_RETENTION, MAX_RETENTION } from "@/lib/srs/fsrs";
 import { DAILY_TARGET_MAX, DAILY_TARGET_MIN, DEFAULT_DAILY_TARGET, DEFAULT_RETENTION } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { ThemeSettings } from "@/components/theme/ThemeSettings";
+import { useRemindersSetting } from "@/hooks/use-review-reminders";
 
 interface SettingsViewProps {
   user: {
@@ -35,6 +36,73 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwSaved, setPwSaved] = useState(false);
   const [pwError, setPwError] = useState<string | null>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const reminders = useRemindersSetting();
+
+  async function handleExport() {
+    setExporting(true);
+    setImportError(null);
+    try {
+      const res = await fetch("/api/backup");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error ?? "Export failed");
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `wholly-quran-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e: unknown) {
+      setImportError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleImportFile(file: File) {
+    setImporting(true);
+    setImportMessage(null);
+    setImportError(null);
+    try {
+      let payload: unknown;
+      try {
+        payload = JSON.parse(await file.text());
+      } catch {
+        throw new Error("This file is not valid JSON");
+      }
+      const res = await fetch("/api/backup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await res.json().catch(() => null)) as {
+        imported?: number;
+        skipped?: number;
+        profileApplied?: boolean;
+        error?: string;
+      } | null;
+      if (!res.ok) {
+        throw new Error(data?.error ?? "Import failed");
+      }
+      const parts = [`${data?.imported ?? 0} verse states restored`];
+      if (data?.skipped) parts.push(`${data.skipped} entries skipped`);
+      if (data?.profileApplied) parts.push("settings restored");
+      setImportMessage(parts.join(" · "));
+    } catch (e: unknown) {
+      setImportError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   // The "Saved" flashes self-expire on timers; without tracking the handles a
   // save right before unmount would setState on a dead component and leave
@@ -253,6 +321,106 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
             </p>
           </CardContent>
         </Card>
+
+        {!isGuest && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Review Reminders</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {!reminders.supported ? (
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  This browser does not support notification reminders.
+                </p>
+              ) : reminders.enabled ? (
+                <p className="text-sm text-stone-700 dark:text-stone-300">
+                  Reminders are on: this device notifies you about due reviews while the app is
+                  open, at most once per day.
+                </p>
+              ) : reminders.permission === "denied" ? (
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Notifications are blocked for this site. Allow them in the browser&apos;s address
+                  bar settings, then return here.
+                </p>
+              ) : (
+                <p className="text-xs text-stone-500 dark:text-stone-400">
+                  Receive a browser reminder on this device when verses are due, while the app is
+                  open.
+                </p>
+              )}
+              {reminders.supported && (
+                <Button
+                  variant={reminders.enabled ? "outline" : "default"}
+                  onClick={() =>
+                    reminders.enabled ? reminders.disable() : void reminders.requestPermission()
+                  }
+                >
+                  {reminders.enabled ? (
+                    <BellOff className="mr-2 h-4 w-4" />
+                  ) : (
+                    <Bell className="mr-2 h-4 w-4" />
+                  )}
+                  {reminders.enabled ? "Disable Reminders" : "Enable Reminders"}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {!isGuest && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Your Data</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-xs text-stone-500 dark:text-stone-400">
+                Download every verse you have marked as memorized plus your study settings as
+                JSON. Importing a backup restores those verse states and settings; reader
+                preferences (masking, reciter) stay on this device.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleExport} disabled={exporting || importing} variant="outline">
+                  {exporting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Download className="mr-2 h-4 w-4" />
+                  )}
+                  Export Backup
+                </Button>
+                <Button
+                  onClick={() => importInputRef.current?.click()}
+                  disabled={exporting || importing}
+                  variant="outline"
+                >
+                  {importing ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Upload className="mr-2 h-4 w-4" />
+                  )}
+                  Import Backup
+                </Button>
+                <input
+                  ref={importInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleImportFile(file);
+                    // Re-selecting the same file must still fire change.
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              {importMessage && (
+                <p className="text-sm text-emerald-600 dark:text-emerald-400">{importMessage}</p>
+              )}
+              {importError && (
+                <p className="text-sm text-red-600 dark:text-red-400">{importError}</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {!isGuest && (
           <Card>

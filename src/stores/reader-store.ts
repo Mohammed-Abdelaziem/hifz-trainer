@@ -28,6 +28,13 @@ interface ReaderSettings {
   continuousPlay: boolean;
   surahAudioMode: boolean;
   autoAdvance: boolean;
+  /**
+   * Extra replays of the loaded audio at natural end. 0 = off, n = n extra
+   * plays (2 = three listens), -1 = loop until stopped. Lives on the
+   * AudioEngine via setRepeat; -1 survives persistence as -1 (never Infinity,
+   * which JSON.stringify turns into null).
+   */
+  repeatTotal: number;
 }
 
 interface ReaderSessionState {
@@ -54,6 +61,7 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setContinuousPlay: (on: boolean) => void;
   setSurahAudioMode: (on: boolean) => void;
   setAutoAdvance: (on: boolean) => void;
+  setRepeatTotal: (n: number) => void;
   selectAyah: (verseKey: string) => void;
   revealWord: (wordId: string) => void;
   revealAll: (wordIds: string[]) => void;
@@ -80,6 +88,7 @@ const DEFAULT_SETTINGS = {
   continuousPlay: false,
   surahAudioMode: false,
   autoAdvance: true,
+  repeatTotal: 0,
 } satisfies Partial<ReaderSettings>;
 
 type PersistedSettings = Pick<
@@ -97,6 +106,7 @@ type PersistedSettings = Pick<
   | "continuousPlay"
   | "surahAudioMode"
   | "autoAdvance"
+  | "repeatTotal"
 >;
 
 const MASK_MODES: MaskMode[] = ["FULL", "BLUR", "FIRST_LETTER", "REVEAL"];
@@ -108,6 +118,9 @@ const oneOf = <T extends string>(modes: T[], value: unknown): T | null =>
   modes.find((m) => value === m) ?? null;
 
 const isBool = (v: unknown): v is boolean => v === true || v === false;
+
+/** The exact options the audio bar exposes; anything else falls back to off. */
+const REPEAT_TOTALS = [-1, 0, 3, 5];
 
 /**
  * localStorage data has no schema: hand-edited, older-app or corrupt values
@@ -134,6 +147,13 @@ function sanitizePersisted(persisted: unknown): Partial<PersistedSettings> {
   if (isBool(p.continuousPlay)) out.continuousPlay = p.continuousPlay;
   if (isBool(p.surahAudioMode)) out.surahAudioMode = p.surahAudioMode;
   if (isBool(p.autoAdvance)) out.autoAdvance = p.autoAdvance;
+  if (
+    typeof p.repeatTotal === "number" &&
+    Number.isInteger(p.repeatTotal) &&
+    REPEAT_TOTALS.includes(p.repeatTotal)
+  ) {
+    out.repeatTotal = p.repeatTotal;
+  }
   if (typeof p.fontSizePx === "number" && Number.isFinite(p.fontSizePx)) {
     out.fontSizePx = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, p.fontSizePx));
   }
@@ -177,6 +197,9 @@ export const useReaderStore = create<ReaderStore>()(
       setContinuousPlay: (continuousPlay) => set({ continuousPlay }),
       setSurahAudioMode: (surahAudioMode) => set({ surahAudioMode }),
       setAutoAdvance: (autoAdvance) => set({ autoAdvance }),
+      setRepeatTotal: (repeatTotal) => {
+        if (REPEAT_TOTALS.includes(repeatTotal)) set({ repeatTotal });
+      },
 
       selectAyah: (selectedVerseKey) =>
         set({
@@ -248,6 +271,7 @@ export const useReaderStore = create<ReaderStore>()(
         continuousPlay: s.continuousPlay,
         surahAudioMode: s.surahAudioMode,
         autoAdvance: s.autoAdvance,
+        repeatTotal: s.repeatTotal,
       }),
     }
   )
