@@ -47,6 +47,17 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+// Test hook for the offline-sync e2e: bundled headless shells have Background
+// Sync permanently disabled, so the suite cannot wait for a sync event. The
+// drain itself (syncPendingReviews) is identical to the one the "sync"
+// handler runs — post FORCE_SYNC from the page to exercise the same
+// queue → POST → markSynced → SYNC_* messages path.
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "FORCE_SYNC") {
+    event.waitUntil(syncPendingReviews());
+  }
+});
+
 function isStaticAsset(url) {
   return (
     url.pathname.startsWith("/_next/static/") ||

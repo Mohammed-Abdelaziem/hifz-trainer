@@ -1,12 +1,6 @@
 import { test, expect, signIn } from "./fixtures";
 import type { Page } from "@playwright/test";
 
-// Background Sync needs its feature flag explicitly enabled in automation —
-// without it, sync.register() throws "Background Sync is disabled." before
-// the worker can ever wake. Must be top-level: test.use({ launchOptions })
-// inside a describe group forces a new worker and is rejected by Playwright.
-test.use({ launchOptions: { args: ["--enable-features=BackgroundSync"] } });
-
 interface QueuedReview {
   id: string;
   verseKey: string;
@@ -95,18 +89,17 @@ test.describe("Offline review queue", () => {
     expect(queued.some((item) => item.grade === "GOOD")).toBe(true);
 
     await page.context().setOffline(false);
-    // The app registered review-sync while offline; re-registering with
-    // connectivity available fires the sync event as soon as the worker wakes.
-    // Same registration call the app itself makes.
-    await page.evaluate(
-      () =>
-        navigator.serviceWorker.ready.then((registration) =>
-          (
-            registration as ServiceWorkerRegistration & {
-              sync: { register: (tag: string) => Promise<void> };
-            }
-          ).sync.register("review-sync")
-        )
+    // Background Sync events are permanently disabled in bundled headless
+    // shells ("Background Sync is disabled." on sync.register), so the suite
+    // nudges the worker through the same drain the "sync" handler runs:
+    // postMessage { type: "FORCE_SYNC" } → syncPendingReviews — the identical
+    // queue → POST → markSynced → SYNC_* postMessage path. In regular
+    // browsers the app's own review-sync registration covers this; the hook
+    // is what makes the drain deterministic in CI.
+    await page.evaluate(() =>
+      navigator.serviceWorker.ready.then((registration) => {
+        registration.active?.postMessage({ type: "FORCE_SYNC" });
+      })
     );
 
     // sw.js posts SYNC_COMPLETED (postMessage) only after fetch + markSynced
