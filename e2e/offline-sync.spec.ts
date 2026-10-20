@@ -52,6 +52,41 @@ function readQueueOnce(page: Page): Promise<QueuedReview[]> {
     .catch(() => [] as QueuedReview[]);
 }
 
+function readAllOnce(page: Page): Promise<Array<{ synced: boolean }>> {
+  return page
+    .evaluate(
+      () =>
+        new Promise<Array<{ synced: boolean }>>((resolve) => {
+          const bail = setTimeout(() => resolve([]), 2000);
+          try {
+            const req = indexedDB.open("hifz-offline", 1);
+            req.onerror = () => {
+              clearTimeout(bail);
+              resolve([]);
+            };
+            req.onsuccess = () => {
+              const tx = req.result.transaction("review-queue", "readonly");
+              const all = tx.objectStore("review-queue").getAll();
+              all.onsuccess = () => {
+                clearTimeout(bail);
+                // No filter: once the drain marks rows synced, the pending
+                // set is empty — only a full scan can observe the flip.
+                resolve(all.result.map((item) => ({ synced: Boolean(item?.synced) })));
+              };
+              all.onerror = () => {
+                clearTimeout(bail);
+                resolve([]);
+              };
+            };
+          } catch {
+            clearTimeout(bail);
+            resolve([]);
+          }
+        })
+    )
+    .catch(() => [] as Array<{ synced: boolean }>);
+}
+
 test.describe("Offline review queue", () => {
   // Pinned to the desktop viewport on every project (including mobile-chrome):
   // at phone widths the fixed bottom bar can overflow and let the transport
@@ -109,10 +144,12 @@ test.describe("Offline review queue", () => {
       timeout: 25_000,
     });
 
-    // Belt and suspenders: the queue itself should now read synced.
-    let items: QueuedReview[] = [];
+    // Belt and suspenders: a full store scan shows the drained rows flipped
+    // to synced (readQueueOnce only surfaces pending rows, which would be
+    // empty here and prove nothing).
+    let items: Array<{ synced: boolean }> = [];
     for (let i = 0; i < 10; i++) {
-      items = await readQueueOnce(page);
+      items = await readAllOnce(page);
       if (items.length > 0 && items.every((item) => item.synced)) break;
       await page.waitForTimeout(500);
     }
