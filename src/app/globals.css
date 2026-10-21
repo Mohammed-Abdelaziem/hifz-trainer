@@ -38,3 +38,26 @@ body {
   letter-spacing: 0;
   word-spacing: 0.08em;
 }
+
+/* Custom dropdown open animations (see components/ui/select.tsx). */
+@keyframes select-pop-down {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes select-pop-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
