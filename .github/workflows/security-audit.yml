@@ -1,0 +1,51 @@
+name: Security audit
+
+# Weekly dependency-vulnerability sweep.
+#
+# The full-graph running a dev-only advisory (e.g. an unpatched transitive
+# chain like the braces advisory) must NOT fail the job — that path is documented
+# risk and would turn the workflow permanently red. Only the runtime tree
+# (`--omit=dev`) is blocking, because that is what actually ships to users.
+on:
+  schedule:
+    # Mondays 05:30 UTC, ahead of the Dependabot Monday wave.
+    - cron: "30 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Fails the job on high/critical in the shipped dependency tree.
+      - name: Runtime dependencies (blocking)
+        run: npm audit --omit=dev --audit-level=high
+
+      # Full graph including devDependencies: report-only. Dev chains live
+      # entirely in lint/test tooling and never ship, so advisory noise there
+      # is surfaced, not gated.
+      - name: Full graph incl. dev (advisory)
+        run: npm audit --audit-level=none
+        continue-on-error: true
+
+      - name: Summarize
+        if: always()
+        run: |
+          echo "## npm audit — $(date -u)" >> $GITHUB_STEP_SUMMARY
+          {
+            echo '```'
+            npm audit --audit-level=none || true
+            echo '```'
+          } >> $GITHUB_STEP_SUMMARY
