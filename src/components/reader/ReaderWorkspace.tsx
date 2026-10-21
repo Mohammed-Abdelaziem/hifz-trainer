@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Check, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
   Grade,
@@ -22,6 +22,7 @@ import {
 import { scheduleFsrs } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
 import { GRADE_FLASH_MS, SYNC_STATUS_RESET_MS } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { useReaderStore } from "@/stores/reader-store";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -31,6 +32,7 @@ import { MaskingToolbar } from "./MaskingToolbar";
 import { TafsirDrawer } from "./TafsirDrawer";
 import { HelpSheet } from "./HelpSheet";
 import { VerseCanvas } from "./VerseCanvas";
+import { BulkActionBar } from "./BulkActionBar";
 import { LiveWordsContext } from "./live-words-context";
 import { offlineReviewQueue } from "@/lib/offline/review-queue";
 import { registerBackgroundSync } from "@/lib/offline/review-queue";
@@ -154,6 +156,18 @@ export function ReaderWorkspace({
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
+  const bulkMode = useReaderStore((s) => s.bulkMode);
+  const setBulkMode = useReaderStore((s) => s.setBulkMode);
+  const layoutMode = useReaderStore((s) => s.layoutMode);
+
+  // Bulk selection is a Flow-layout affordance: Mushaf renders verses as
+  // inline words inside one paragraph, where per-verse checkboxes have no
+  // sensible anchor. Auto-exit if the layout flips while selecting.
+  useEffect(() => {
+    if (bulkMode && layoutMode === "MUSHAF") setBulkMode(false);
+  }, [bulkMode, layoutMode, setBulkMode]);
+
+  const [jumpInput, setJumpInput] = useState("");
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const onVerseChange = useCallback(() => {
@@ -221,6 +235,44 @@ export function ReaderWorkspace({
     if (flashTimer.current) clearTimeout(flashTimer.current);
     flashTimer.current = setTimeout(() => setFlash(null), GRADE_FLASH_MS);
   }, []);
+
+  const jumpToAyah = useCallback(
+    (raw: string) => {
+      const value = raw.trim();
+      if (!value) return;
+      let m = /^(\d+)$/.exec(value);
+      if (m) {
+        const n = Number(m[1]);
+        if (n < 1 || n > surah.ayah_count) {
+          flashFor(`${surah.name_simple} has ${surah.ayah_count} verses`);
+          return;
+        }
+        selectAyah(`${surah.id}:${n}`);
+        resetRevealed(`${surah.id}:${n}`);
+        setJumpInput("");
+        return;
+      }
+      m = /^(\d+):(\d+)$/.exec(value);
+      if (m) {
+        const s = Number(m[1]);
+        const n = Number(m[2]);
+        if (s === surah.id) {
+          if (n < 1 || n > surah.ayah_count) {
+            flashFor(`${surah.name_simple} has ${surah.ayah_count} verses`);
+            return;
+          }
+          selectAyah(`${s}:${n}`);
+          resetRevealed(`${s}:${n}`);
+          setJumpInput("");
+        } else {
+          router.push(`/reader/${s}?verse=${s}:${n}`);
+        }
+        return;
+      }
+      flashFor("Enter an ayah number (e.g. 7) or surah:ayah (e.g. 2:255)");
+    },
+    [surah.id, surah.name_simple, surah.ayah_count, selectAyah, resetRevealed, router, flashFor]
+  );
 
   // Shared "move on to the next verse (or surah)" logic for grading and for
   // the known-marking flow, so both behaviors always stay in step.
@@ -367,6 +419,9 @@ export function ReaderWorkspace({
         setHelpOpen(!store.helpOpen);
         return;
       }
+      // While selecting verses, digits are worksheets not grades: a stray
+      // "3" during selection must not grade the still-selected verse.
+      if (store.bulkMode) return;
       if (e.key === "5" && !isGuest) {
         e.preventDefault();
         handleKnown();
@@ -379,6 +434,10 @@ export function ReaderWorkspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleGrade, handleKnown, isGuest, setHelpOpen]);
+
+  const refreshProgress = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   if (!hasAyahs) {
     return (
@@ -446,6 +505,24 @@ export function ReaderWorkspace({
                 </p>
               </div>
               <nav className="flex shrink-0 items-center gap-1.5">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    jumpToAyah(jumpInput);
+                  }}
+                  aria-label="Jump to ayah"
+                >
+                  <input
+                    value={jumpInput}
+                    onChange={(e) => setJumpInput(e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Ayah…"
+                    aria-label="Jump to ayah"
+                    title="Jump to ayah: 7 or surah:ayah like 2:255"
+                    className="w-28 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-700 outline-none transition-colors placeholder:text-stone-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
+                  />
+                </form>
                 {(() => {
                   const idx = availableSurahs.findIndex((s) => s.id === surah.id);
                   const prev = idx > 0 ? availableSurahs[idx - 1] : null;
@@ -492,7 +569,26 @@ export function ReaderWorkspace({
             </div>
           </header>
 
-          <MaskingToolbar />
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <MaskingToolbar />
+            <button
+              onClick={() => setBulkMode(!bulkMode)}
+              aria-pressed={bulkMode}
+              disabled={layoutMode === "MUSHAF"}
+              title={
+                layoutMode === "MUSHAF"
+                  ? "Switch to Flow layout to select verses"
+                  : "Select multiple verses to mark known or add to Sabaq"
+              }
+              className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                bulkMode
+                  ? "border-amber-600 bg-amber-600 text-white"
+                  : "border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800")}
+            >
+              <Check className="h-3.5 w-3.5" />
+              {bulkMode ? "Selecting" : "Select verses"}
+            </button>
+          </div>
 
           <main className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-8 dark:border-stone-800 dark:bg-stone-900">
             <VerseCanvas surah={surah} />
@@ -525,6 +621,14 @@ export function ReaderWorkspace({
               Reserve its height here and drop back to the normal padding from
               md up, where the nav is hidden. */}
           <div className="mx-auto flex max-w-4xl flex-col gap-2.5 px-3 pb-16 pt-3 md:pb-3">
+            {bulkMode && (
+              <BulkActionBar
+                allKeys={surah.ayahs.map((a) => a.verse_key)}
+                isGuest={!!isGuest}
+                onResult={flashFor}
+                onProgressChange={refreshProgress}
+              />
+            )}
             <AudioControlBar
               words={effectiveSelected.words}
               verseKey={selected!.verse_key}

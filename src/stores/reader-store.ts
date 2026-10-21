@@ -45,6 +45,10 @@ interface ReaderSessionState {
   tafsirOpen: boolean;
   helpOpen: boolean;
   forcedActiveIndex: number | null;
+  /** Multi-verse selection mode (mark known / add to Sabaq in bulk). */
+  bulkMode: boolean;
+  /** Ordered selected verse keys in bulk mode. Never persisted. */
+  bulkSelected: string[];
 }
 
 interface ReaderStore extends ReaderSettings, ReaderSessionState {
@@ -72,6 +76,12 @@ interface ReaderStore extends ReaderSettings, ReaderSessionState {
   setTafsirOpen: (open: boolean) => void;
   setHelpOpen: (open: boolean) => void;
   setForcedActiveIndex: (i: number | null) => void;
+  setBulkMode: (on: boolean) => void;
+  toggleBulkVerse: (verseKey: string) => void;
+  /** Replace the selection with an explicitly ordered key list (shift-click ranges). */
+  setBulkRange: (verseKeys: string[]) => void;
+  selectBulkAll: (verseKeys: string[]) => void;
+  clearBulkSelection: () => void;
 }
 
 const DEFAULT_SETTINGS = {
@@ -180,6 +190,8 @@ export const useReaderStore = create<ReaderStore>()(
       tafsirOpen: false,
       helpOpen: false,
       forcedActiveIndex: null,
+      bulkMode: false,
+      bulkSelected: [],
 
       setMaskMode: (maskMode) => set({ maskMode }),
       setBlurScope: (blurScope) => set({ blurScope }),
@@ -246,6 +258,25 @@ export const useReaderStore = create<ReaderStore>()(
       setTafsirOpen: (tafsirOpen) => set({ tafsirOpen }),
       setHelpOpen: (helpOpen) => set({ helpOpen }),
       setForcedActiveIndex: (forcedActiveIndex) => set({ forcedActiveIndex }),
+
+      setBulkMode: (on) =>
+        set({
+          bulkMode: on,
+          bulkSelected: [],
+        }),
+
+      toggleBulkVerse: (verseKey) =>
+        set((s) => ({
+          bulkSelected: s.bulkSelected.includes(verseKey)
+            ? s.bulkSelected.filter((k) => k !== verseKey)
+            : [...s.bulkSelected, verseKey],
+        })),
+
+      setBulkRange: (verseKeys) => set({ bulkSelected: [...verseKeys] }),
+
+      selectBulkAll: (verseKeys) => set({ bulkSelected: [...verseKeys] }),
+
+      clearBulkSelection: () => set({ bulkSelected: [] }),
     }),
     {
       name: "reader-settings",
