@@ -83,6 +83,65 @@ describe("reader-store — auto-advance toggle", () => {
   });
 });
 
+describe("reader-store — bulk verse selection", () => {
+  beforeEach(() => {
+    useReaderStore.setState(
+      { bulkMode: false, bulkSelected: [] },
+      false
+    );
+  });
+
+  it("starts with bulk mode off and nothing selected", () => {
+    expect(useReaderStore.getState().bulkMode).toBe(false);
+    expect(useReaderStore.getState().bulkSelected).toEqual([]);
+  });
+
+  it("entering the mode resets any stale selection", () => {
+    useReaderStore.setState({ bulkSelected: ["1:1"] }, false);
+    useReaderStore.getState().setBulkMode(true);
+    expect(useReaderStore.getState().bulkSelected).toEqual([]);
+  });
+
+  it("leaving the mode clears the selection too", () => {
+    useReaderStore.getState().setBulkMode(true);
+    useReaderStore.getState().toggleBulkVerse("112:1");
+    useReaderStore.getState().setBulkMode(false);
+    expect(useReaderStore.getState().bulkSelected).toEqual([]);
+  });
+
+  it("toggles membership", () => {
+    const { toggleBulkVerse } = useReaderStore.getState();
+    toggleBulkVerse("112:1");
+    toggleBulkVerse("112:2");
+    expect(useReaderStore.getState().bulkSelected).toEqual(["112:1", "112:2"]);
+    toggleBulkVerse("112:1");
+    expect(useReaderStore.getState().bulkSelected).toEqual(["112:2"]);
+  });
+
+  it("replaces the selection on an explicit range (shift-click)", () => {
+    useReaderStore.getState().toggleBulkVerse("1:1");
+    useReaderStore.getState().setBulkRange(["1:2", "1:3", "1:4"]);
+    expect(useReaderStore.getState().bulkSelected).toEqual(["1:2", "1:3", "1:4"]);
+  });
+
+  it("selectBulkAll and clearBulkSelection round-trip", () => {
+    useReaderStore.getState().selectBulkAll(["1:1", "1:2"]);
+    expect(useReaderStore.getState().bulkSelected).toEqual(["1:1", "1:2"]);
+    useReaderStore.getState().clearBulkSelection();
+    expect(useReaderStore.getState().bulkSelected).toEqual([]);
+  });
+
+  it("bulk state is never persisted", async () => {
+    useReaderStore.getState().setBulkMode(true);
+    useReaderStore.getState().toggleBulkVerse("112:1");
+    // Force a write by rehydrating from the current persisted snapshot.
+    const raw = localStorage.getItem("reader-settings");
+    expect(raw && JSON.parse(raw).state.bulkMode).toBeUndefined();
+    expect(raw && JSON.parse(raw).state.bulkSelected).toBeUndefined();
+    useReaderStore.getState().setBulkMode(false);
+  });
+});
+
 const DEFAULT_STUB = {
   maskMode: "HIDDEN",
   blurScope: "word",
