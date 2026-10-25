@@ -54,11 +54,14 @@ export function RatingBar({
   verseKey,
   onGrade,
   onKnown,
+  onKnownSurah,
 }: {
   verseKey: string;
   onGrade: (grade: Grade) => void;
   /** Signed-in only: skips the hifz process for this verse. */
   onKnown?: () => void;
+  /** Signed-in only: marks the entire surah as already known. */
+  onKnownSurah?: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -69,6 +72,7 @@ export function RatingBar({
         {GRADE_BUTTONS.map(({ grade, label, icon: Icon, classes, hotkey, description }) => (
           <button
             key={grade}
+            type="button"
             onClick={() => onGrade(grade)}
             title={`${label} — ${description} (key: ${hotkey})`}
             className={cn(
@@ -85,8 +89,9 @@ export function RatingBar({
         ))}
         {onKnown && (
           <button
+            type="button"
             onClick={onKnown}
-            title="I already know this — skip the hifz process (key: 5)"
+            title="I already know this ayah — skip the hifz process (key: 5)"
             aria-label={`I already know ${verseKey} — skip the hifz process`}
             className={cn(
               "group inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition-all sm:flex-none sm:px-3",
@@ -97,6 +102,24 @@ export function RatingBar({
             <span>Know</span>
             <kbd className="ml-0.5 hidden rounded border border-current/20 bg-current/5 px-1 text-[10px] opacity-50 transition-opacity group-hover:opacity-100 lg:inline">
               5
+            </kbd>
+          </button>
+        )}
+        {onKnownSurah && (
+          <button
+            type="button"
+            onClick={onKnownSurah}
+            title="Mark entire surah as already known (key: Shift + 5)"
+            aria-label="Mark entire surah as already known"
+            className={cn(
+              "group hidden sm:inline-flex cursor-pointer items-center justify-center gap-1 rounded-lg border px-2.5 py-2 text-sm font-medium transition-all",
+              "border-teal-200 bg-teal-50/70 text-teal-700 hover:bg-teal-100 dark:border-teal-800/60 dark:bg-teal-950/30 dark:text-teal-300 dark:hover:bg-teal-900/40"
+            )}
+          >
+            <Star className="h-3.5 w-3.5 fill-current/30" />
+            <span>Surah</span>
+            <kbd className="ml-0.5 hidden rounded border border-current/20 bg-current/5 px-1 text-[10px] opacity-50 transition-opacity group-hover:opacity-100 lg:inline">
+              ⇧5
             </kbd>
           </button>
         )}

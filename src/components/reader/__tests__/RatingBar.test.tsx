@@ -42,4 +42,17 @@ describe("RatingBar", () => {
     await user.click(button);
     expect(onKnown).toHaveBeenCalledTimes(1);
   });
+
+  it("shows the Know Surah button when onKnownSurah is provided and fires callback", async () => {
+    const onKnownSurah = vi.fn();
+    const user = userEvent.setup();
+    render(<RatingBar verseKey="112:1" onGrade={() => {}} onKnownSurah={onKnownSurah} />);
+
+    const button = screen.getByRole("button", {
+      name: /mark entire surah as already known/i,
+    });
+    expect(button).toBeInTheDocument();
+    await user.click(button);
+    expect(onKnownSurah).toHaveBeenCalledTimes(1);
+  });
 });

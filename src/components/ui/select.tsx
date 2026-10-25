@@ -89,7 +89,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
         const estimatedHeight = Math.min(options.length * 38 + 8, 240);
         const spaceBelow = window.innerHeight - rect.bottom;
         setOpenUp(spaceBelow < estimatedHeight && rect.top > spaceBelow);
-        setAlignRight(rect.right + 300 > window.innerWidth && rect.left > window.innerWidth - rect.right);
+        const estimatedWidth = 240;
+        setAlignRight(rect.left + estimatedWidth > window.innerWidth && rect.right > estimatedWidth);
       }
       const selectedIdx = options.findIndex((o) => String(o.value) === current);
       setActiveIndex(selectedIdx >= 0 ? selectedIdx : options.length > 0 ? 0 : -1);
@@ -174,7 +175,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
     }, [isControlled, value]);
 
     return (
-      <div ref={rootRef} className="relative inline-flex">
+      <div ref={rootRef} className="relative inline-flex max-w-full min-w-0">
         <button
           type="button"
           ref={setRefs}
@@ -189,7 +190,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
           onClick={toggle}
           onKeyDown={onKeyDown}
           className={cn(
-            "group inline-flex items-center justify-between gap-1.5 rounded-lg border border-stone-300 bg-white/80 py-1.5 pl-3 pr-2 text-xs font-medium text-stone-700 shadow-sm backdrop-blur transition-all outline-none",
+            "group inline-flex items-center justify-between gap-1.5 min-w-0 rounded-lg border border-stone-300 bg-white/80 py-1.5 pl-3 pr-2 text-xs font-medium text-stone-700 shadow-sm backdrop-blur transition-all outline-none",
             "hover:border-stone-400 hover:bg-white hover:shadow",
             "data-[open=true]:border-amber-500 data-[open=true]:ring-2 data-[open=true]:ring-amber-500/25",
             "focus-visible:border-amber-500 focus-visible:ring-2 focus-visible:ring-amber-500/25",
@@ -203,7 +204,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
           data-open={open ? "true" : "false"}
           {...rest}
         >
-          <span className="truncate">{selectedLabel}</span>
+          <span className="min-w-0 flex-1 truncate text-left">{selectedLabel}</span>
           <ChevronDown
             className={cn(
               "pointer-events-none h-3.5 w-3.5 shrink-0 text-stone-400 transition-transform duration-150 group-data-[open=true]:rotate-180 group-data-[open=true]:text-amber-500 dark:text-stone-500 dark:group-data-[open=true]:text-amber-400",
@@ -219,7 +220,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
             id={listId}
             aria-label={rest["aria-label"]}
             className={cn(
-              "absolute z-50 max-h-60 w-max min-w-[max(var(--select-trigger-w,6rem),9rem)] max-w-[min(19rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white/95 p-1 shadow-lg shadow-stone-900/10 backdrop-blur-md",
+              "absolute z-50 max-h-60 min-w-full w-max min-w-[max(var(--select-trigger-w,6rem),9rem)] max-w-[min(20rem,calc(100vw-1rem))] overflow-y-auto overscroll-contain rounded-xl border border-stone-200 bg-white/95 p-1 shadow-lg shadow-stone-900/10 backdrop-blur-md",
               "dark:border-stone-700 dark:bg-stone-900/95 dark:shadow-black/40",
               "animate-[select-pop-down_130ms_ease-out]",
               openUp &&
@@ -247,7 +248,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     commit(option.value);
                   }}
                   className={cn(
-                    "flex cursor-pointer select-none items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none transition-colors",
+                    "flex min-w-0 cursor-pointer select-none items-center justify-between gap-2.5 rounded-lg px-2.5 py-1.5 text-xs font-medium outline-none transition-colors",
                     "text-stone-700 dark:text-stone-300",
                     isActive
                       ? "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200"
@@ -255,7 +256,7 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(
                     isSelected && "text-amber-700 dark:text-amber-300"
                   )}
                 >
-                  <span className="truncate">{option.label}</span>
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
                   {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-amber-600 dark:text-amber-400" />}
                 </div>
               );

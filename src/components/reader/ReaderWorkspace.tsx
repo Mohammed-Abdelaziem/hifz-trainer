@@ -149,6 +149,7 @@ export function ReaderWorkspace({
   const memoryStatesRef = useRef(new Map<string, MemorySnapshot>());
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "completed" | "failed">("idle");
   const swTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [markingSurah, setMarkingSurah] = useState(false);
 
   const helpOpen = useReaderStore((s) => s.helpOpen);
   const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
@@ -303,6 +304,57 @@ export function ReaderWorkspace({
     }
   }, [selected, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs, router]);
 
+  const isSurahFullyKnown =
+    hasAyahs &&
+    surah.ayahs.every((a) => memoryStatesRef.current.get(a.verse_key)?.state === "KNOWN");
+
+  /**
+   * Marks the entire current surah as already memorized.
+   */
+  const handleKnownSurah = useCallback(() => {
+    if (isGuest) {
+      flashFor("Sign in to mark surah as known");
+      return;
+    }
+    if (isSurahFullyKnown) {
+      flashFor(`All verses in Surah ${surah.name_simple} are already marked known`);
+      return;
+    }
+    setMarkingSurah(true);
+    for (const ayah of surah.ayahs) {
+      memoryStatesRef.current.set(ayah.verse_key, {
+        ...EMPTY_SNAPSHOT,
+        state: "KNOWN",
+        repetitionCount: 1,
+      });
+    }
+    flashFor(`Known ✓ Marked all ${surah.ayah_count} verses of Surah ${surah.name_simple} as known`);
+
+    fetch("/api/memory-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        surahId: surah.id,
+        fromAyah: 1,
+        toAyah: surah.ayah_count,
+        known: true,
+      }),
+    })
+      .then((res) => {
+        if (res.ok) {
+          router.refresh();
+        } else {
+          flashFor(`Could not mark Surah ${surah.name_simple} known — try again`);
+        }
+      })
+      .catch(() => {
+        flashFor(`Could not reach the server — Surah ${surah.name_simple} not saved`);
+      })
+      .finally(() => {
+        setMarkingSurah(false);
+      });
+  }, [isGuest, isSurahFullyKnown, surah, flashFor, router]);
+
   /**
    * Marks the selected verse as already memorized and skips it with no SRS
    * churn — the audit's "I already know this part" flow.
@@ -404,12 +456,9 @@ export function ReaderWorkspace({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-      // Grading must not fire for keys pressed while an overlay or an
-      // interactive element has focus: digits inside a select jump to the
-      // matching option and also graded a verse; ? and 1-4 with the help
-      // sheet open were invisible side effects.
-      if (target.closest("select, button, a, [role='button'], [role='slider'], [role='dialog']")) {
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      // Grading must not fire for keys pressed while an overlay or select dropdown has focus
+      if (target.closest("select, [role='combobox'], [role='listbox'], [role='slider'], [role='dialog']")) {
         return;
       }
       const store = useReaderStore.getState();
@@ -422,18 +471,36 @@ export function ReaderWorkspace({
       // While selecting verses, digits are worksheets not grades: a stray
       // "3" during selection must not grade the still-selected verse.
       if (store.bulkMode) return;
-      if (e.key === "5" && !isGuest) {
+      if (e.shiftKey && (e.key === "5" || e.key === "%")) {
         e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        handleKnownSurah();
+        return;
+      }
+      if (e.key === "5") {
+        e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
         handleKnown();
         return;
       }
       const map: Record<string, Grade> = { "1": "AGAIN", "2": "HARD", "3": "GOOD", "4": "EASY" };
       const grade = map[e.key];
-      if (grade) handleGrade(grade);
+      if (grade) {
+        e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        handleGrade(grade);
+        return;
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleGrade, handleKnown, isGuest, setHelpOpen]);
+  }, [handleGrade, handleKnown, handleKnownSurah, setHelpOpen]);
 
   const refreshProgress = useCallback(() => {
     router.refresh();
@@ -547,7 +614,7 @@ export function ReaderWorkspace({
                           router.push(`/reader/${e.target.value}`);
                         }}
                         aria-label="Switch surah"
-                        className="max-w-[150px]"
+                        className="w-36 sm:w-48 max-w-[200px]"
                         options={availableSurahs.map((s) => ({
                           value: String(s.id),
                           label: `${s.id}. ${s.name_simple}`,
@@ -571,23 +638,44 @@ export function ReaderWorkspace({
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <MaskingToolbar />
-            <button
-              onClick={() => setBulkMode(!bulkMode)}
-              aria-pressed={bulkMode}
-              disabled={layoutMode === "MUSHAF"}
-              title={
-                layoutMode === "MUSHAF"
-                  ? "Switch to Flow layout to select verses"
-                  : "Select multiple verses to mark known or add to Sabaq"
-              }
-              className={cn("inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
-                bulkMode
-                  ? "border-amber-600 bg-amber-600 text-white"
-                  : "border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800")}
-            >
-              <Check className="h-3.5 w-3.5" />
-              {bulkMode ? "Selecting" : "Select verses"}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleKnownSurah}
+                disabled={isSurahFullyKnown || markingSurah}
+                title={`Mark all ${surah.ayah_count} verses of ${surah.name_simple} as already known (key: Shift + 5)`}
+                aria-label={`Mark Surah ${surah.name_simple} as already known`}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                  isSurahFullyKnown
+                    ? "border-teal-600 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-950/60 dark:text-teal-300"
+                    : "border-stone-300 text-stone-600 hover:bg-stone-100 hover:text-stone-800 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+                )}
+              >
+                <Star className={cn("h-3.5 w-3.5", isSurahFullyKnown && "fill-current text-teal-600 dark:text-teal-400")} />
+                {isSurahFullyKnown ? "Surah known ✓" : "Mark surah as known"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkMode(!bulkMode)}
+                aria-pressed={bulkMode}
+                disabled={layoutMode === "MUSHAF"}
+                title={
+                  layoutMode === "MUSHAF"
+                    ? "Switch to Flow layout to select verses"
+                    : "Select multiple verses to mark known or add to Sabaq"
+                }
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                  bulkMode
+                    ? "border-amber-600 bg-amber-600 text-white"
+                    : "border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+                )}
+              >
+                <Check className="h-3.5 w-3.5" />
+                {bulkMode ? "Selecting" : "Select verses"}
+              </button>
+            </div>
           </div>
 
           <main className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-8 dark:border-stone-800 dark:bg-stone-900">
@@ -638,6 +726,7 @@ export function ReaderWorkspace({
               verseKey={selected!.verse_key}
               onGrade={handleGrade}
               onKnown={isGuest ? undefined : handleKnown}
+              onKnownSurah={isGuest ? undefined : handleKnownSurah}
             />
           </div>
         </div>

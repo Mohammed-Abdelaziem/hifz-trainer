@@ -157,9 +157,10 @@ export function SabaqIntake({ availableSurahs }: { availableSurahs: IntakeSurah[
         <Select
           value={String(surahId)}
           onChange={(e) => {
-            setSurahId(Number(e.target.value));
+            const nextSurahId = Number(e.target.value);
+            setSurahId(nextSurahId);
             setFromAyah(1);
-            setToAyah(Math.min(5, availableSurahs.find((s) => s.id === Number(e.target.value))?.ayah_count ?? 5));
+            setToAyah(Math.min(5, availableSurahs.find((s) => s.id === nextSurahId)?.ayah_count ?? 5));
           }}
           options={availableSurahs.map((s) => ({ value: String(s.id), label: `${s.id}. ${s.name_simple}` }))}
           aria-label="Surah"
@@ -208,6 +209,19 @@ export function SabaqIntake({ availableSurahs }: { availableSurahs: IntakeSurah[
           />
           I already know it
         </label>
+
+        {knownMode && maxAyah > 0 && (toAyah !== maxAyah || fromAyah !== 1) && (
+          <button
+            type="button"
+            onClick={() => {
+              setFromAyah(1);
+              setToAyah(maxAyah);
+            }}
+            className="text-xs font-medium text-teal-600 hover:text-teal-800 underline dark:text-teal-400 dark:hover:text-teal-200 cursor-pointer"
+          >
+            Full surah (1–{maxAyah})
+          </button>
+        )}
 
         <Button
           size="sm"
