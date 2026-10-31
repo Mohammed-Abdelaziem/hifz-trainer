@@ -48,13 +48,13 @@ function Segmented<T extends string>({
             aria-checked={value === opt.value}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2 py-1 text-xs font-medium transition-colors cursor-pointer sm:px-2.5",
               value === opt.value
                 ? "bg-white text-stone-900 shadow-sm dark:bg-stone-950 dark:text-amber-400"
                 : "text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
             )}
           >
-            {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+            {Icon ? <Icon className="hidden h-3.5 w-3.5 sm:block" /> : null}
             {opt.label}
           </button>
         );

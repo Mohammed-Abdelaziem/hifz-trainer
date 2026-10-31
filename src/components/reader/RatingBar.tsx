@@ -76,7 +76,7 @@ export function RatingBar({
             onClick={() => onGrade(grade)}
             title={`${label} — ${description} (key: ${hotkey})`}
             className={cn(
-              "group inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition-all sm:flex-none sm:px-3",
+              "group inline-flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-xs font-medium transition-all sm:flex-none sm:px-3 sm:text-sm",
               classes
             )}
           >
@@ -94,7 +94,7 @@ export function RatingBar({
             title="I already know this ayah — skip the hifz process (key: 5)"
             aria-label={`I already know ${verseKey} — skip the hifz process`}
             className={cn(
-              "group inline-flex flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-2 py-2 text-sm font-medium transition-all sm:flex-none sm:px-3",
+              "group inline-flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-xs font-medium transition-all sm:flex-none sm:px-3 sm:text-sm",
               "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 dark:border-teal-800/60 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/40"
             )}
           >

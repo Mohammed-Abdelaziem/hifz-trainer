@@ -559,7 +559,7 @@ export function ReaderWorkspace({
       >
         <div className="mx-auto max-w-4xl px-4 pb-[calc(var(--bottom-sheet-h,4rem)+8rem)] pt-6">
           <header className="mb-5">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 sm:items-center">
               <div>
                 <Link
                   href="/"
