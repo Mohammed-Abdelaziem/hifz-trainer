@@ -28,7 +28,15 @@ export default defineConfig({
     },
     {
       name: "mobile-chrome",
-      use: { ...devices["Pixel 5"] },
+      // hasTouch: false keeps the mobile viewport, UA and isMobile layout but
+      // drops the touch-gesture emulation subsystem. On CI that subsystem
+      // transiently raised the page zoom scale, so pointer coordinates for
+      // clicks on the fixed bottom sheet decoded into the page flow and
+      // Playwright reported verse content "intercepts pointer events" (same
+      // signature on f1abcb0 before any layout change). No spec uses touch
+      // APIs (no .tap() or touchscreen), so this only removes the flake
+      // source while keeping mobile rendering fidelity.
+      use: { ...devices["Pixel 5"], hasTouch: false },
     },
   ],
   webServer: {

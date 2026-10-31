@@ -115,7 +115,7 @@ test.describe("Offline review queue", () => {
 
     // handleGrade queues on navigator.onLine === false instead of attempting
     // a dead fetch — the flash states what actually happened.
-    await expect(page.locator(".fixed.bottom-40")).toContainText(
+    await expect(page.getByRole("status")).toContainText(
       /\bOffline\b — review queued/
     );
 
