@@ -150,6 +150,9 @@ export function ReaderWorkspace({
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "completed" | "failed">("idle");
   const swTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const [markingSurah, setMarkingSurah] = useState(false);
+  // Optimistic companion to the server progress flag below: flips the
+  // "Surah known ✓" chip the moment the user clicks, before refresh() lands.
+  const [surahKnownOptimistic, setSurahKnownOptimistic] = useState(false);
 
   const helpOpen = useReaderStore((s) => s.helpOpen);
   const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
@@ -275,6 +278,32 @@ export function ReaderWorkspace({
     [surah.id, surah.name_simple, surah.ayah_count, selectAyah, resetRevealed, router, flashFor]
   );
 
+  // The fixed bottom sheet (bulk bar + audio card + rating bar + the mobile
+  // nav reserve) is as tall as its content: the height changes with viewport
+  // width and whatever appears or expands inside. Hardcoded offsets under the
+  // floating tafsir and "?" buttons and the flash toast landed ON the volume
+  // slider and audio card on phones, so publish the measured height as a CSS
+  // custom property and let each floating element ride above the sheet's
+  // live size (the fallbacks in the calc()s reproduce the old fixed offsets,
+  // so server-rendered HTML paints identically before hydration).
+  useEffect(() => {
+    const sheet = document.getElementById("reader-bottom-sheet");
+    if (!sheet) return;
+    const apply = () => {
+      const h = Math.round(sheet.getBoundingClientRect().height);
+      if (h > 0) {
+        document.documentElement.style.setProperty("--bottom-sheet-h", `${h}px`);
+      }
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(sheet);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--bottom-sheet-h");
+    };
+  }, []);
+
   // Shared "move on to the next verse (or surah)" logic for grading and for
   // the known-marking flow, so both behaviors always stay in step.
   const advanceToNext = useCallback(() => {
@@ -304,9 +333,13 @@ export function ReaderWorkspace({
     }
   }, [selected, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs, router]);
 
+  // Survives reloads because it reads the server's persisted progress — the
+  // previous session-only ref map cleared the chip on every page load. The
+  // optimistic flag covers the click-to-refresh window and resets with the
+  // keyed remount on surah change.
   const isSurahFullyKnown =
-    hasAyahs &&
-    surah.ayahs.every((a) => memoryStatesRef.current.get(a.verse_key)?.state === "KNOWN");
+    (!!progress && progress.total > 0 && progress.known === progress.total) ||
+    surahKnownOptimistic;
 
   /**
    * Marks the entire current surah as already memorized.
@@ -321,6 +354,7 @@ export function ReaderWorkspace({
       return;
     }
     setMarkingSurah(true);
+    setSurahKnownOptimistic(true);
     for (const ayah of surah.ayahs) {
       memoryStatesRef.current.set(ayah.verse_key, {
         ...EMPTY_SNAPSHOT,
@@ -523,7 +557,7 @@ export function ReaderWorkspace({
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
-        <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+        <div className="mx-auto max-w-4xl px-4 pb-[calc(var(--bottom-sheet-h,4rem)+8rem)] pt-6">
           <header className="mb-5">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -538,10 +572,12 @@ export function ReaderWorkspace({
                     {surah.name_arabic}
                   </span>
                 </h1>
-                <p className="mt-1 flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                  {surah.name_simple} ·{" "}
-                  {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
-                  {surah.ayah_count} verses
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-500 dark:text-stone-400">
+                  <span className="whitespace-nowrap">
+                    {surah.name_simple} ·{" "}
+                    {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
+                    {surah.ayah_count} verses
+                  </span>
                   {progress && progress.total > 0 ? (
                     (() => {
                       const learning =
@@ -695,7 +731,7 @@ export function ReaderWorkspace({
                 exit={{ opacity: 0 }}
                 role="status"
                 aria-live="polite"
-                className="fixed bottom-40 right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
+                className="fixed bottom-[calc(var(--bottom-sheet-h,9rem)+1rem)] right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
               >
                 {flash}
               </motion.div>
@@ -703,7 +739,10 @@ export function ReaderWorkspace({
           </AnimatePresence>
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
+        <div
+          id="reader-bottom-sheet"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95"
+        >
           {/* MobileNav is also fixed to the bottom and sits at z-50, so on
               phones it covered the rating buttons and made them untappable.
               Reserve its height here and drop back to the normal padding from
@@ -737,7 +776,7 @@ export function ReaderWorkspace({
           onClick={() => setHelpOpen(!helpOpen)}
           aria-label="Keyboard shortcuts"
           title="Keyboard shortcuts (?)"
-          className="fixed bottom-44 right-5 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-lg transition-transform hover:scale-105 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 cursor-pointer"
+          className="fixed bottom-[calc(var(--bottom-sheet-h,6.75rem)+68px)] right-5 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-lg transition-transform hover:scale-105 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 cursor-pointer"
         >
           ?
         </button>

@@ -48,7 +48,7 @@ function Segmented<T extends string>({
             aria-checked={value === opt.value}
             onClick={() => onChange(opt.value)}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
+              "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer",
               value === opt.value
                 ? "bg-white text-stone-900 shadow-sm dark:bg-stone-950 dark:text-amber-400"
                 : "text-stone-500 hover:text-stone-800 dark:hover:text-stone-200"
@@ -80,7 +80,7 @@ function ToggleChip({
       title={title}
       aria-pressed={active}
       className={cn(
-        "rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
+        "inline-flex whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer",
         active
           ? "border-amber-600 bg-amber-600 text-white"
           : "border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
