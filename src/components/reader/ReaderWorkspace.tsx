@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Check, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
   Grade,
@@ -22,6 +22,7 @@ import {
 import { scheduleFsrs } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
 import { GRADE_FLASH_MS, SYNC_STATUS_RESET_MS } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 import { useReaderStore } from "@/stores/reader-store";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
@@ -31,6 +32,7 @@ import { MaskingToolbar } from "./MaskingToolbar";
 import { TafsirDrawer } from "./TafsirDrawer";
 import { HelpSheet } from "./HelpSheet";
 import { VerseCanvas } from "./VerseCanvas";
+import { BulkActionBar } from "./BulkActionBar";
 import { LiveWordsContext } from "./live-words-context";
 import { offlineReviewQueue } from "@/lib/offline/review-queue";
 import { registerBackgroundSync } from "@/lib/offline/review-queue";
@@ -147,6 +149,10 @@ export function ReaderWorkspace({
   const memoryStatesRef = useRef(new Map<string, MemorySnapshot>());
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "completed" | "failed">("idle");
   const swTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [markingSurah, setMarkingSurah] = useState(false);
+  // Optimistic companion to the server progress flag below: flips the
+  // "Surah known ✓" chip the moment the user clicks, before refresh() lands.
+  const [surahKnownOptimistic, setSurahKnownOptimistic] = useState(false);
 
   const helpOpen = useReaderStore((s) => s.helpOpen);
   const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
@@ -154,6 +160,18 @@ export function ReaderWorkspace({
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
+  const bulkMode = useReaderStore((s) => s.bulkMode);
+  const setBulkMode = useReaderStore((s) => s.setBulkMode);
+  const layoutMode = useReaderStore((s) => s.layoutMode);
+
+  // Bulk selection is a Flow-layout affordance: Mushaf renders verses as
+  // inline words inside one paragraph, where per-verse checkboxes have no
+  // sensible anchor. Auto-exit if the layout flips while selecting.
+  useEffect(() => {
+    if (bulkMode && layoutMode === "MUSHAF") setBulkMode(false);
+  }, [bulkMode, layoutMode, setBulkMode]);
+
+  const [jumpInput, setJumpInput] = useState("");
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const onVerseChange = useCallback(() => {
@@ -222,6 +240,70 @@ export function ReaderWorkspace({
     flashTimer.current = setTimeout(() => setFlash(null), GRADE_FLASH_MS);
   }, []);
 
+  const jumpToAyah = useCallback(
+    (raw: string) => {
+      const value = raw.trim();
+      if (!value) return;
+      let m = /^(\d+)$/.exec(value);
+      if (m) {
+        const n = Number(m[1]);
+        if (n < 1 || n > surah.ayah_count) {
+          flashFor(`${surah.name_simple} has ${surah.ayah_count} verses`);
+          return;
+        }
+        selectAyah(`${surah.id}:${n}`);
+        resetRevealed(`${surah.id}:${n}`);
+        setJumpInput("");
+        return;
+      }
+      m = /^(\d+):(\d+)$/.exec(value);
+      if (m) {
+        const s = Number(m[1]);
+        const n = Number(m[2]);
+        if (s === surah.id) {
+          if (n < 1 || n > surah.ayah_count) {
+            flashFor(`${surah.name_simple} has ${surah.ayah_count} verses`);
+            return;
+          }
+          selectAyah(`${s}:${n}`);
+          resetRevealed(`${s}:${n}`);
+          setJumpInput("");
+        } else {
+          router.push(`/reader/${s}?verse=${s}:${n}`);
+        }
+        return;
+      }
+      flashFor("Enter an ayah number (e.g. 7) or surah:ayah (e.g. 2:255)");
+    },
+    [surah.id, surah.name_simple, surah.ayah_count, selectAyah, resetRevealed, router, flashFor]
+  );
+
+  // The fixed bottom sheet (bulk bar + audio card + rating bar + the mobile
+  // nav reserve) is as tall as its content: the height changes with viewport
+  // width and whatever appears or expands inside. Hardcoded offsets under the
+  // floating tafsir and "?" buttons and the flash toast landed ON the volume
+  // slider and audio card on phones, so publish the measured height as a CSS
+  // custom property and let each floating element ride above the sheet's
+  // live size (the fallbacks in the calc()s reproduce the old fixed offsets,
+  // so server-rendered HTML paints identically before hydration).
+  useEffect(() => {
+    const sheet = document.getElementById("reader-bottom-sheet");
+    if (!sheet) return;
+    const apply = () => {
+      const h = Math.round(sheet.getBoundingClientRect().height);
+      if (h > 0) {
+        document.documentElement.style.setProperty("--bottom-sheet-h", `${h}px`);
+      }
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(sheet);
+    return () => {
+      observer.disconnect();
+      document.documentElement.style.removeProperty("--bottom-sheet-h");
+    };
+  }, []);
+
   // Shared "move on to the next verse (or surah)" logic for grading and for
   // the known-marking flow, so both behaviors always stay in step.
   const advanceToNext = useCallback(() => {
@@ -250,6 +332,62 @@ export function ReaderWorkspace({
       }
     }
   }, [selected, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs, router]);
+
+  // Survives reloads because it reads the server's persisted progress — the
+  // previous session-only ref map cleared the chip on every page load. The
+  // optimistic flag covers the click-to-refresh window and resets with the
+  // keyed remount on surah change.
+  const isSurahFullyKnown =
+    (!!progress && progress.total > 0 && progress.known === progress.total) ||
+    surahKnownOptimistic;
+
+  /**
+   * Marks the entire current surah as already memorized.
+   */
+  const handleKnownSurah = useCallback(() => {
+    if (isGuest) {
+      flashFor("Sign in to mark surah as known");
+      return;
+    }
+    if (isSurahFullyKnown) {
+      flashFor(`All verses in Surah ${surah.name_simple} are already marked known`);
+      return;
+    }
+    setMarkingSurah(true);
+    setSurahKnownOptimistic(true);
+    for (const ayah of surah.ayahs) {
+      memoryStatesRef.current.set(ayah.verse_key, {
+        ...EMPTY_SNAPSHOT,
+        state: "KNOWN",
+        repetitionCount: 1,
+      });
+    }
+    flashFor(`Known ✓ Marked all ${surah.ayah_count} verses of Surah ${surah.name_simple} as known`);
+
+    fetch("/api/memory-state", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        surahId: surah.id,
+        fromAyah: 1,
+        toAyah: surah.ayah_count,
+        known: true,
+      }),
+    })
+      .then((res) => {
+        if (res.ok) {
+          router.refresh();
+        } else {
+          flashFor(`Could not mark Surah ${surah.name_simple} known — try again`);
+        }
+      })
+      .catch(() => {
+        flashFor(`Could not reach the server — Surah ${surah.name_simple} not saved`);
+      })
+      .finally(() => {
+        setMarkingSurah(false);
+      });
+  }, [isGuest, isSurahFullyKnown, surah, flashFor, router]);
 
   /**
    * Marks the selected verse as already memorized and skips it with no SRS
@@ -352,12 +490,9 @@ export function ReaderWorkspace({
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
-      // Grading must not fire for keys pressed while an overlay or an
-      // interactive element has focus: digits inside a select jump to the
-      // matching option and also graded a verse; ? and 1-4 with the help
-      // sheet open were invisible side effects.
-      if (target.closest("select, button, a, [role='button'], [role='slider'], [role='dialog']")) {
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+      // Grading must not fire for keys pressed while an overlay or select dropdown has focus
+      if (target.closest("select, [role='combobox'], [role='listbox'], [role='slider'], [role='dialog']")) {
         return;
       }
       const store = useReaderStore.getState();
@@ -367,18 +502,43 @@ export function ReaderWorkspace({
         setHelpOpen(!store.helpOpen);
         return;
       }
-      if (e.key === "5" && !isGuest) {
+      // While selecting verses, digits are worksheets not grades: a stray
+      // "3" during selection must not grade the still-selected verse.
+      if (store.bulkMode) return;
+      if (e.shiftKey && (e.key === "5" || e.key === "%")) {
         e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        handleKnownSurah();
+        return;
+      }
+      if (e.key === "5") {
+        e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
         handleKnown();
         return;
       }
       const map: Record<string, Grade> = { "1": "AGAIN", "2": "HARD", "3": "GOOD", "4": "EASY" };
       const grade = map[e.key];
-      if (grade) handleGrade(grade);
+      if (grade) {
+        e.preventDefault();
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur();
+        }
+        handleGrade(grade);
+        return;
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleGrade, handleKnown, isGuest, setHelpOpen]);
+  }, [handleGrade, handleKnown, handleKnownSurah, setHelpOpen]);
+
+  const refreshProgress = useCallback(() => {
+    router.refresh();
+  }, [router]);
 
   if (!hasAyahs) {
     return (
@@ -397,9 +557,9 @@ export function ReaderWorkspace({
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
-        <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
+        <div className="mx-auto max-w-4xl px-4 pb-[calc(var(--bottom-sheet-h,4rem)+8rem)] pt-6">
           <header className="mb-5">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 sm:items-center">
               <div>
                 <Link
                   href="/"
@@ -412,10 +572,12 @@ export function ReaderWorkspace({
                     {surah.name_arabic}
                   </span>
                 </h1>
-                <p className="mt-1 flex items-center gap-2 text-sm text-stone-500 dark:text-stone-400">
-                  {surah.name_simple} ·{" "}
-                  {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
-                  {surah.ayah_count} verses
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-500 dark:text-stone-400">
+                  <span className="whitespace-nowrap">
+                    {surah.name_simple} ·{" "}
+                    {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
+                    {surah.ayah_count} verses
+                  </span>
                   {progress && progress.total > 0 ? (
                     (() => {
                       const learning =
@@ -446,6 +608,24 @@ export function ReaderWorkspace({
                 </p>
               </div>
               <nav className="flex shrink-0 items-center gap-1.5">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    jumpToAyah(jumpInput);
+                  }}
+                  aria-label="Jump to ayah"
+                >
+                  <input
+                    value={jumpInput}
+                    onChange={(e) => setJumpInput(e.target.value)}
+                    inputMode="numeric"
+                    autoComplete="off"
+                    placeholder="Ayah…"
+                    aria-label="Jump to ayah"
+                    title="Jump to ayah: 7 or surah:ayah like 2:255"
+                    className="w-28 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-700 outline-none transition-colors placeholder:text-stone-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
+                  />
+                </form>
                 {(() => {
                   const idx = availableSurahs.findIndex((s) => s.id === surah.id);
                   const prev = idx > 0 ? availableSurahs[idx - 1] : null;
@@ -470,7 +650,7 @@ export function ReaderWorkspace({
                           router.push(`/reader/${e.target.value}`);
                         }}
                         aria-label="Switch surah"
-                        className="max-w-[150px]"
+                        className="w-36 sm:w-48 max-w-[200px]"
                         options={availableSurahs.map((s) => ({
                           value: String(s.id),
                           label: `${s.id}. ${s.name_simple}`,
@@ -492,7 +672,47 @@ export function ReaderWorkspace({
             </div>
           </header>
 
-          <MaskingToolbar />
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <MaskingToolbar />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleKnownSurah}
+                disabled={isSurahFullyKnown || markingSurah}
+                title={`Mark all ${surah.ayah_count} verses of ${surah.name_simple} as already known (key: Shift + 5)`}
+                aria-label={`Mark Surah ${surah.name_simple} as already known`}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                  isSurahFullyKnown
+                    ? "border-teal-600 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-950/60 dark:text-teal-300"
+                    : "border-stone-300 text-stone-600 hover:bg-stone-100 hover:text-stone-800 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+                )}
+              >
+                <Star className={cn("h-3.5 w-3.5", isSurahFullyKnown && "fill-current text-teal-600 dark:text-teal-400")} />
+                {isSurahFullyKnown ? "Surah known ✓" : "Mark surah as known"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setBulkMode(!bulkMode)}
+                aria-pressed={bulkMode}
+                disabled={layoutMode === "MUSHAF"}
+                title={
+                  layoutMode === "MUSHAF"
+                    ? "Switch to Flow layout to select verses"
+                    : "Select multiple verses to mark known or add to Sabaq"
+                }
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                  bulkMode
+                    ? "border-amber-600 bg-amber-600 text-white"
+                    : "border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+                )}
+              >
+                <Check className="h-3.5 w-3.5" />
+                {bulkMode ? "Selecting" : "Select verses"}
+              </button>
+            </div>
+          </div>
 
           <main className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-8 dark:border-stone-800 dark:bg-stone-900">
             <VerseCanvas surah={surah} />
@@ -511,7 +731,7 @@ export function ReaderWorkspace({
                 exit={{ opacity: 0 }}
                 role="status"
                 aria-live="polite"
-                className="fixed bottom-40 right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
+                className="fixed bottom-[calc(var(--bottom-sheet-h,9rem)+1rem)] right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
               >
                 {flash}
               </motion.div>
@@ -519,12 +739,23 @@ export function ReaderWorkspace({
           </AnimatePresence>
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
+        <div
+          id="reader-bottom-sheet"
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95"
+        >
           {/* MobileNav is also fixed to the bottom and sits at z-50, so on
               phones it covered the rating buttons and made them untappable.
               Reserve its height here and drop back to the normal padding from
               md up, where the nav is hidden. */}
           <div className="mx-auto flex max-w-4xl flex-col gap-2.5 px-3 pb-16 pt-3 md:pb-3">
+            {bulkMode && (
+              <BulkActionBar
+                allKeys={surah.ayahs.map((a) => a.verse_key)}
+                isGuest={!!isGuest}
+                onResult={flashFor}
+                onProgressChange={refreshProgress}
+              />
+            )}
             <AudioControlBar
               words={effectiveSelected.words}
               verseKey={selected!.verse_key}
@@ -534,6 +765,7 @@ export function ReaderWorkspace({
               verseKey={selected!.verse_key}
               onGrade={handleGrade}
               onKnown={isGuest ? undefined : handleKnown}
+              onKnownSurah={isGuest ? undefined : handleKnownSurah}
             />
           </div>
         </div>
@@ -544,7 +776,7 @@ export function ReaderWorkspace({
           onClick={() => setHelpOpen(!helpOpen)}
           aria-label="Keyboard shortcuts"
           title="Keyboard shortcuts (?)"
-          className="fixed bottom-44 right-5 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-lg transition-transform hover:scale-105 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 cursor-pointer"
+          className="fixed bottom-[calc(var(--bottom-sheet-h,6.75rem)+68px)] right-5 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-lg transition-transform hover:scale-105 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 cursor-pointer"
         >
           ?
         </button>

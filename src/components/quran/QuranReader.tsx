@@ -187,7 +187,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
                     router.push(`/quran?surah=${e.target.value}`);
                   }}
                   aria-label="Switch surah"
-                  className="max-w-[150px]"
+                  className="w-36 sm:w-48 max-w-[200px]"
                   options={availableSurahs.map((s) => ({
                     value: String(s.id),
                     label: `${s.id}. ${s.name_simple}`,

@@ -20,7 +20,7 @@ export function TafsirDrawer({ ayah }: { ayah: Ayah }) {
       <button
         onClick={() => setOpen(true)}
         aria-label="Open tafsir panel"
-        className="fixed bottom-32 right-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-white shadow-lg transition-transform hover:scale-105 dark:bg-amber-600 cursor-pointer"
+        className="fixed bottom-[calc(var(--bottom-sheet-h,7rem)+1rem)] right-5 z-40 inline-flex h-11 w-11 items-center justify-center rounded-full bg-stone-900 text-white shadow-lg transition-transform hover:scale-105 dark:bg-amber-600 cursor-pointer"
       >
         <BookOpenText className="h-5 w-5" />
       </button>

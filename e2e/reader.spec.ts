@@ -26,7 +26,7 @@ test.describe("Reader", () => {
   test("can rate a verse and advance", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Good" })).toBeVisible();
     await page.getByRole("button", { name: "Good" }).click();
-    await expect(page.locator(".fixed.bottom-40")).toContainText("Good");
+    await expect(page.getByRole("status")).toContainText("Good");
   });
 
   test("Know button marks the verse known and flashes the skip", async ({ page }) => {
@@ -35,7 +35,7 @@ test.describe("Reader", () => {
     await know.click();
     // Success, duplicate-mark, and server-failure flashes all name the verse
     // as known; the reviewer-visible assertion is that a skip was attempted.
-    await expect(page.locator(".fixed.bottom-40")).toContainText(/known/i);
+    await expect(page.getByRole("status")).toContainText(/known/i);
   });
 
   test("known marking survives a reload", async ({ page }) => {
@@ -71,7 +71,7 @@ test.describe("Reader", () => {
     await know.click();
     // Only the success flash names the verse with a guarantee tick; a
     // duplicate-mark or a server failure would say something else.
-    await expect(page.locator(".fixed.bottom-40")).toContainText(/Known ✓/);
+    await expect(page.getByRole("status")).toContainText(/Known ✓/);
 
     await page.reload();
     await page.waitForSelector('[dir="rtl"]', { state: "visible", timeout: 15000 });

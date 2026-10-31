@@ -6,6 +6,7 @@ import { useReaderStore } from "@/stores/reader-store";
 import { usePlayback } from "@/hooks/use-audio-sync";
 import { useLiveWords } from "./live-words-context";
 import { cn, toArabicDigits } from "@/lib/utils";
+import { Check } from "lucide-react";
 import { VerseWord } from "./VerseWord";
 import { VERSE_CHUNK } from "@/lib/constants";
 
@@ -17,7 +18,19 @@ function AyahMarker({ number }: { number: number }) {
   );
 }
 
-function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number }) {
+function FlowAyah({
+  surah,
+  ayahIndex,
+  bulkMode,
+  bulkChecked,
+  onBulkToggle,
+}: {
+  surah: SurahBundle;
+  ayahIndex: number;
+  bulkMode?: boolean;
+  bulkChecked?: boolean;
+  onBulkToggle?: (verseKey: string, index: number, extend: boolean) => void;
+}) {
   const ayah = surah.ayahs[ayahIndex];
   const maskMode = useReaderStore((s) => s.maskMode);
   const blurScope = useReaderStore((s) => s.blurScope);
@@ -54,13 +67,23 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
       tabIndex={0}
       role="group"
       aria-label={`Ayah ${ayah.ayah_number}`}
-      onClick={() => !isSelected && selectAyah(ayah.verse_key)}
+      onClick={(e) => {
+        // Bulk mode replaces click-to-select: a tap toggles membership and
+        // shift-click fills the range since the last tap.
+        if (bulkMode) {
+          if (!isSelected) selectAyah(ayah.verse_key);
+          onBulkToggle?.(ayah.verse_key, ayahIndex, e.shiftKey);
+          return;
+        }
+        if (!isSelected) selectAyah(ayah.verse_key);
+      }}
       onKeyDown={(e) => {
         // Keyboard parity with click-to-select: without this only VerseWord
         // spans were reachable and an entire ayah was unselectable by keyboard.
-        if (!isSelected && (e.key === "Enter" || e.key === " ")) {
+        if ((e.key === "Enter" || e.key === " ") && (bulkMode || !isSelected)) {
           e.preventDefault();
-          selectAyah(ayah.verse_key);
+          if (bulkMode) onBulkToggle?.(ayah.verse_key, ayahIndex, e.shiftKey);
+          else selectAyah(ayah.verse_key);
         }
       }}
       className={cn(
@@ -68,9 +91,24 @@ function FlowAyah({ surah, ayahIndex }: { surah: SurahBundle; ayahIndex: number 
         isSelected
           ? "border-amber-300 bg-amber-50/70 dark:border-amber-700/50 dark:bg-amber-950/20"
           : "hover:bg-stone-50 dark:hover:bg-stone-800/40",
+        bulkChecked &&
+          "border-amber-400 bg-amber-50/60 dark:border-amber-500/60 dark:bg-amber-950/30",
         showRoots ? "pb-12" : ""
       )}
     >
+      {bulkMode && (
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute top-3 left-3 z-10 inline-flex h-5 w-5 items-center justify-center rounded-full border transition-colors",
+            bulkChecked
+              ? "border-amber-600 bg-amber-600 text-white"
+              : "border-stone-300 bg-white/80 dark:border-stone-600 dark:bg-stone-800/80"
+          )}
+        >
+          {bulkChecked && <Check className="h-3 w-3" />}
+        </span>
+      )}
       <p dir="rtl" lang="ar" className="text-right leading-[2.3]">
           {ayahScoped && !allRevealed ? (
             <span
@@ -199,6 +237,29 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
+  const bulkMode = useReaderStore((s) => s.bulkMode);
+  const bulkSelected = useReaderStore((s) => s.bulkSelected);
+  const toggleBulkVerse = useReaderStore((s) => s.toggleBulkVerse);
+  const setBulkRange = useReaderStore((s) => s.setBulkRange);
+
+  // Shift-click range anchor: the index of the last toggled verse. UI-only,
+  // so it lives here rather than in the persisted store.
+  const lastToggledIndex = useRef<number | null>(null);
+  const handleBulkToggle = useCallback(
+    (verseKey: string, index: number, extend: boolean) => {
+      if (extend && lastToggledIndex.current !== null) {
+        // Fill the ordered range between the anchor and this tap (inclusive).
+        const lo = Math.min(lastToggledIndex.current, index);
+        const hi = Math.max(lastToggledIndex.current, index);
+        const keys = surah.ayahs.slice(lo, hi + 1).map((a) => a.verse_key);
+        setBulkRange(keys);
+        return;
+      }
+      lastToggledIndex.current = index;
+      toggleBulkVerse(verseKey);
+    },
+    [surah.ayahs, setBulkRange, toggleBulkVerse]
+  );
 
   const selectedIndex = surah.ayahs.findIndex((a) => a.verse_key === selectedVerseKey);
   const [visibleCount, setVisibleCount] = useState(() =>
@@ -268,7 +329,14 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
       ) : (
         <div className="space-y-2">
           {visibleAyahs.map((_, idx) => (
-            <FlowAyah key={surah.ayahs[idx].verse_key} surah={surah} ayahIndex={idx} />
+            <FlowAyah
+              key={surah.ayahs[idx].verse_key}
+              surah={surah}
+              ayahIndex={idx}
+              bulkMode={bulkMode}
+              bulkChecked={bulkSelected.includes(surah.ayahs[idx].verse_key)}
+              onBulkToggle={handleBulkToggle}
+            />
           ))}
         </div>
       )}
