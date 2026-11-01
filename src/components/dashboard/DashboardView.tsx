@@ -11,6 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { cn } from "@/lib/utils";
 import { RETENTION_PERCENT_MAX, RETENTION_PERCENT_MIN } from "@/lib/constants";
 import { GoalRing, StreakCard } from "./StatsCards";
+import { BadgesCard, RecapCard } from "./BadgesCard";
 import { PacePlannerCard } from "./PacePlannerCard";
 import {
   useRemindersSetting,
@@ -219,6 +220,13 @@ export function DashboardView({
           {!isGuest && (
             <div className="mb-4">
               <SabaqIntake availableSurahs={availableSurahs} />
+            </div>
+          )}
+
+          {!isGuest && (
+            <div className="mb-4 grid gap-4">
+              <BadgesCard />
+              <RecapCard />
             </div>
           )}
 

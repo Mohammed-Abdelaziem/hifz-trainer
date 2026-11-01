@@ -1,6 +1,10 @@
 import { getDb } from "@/lib/db";
 import { getSessionUser } from "@/lib/server/auth";
 import { DAY_MS } from "@/lib/constants";
+import { getAchievementSnapshot, buildSurahNameMap } from "@/lib/server/hifz-service";
+import { levelForXp, xpFromGradeCounts } from "@/lib/xp";
+import { evaluateAchievements, type Achievement } from "@/lib/achievements";
+import type { XpLevel } from "@/lib/xp";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +23,90 @@ export interface ReviewStats {
     sm2: number[];
     fsrs: number[];
     totals: { sm2: number; fsrs: number };
+  };
+  /** All-time XP / level, derived from every logged grade. */
+  xp: XpLevel;
+  /** Last-week vs previous-week motivation recap, from the same ledger. */
+  recap: RecapData;
+  /** Badge list evaluated against durable state (see src/lib/achievements). */
+  achievements: Achievement[];
+}
+
+export interface RecapData {
+  reviewsThisWeek: number;
+  reviewsLastWeek: number;
+  activeDaysThisWeek: number;
+  bestDay: { date: string; count: number } | null;
+  topSurah: { surahId: number; name: string; count: number } | null;
+  xpThisWeek: number;
+}
+
+/**
+ * Pure recap derivation so the rolling 7/14-day windows stay testable: the
+ * review rows come from the 30-day stats window already, so no extra query —
+ * the recap is a pure projection over the fetched logs.
+ */
+export function previousWeekOffset(key: string, todayKey: string): number {
+  return Math.round((Date.parse(`${todayKey}T00:00:00Z`) - Date.parse(`${key}T00:00:00Z`)) / DAY_MS);
+}
+
+function isPreviousWeek(key: string, todayKey: string): boolean {
+  const offset = previousWeekOffset(key, todayKey);
+  return offset >= 7 && offset <= 13;
+}
+
+export function buildRecap(
+  logs: { createdAt: Date; grade: string; verseKey: string }[],
+  now: Date,
+  surahNames: Map<number, string>
+): RecapData {
+  const todayKey = now.toISOString().slice(0, 10);
+  const dayAt = (offset: number): string => {
+    const d = new Date(`${todayKey}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() - offset);
+    return d.toISOString().slice(0, 10);
+  };
+  const weekKeys = new Set<string>();
+  for (let i = 0; i < 7; i++) weekKeys.add(dayAt(i));
+
+  let reviewsThisWeek = 0;
+  let reviewsLastWeek = 0;
+  const perDayThisWeek = new Map<string, number>();
+  const gradeCountsThisWeek: Record<string, number> = {};
+  const bySurah = new Map<number, number>();
+
+  for (const log of logs) {
+    const key = log.createdAt.toISOString().slice(0, 10);
+    if (weekKeys.has(key)) {
+      reviewsThisWeek += 1;
+      perDayThisWeek.set(key, (perDayThisWeek.get(key) ?? 0) + 1);
+      gradeCountsThisWeek[log.grade] = (gradeCountsThisWeek[log.grade] ?? 0) + 1;
+      const surahId = Number.parseInt(log.verseKey.split(":")[0] ?? "", 10);
+      if (Number.isInteger(surahId)) bySurah.set(surahId, (bySurah.get(surahId) ?? 0) + 1);
+    } else if (isPreviousWeek(key, todayKey)) {
+      reviewsLastWeek += 1;
+    }
+  }
+
+  let bestDay: RecapData["bestDay"] = null;
+  for (const [date, count] of perDayThisWeek) {
+    if (!bestDay || count > bestDay.count) bestDay = { date, count };
+  }
+
+  let topSurah: RecapData["topSurah"] = null;
+  for (const [surahId, count] of bySurah) {
+    if (!topSurah || count > topSurah.count) {
+      topSurah = { surahId, name: surahNames.get(surahId) ?? `Surah ${surahId}`, count };
+    }
+  }
+
+  return {
+    reviewsThisWeek,
+    reviewsLastWeek,
+    activeDaysThisWeek: perDayThisWeek.size,
+    bestDay,
+    topSurah,
+    xpThisWeek: xpFromGradeCounts(gradeCountsThisWeek),
   };
 }
 
@@ -52,6 +140,7 @@ export async function GET() {
         select: {
           createdAt: true,
           grade: true,
+          verseKey: true,
           reviewDurationMs: true,
           intervalDays: true,
           scheduler: true,
@@ -84,6 +173,21 @@ export async function GET() {
     let fsrsTotal = 0;
     let durationSum = 0;
     let recentCount = 0;
+
+    // Parallel odds and ends the new dashboard cards need: the queries are
+    // all indexed and small (per-grade counts are ≤4 rows, the surah map is
+    // 114 rows), and they ride the same tick as the ledger scan.
+    const [snapshot, gradeRows, surahRows] = await Promise.all([
+      getAchievementSnapshot(user.id),
+      db.reviewLog.groupBy({ by: ["grade"], where: { userId: user.id }, _count: { _all: true } }),
+      db.surah.findMany({ select: { id: true, nameSimple: true } }),
+    ]);
+    const surahNames = buildSurahNameMap(surahRows);
+
+    const gradeCountsAllTime: Record<string, number> = {};
+    for (const row of gradeRows) {
+      gradeCountsAllTime[row.grade] = row._count._all;
+    }
 
     for (const log of logs) {
       const key = log.createdAt.toISOString().slice(0, 10);
@@ -123,6 +227,9 @@ export async function GET() {
         fsrs: fsrsBuckets,
         totals: { sm2: sm2Total, fsrs: fsrsTotal },
       },
+      xp: levelForXp(xpFromGradeCounts(gradeCountsAllTime)),
+      recap: buildRecap(logs, new Date(), surahNames),
+      achievements: evaluateAchievements(snapshot),
     };
 
     return Response.json(stats);

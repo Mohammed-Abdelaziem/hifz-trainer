@@ -67,9 +67,16 @@ export function StreakCard({ streak }: { streak: StreakInfo }) {
       <div>
         <p className="text-sm font-semibold text-stone-700 dark:text-stone-200">Consistency</p>
         <p className="mt-1 text-xs leading-relaxed text-stone-500 dark:text-stone-400">
-          Longest streak: <strong>{streak.longest}</strong> · Reviewed today:{" "}
-          <strong>{streak.todayReviewed}</strong>
+          Longest streak: <strong>{streak.longest}</strong> · Reviewed today: <strong>{streak.todayReviewed}</strong>
         </p>
+        {/* The ledger freeze: the displayed run already crossed one missed
+            day (src/lib/streak-grace) without breaking. Surface it so the
+            forgiveness reads as a feature, not as silent reconciliation. */}
+        {streak.graceUsed && (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-medium text-sky-700 dark:bg-sky-950/40 dark:text-sky-300">
+            <span aria-hidden>❄️</span> Freeze used — one missed day bridged
+          </p>
+        )}
       </div>
     </Card>
   );
