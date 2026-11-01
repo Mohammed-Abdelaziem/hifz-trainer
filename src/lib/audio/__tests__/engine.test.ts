@@ -909,4 +909,145 @@ describe("AudioEngine", () => {
       expect(getLastHowl()._playing).toBe(true);
     });
   });
+
+  describe("per-verse repeat and verse stepping (surah mode)", () => {
+    const timings: VerseTiming[] = [
+      { verseKey: "1:1", start_ms: 0, end_ms: 4000 },
+      { verseKey: "1:2", start_ms: 4000, end_ms: 9000 },
+      { verseKey: "1:3", start_ms: 9000, end_ms: 15000 },
+      { verseKey: "1:4", start_ms: 15000, end_ms: 20000 },
+    ];
+
+    async function surahEngine(repeat = 0) {
+      const engine = new AudioEngine();
+      if (repeat !== 0) engine.setRepeat(repeat);
+      await engine.load("https://example.com/surah.mp3");
+      getLastHowl().fireLoad();
+      engine.setSurahTimings(timings);
+      return engine;
+    }
+
+    /** Position the mock Howl at `ms` and run the tick the provider drives. */
+    function atPosition(engine: AudioEngine, ms: number) {
+      getLastHowl()._seekPos = ms / 1000;
+      engine.checkVerseChange();
+    }
+
+    it("repeats the verse at each crossing before flowing to the next", async () => {
+      const engine = await surahEngine(3);
+      const changed = vi.fn();
+      engine.onVerseChange(changed);
+      atPosition(engine, 2000); // inside 1:1
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+
+      // ×3 budget: the first three crossings from 1:1 into 1:2 rewind to the
+      // verse's start instead of moving the selection on.
+      for (let i = 0; i < 3; i += 1) {
+        atPosition(engine, 4600);
+        expect(getLastHowl()._seekPos).toBe(0);
+        expect(changed).toHaveBeenCalledTimes(1);
+      }
+      // Budget exhausted: the fourth crossing is real.
+      atPosition(engine, 4600);
+      expect(getLastHowl()._seekPos).toBe(4.6);
+      await vi.waitFor(() => {
+        expect(changed).toHaveBeenCalledTimes(2);
+        expect(changed).toHaveBeenLastCalledWith("1:2");
+      });
+    });
+
+    it("a backward manual seek does not trigger the repeat rewind", async () => {
+      const engine = await surahEngine(3);
+      const changed = vi.fn();
+      engine.onVerseChange(changed);
+      atPosition(engine, 10000); // selects 1:3
+      atPosition(engine, 2000); // drag back to 1:1: deliberate, not a crossing
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+      expect(getLastHowl()._seekPos).toBe(2);
+    });
+
+    it("turning repeats on mid-verse starts repeating that verse", async () => {
+      const engine = await surahEngine(0);
+      const changed = vi.fn();
+      engine.onVerseChange(changed);
+      atPosition(engine, 2000);
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+      engine.setRepeat(3); // re-arms the per-verse budget
+      atPosition(engine, 4500);
+      expect(getLastHowl()._seekPos).toBe(0);
+      expect(changed).toHaveBeenCalledTimes(1);
+    });
+
+    it("a deliberate seekToVerse restarts the verse's repeat budget", async () => {
+      const engine = await surahEngine(1);
+      const changed = vi.fn();
+      engine.onVerseChange(changed);
+      atPosition(engine, 2000);
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(1));
+      atPosition(engine, 4600); // intercepted: the verse's one repeat played
+      expect(getLastHowl()._seekPos).toBe(0);
+      engine.seekToVerse("1:1"); // fresh start → fresh budget
+      atPosition(engine, 4600); // intercepted again
+      expect(getLastHowl()._seekPos).toBe(0);
+      atPosition(engine, 4600); // now the real crossing
+      await vi.waitFor(() => expect(changed).toHaveBeenCalledTimes(2));
+    });
+
+    it("does not loop the whole surah file on end when per-verse repeat is on", async () => {
+      const engine = await surahEngine(3);
+      const cb = vi.fn();
+      engine.onEnd(cb);
+      const howl = getLastHowl();
+      howl.fireEnd();
+      // Whole-file repeat would replay from 0; per-verse repeats happen at
+      // the crossings, so the end falls through to the surah-end callback.
+      await vi.waitFor(() => expect(cb).toHaveBeenCalled());
+      expect(howl._unloaded).toBe(true);
+      expect(howl._playing).toBe(false);
+    });
+
+    it("still loops the whole surah file on -1 in surah mode", async () => {
+      const engine = await surahEngine(-1);
+      const cb = vi.fn();
+      engine.onEnd(cb);
+      const howl = getLastHowl();
+      howl.fireEnd();
+      expect(howl._unloaded).toBe(false);
+      expect(howl._playing).toBe(true);
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    it("sungVerseKey reports the verse at the playhead", async () => {
+      const engine = await surahEngine();
+      atPosition(engine, 10000);
+      expect(engine.sungVerseKey()).toBe("1:3");
+      atPosition(engine, 500);
+      expect(engine.sungVerseKey()).toBe("1:1");
+      // End-of-file region (past every window) still reads as the last verse.
+      atPosition(engine, 22000);
+      expect(engine.sungVerseKey()).toBe("1:4");
+    });
+
+    it("verse helpers are false without surah timings or unknown keys", async () => {
+      const rawEngine = new AudioEngine();
+      expect(rawEngine.sungVerseKey()).toBe(null); // no timings at all
+      expect(rawEngine.seekToVerse("1:2")).toBe(false);
+      expect(rawEngine.stepVerse(1)).toBe(false);
+
+      const engine = await surahEngine();
+      expect(engine.seekToVerse("9:9")).toBe(false); // key outside this surah
+    });
+
+    it("stepVerse jumps relative to the sung verse and clamps at the edges", async () => {
+      const engine = await surahEngine();
+      atPosition(engine, 10000); // 1:3
+      expect(engine.stepVerse(1)).toBe(true);
+      expect(getLastHowl()._seekPos).toBe(15); // 1:4 starts at 15000ms
+      expect(engine.stepVerse(1)).toBe(false); // already the last verse
+      expect(getLastHowl()._seekPos).toBe(15);
+      expect(engine.stepVerse(-3)).toBe(true); // clamps to the first verse
+      expect(getLastHowl()._seekPos).toBe(0);
+      expect(engine.stepVerse(-1)).toBe(false); // already the first verse
+    });
+  });
 });

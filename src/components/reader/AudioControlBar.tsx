@@ -68,6 +68,8 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
   const setContinuousPlay = useReaderStore((s) => s.setContinuousPlay);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const setSurahAudioMode = useReaderStore((s) => s.setSurahAudioMode);
+  const repeatTotal = useReaderStore((s) => s.repeatTotal);
+  const setRepeatTotal = useReaderStore((s) => s.setRepeatTotal);
 
   const seqRunningRef = useRef(false);
   const seqGenRef = useRef(0);
@@ -289,7 +291,7 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
         />
       </div>
 
-      {/* Row 3: A-B loop set buttons (when no loop active) */}
+      {/* Row 3: A-B loop set buttons (when no loop active) + per-verse repeat */}
       {!isWord && loopA === null && loopB === null && (
         <div className="flex items-center gap-1.5 border-t border-stone-100 pt-2 dark:border-stone-800">
           <span className="text-[10px] uppercase tracking-wide text-stone-400">Loop</span>
@@ -299,6 +301,21 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           <Button size="sm" variant="outline" onClick={() => setLoopB(positionMs)} className="h-6 px-2 text-xs">
             Set B
           </Button>
+          {/* Per-verse repeat: in surah-audio mode ×N replays each ayah N
+              extra times before flowing on; in verse-clip mode it replays
+              the clip. -1 loops the whole selection until stopped. */}
+          <Select
+            value={String(repeatTotal)}
+            onChange={(e) => setRepeatTotal(Number(e.target.value))}
+            aria-label="Repeat"
+            className="ml-auto max-w-[82px] shrink-0"
+            options={[
+              { value: "0", label: "Repeat off" },
+              { value: "3", label: "Repeat ×3" },
+              { value: "5", label: "Repeat ×5" },
+              { value: "-1", label: "Repeat loop" },
+            ]}
+          />
         </div>
       )}
     </div>

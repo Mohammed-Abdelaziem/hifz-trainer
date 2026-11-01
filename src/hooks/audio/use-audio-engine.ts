@@ -153,5 +153,46 @@ export function useAudioEngine({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [enableKeyboard, handleKeyDown]);
 
+  /**
+   * Selection-follows-study AND study-follows-selection: while the surah
+   * reciter is playing, tapping an ayah (or the grading flow advancing)
+   * drags the audio to the verse the reader now has selected. The engine's
+   * own verse-crossing callback keeps selection following playback, so this
+   * only fires the other way — when the store's selection moves off the
+   * verse currently being sung.
+   */
+  useEffect(() => {
+    if (!surahAudioMode || !hasAyahs || !selected) return;
+    if (!engine.isPlaying()) return;
+    const sung = engine.sungVerseKey();
+    if (!sung || sung === selected.verse_key) return;
+    // seek = tap-to-jump: the reciter jumps to the tapped ayah immediately
+    // instead of the tap only moving the highlight until the next crossing.
+    engine.seekToVerse(selected.verse_key);
+  }, [engine, surahAudioMode, hasAyahs, selected]);
+
+  /**
+   * Preload the next ayah's clip during continuous verse playback: the
+   * crossing loads a fresh MP3 that is not in the browser cache's first
+   * request, so continuous play previously audibly gapped ("...pause... next
+   * verse"). A throwaway Audio element warms the HTTP cache; the engine's
+   * load() then resolves from it.
+   */
+  useEffect(() => {
+    if (!continuousPlay || surahAudioMode) return undefined;
+    if (typeof Audio === "undefined") return undefined;
+    const idx = selected ? surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key) : -1;
+    const next = idx >= 0 && idx + 1 < surah.ayahs.length ? surah.ayahs[idx + 1] : null;
+    if (!next?.audio_url) return undefined;
+    const preload = new Audio();
+    preload.preload = "auto";
+    preload.src = next.audio_url;
+    // Detaching src releases the element's fetch slot; the warmed cache stays.
+    return () => {
+      preload.removeAttribute("src");
+      preload.load();
+    };
+  }, [continuousPlay, surahAudioMode, surah.ayahs, selected]);
+
   return engine;
 }

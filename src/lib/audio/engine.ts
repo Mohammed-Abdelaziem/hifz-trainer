@@ -33,6 +33,8 @@ export class AudioEngine {
   /** -1 = loop forever; 0 = no repeats; n = replay n extra times. */
   private repeatTotal = 0;
   private repeatRemaining = 0;
+  /** Per-verse repeats still owed in surah-audio mode (setRepeat(n>0)). */
+  private surahVerseRepeatRemaining = 0;
 
   private surahTimings: VerseTiming[] | null = null;
   private currentVerseIndex = -1;
@@ -43,6 +45,7 @@ export class AudioEngine {
   onEnd(callback: (() => void) | null) {
     this.endCallback = callback;
   }
+
 
   /**
    * Replays the loaded audio on natural end: doubles for both the whole-surah
@@ -58,6 +61,10 @@ export class AudioEngine {
       this.repeatTotal = 0;
     }
     this.repeatRemaining = this.repeatTotal;
+    // Changing the setting re-arms the per-verse repeats too: turning ×3 on
+    // while a verse is playing must start repeating it immediately, not wait
+    // for the next crossing.
+    this.resetSurahVerseRepeat();
   }
 
   onVerseChange(callback: ((verseKey: string) => void) | null) {
@@ -70,6 +77,7 @@ export class AudioEngine {
     // A fresh timing set is a context change (surah/reciter switch): a verse
     // target remembered from the previous one is meaningless now.
     this.pendingVerseKey = null;
+    this.resetSurahVerseRepeat();
   }
 
   clearSurahTimings() {
@@ -92,23 +100,89 @@ export class AudioEngine {
    */
   checkVerseChange() {
     if (!this.surahTimings || this.surahTimings.length === 0) return;
-    const pos = this.nowMs();
-    let idx = -1;
-    for (let i = 0; i < this.surahTimings.length; i++) {
-      const t = this.surahTimings[i];
-      if (pos >= t.start_ms && pos < t.end_ms) {
-        idx = i;
-        break;
-      }
-    }
-    if (idx === -1 && pos >= this.surahTimings[this.surahTimings.length - 1].start_ms) {
-      idx = this.surahTimings.length - 1;
-    }
+    const idx = this.indexAtPosition(this.nowMs());
     if (idx !== -1 && idx !== this.currentVerseIndex) {
+      const prev = this.currentVerseIndex;
+      // Per-verse repeat (surah-audio mode): the reciter just crossed from
+      // verse A into the next verse while repeats are still owed, so rewind
+      // into A instead of selecting B. Only the natural forward advance
+      // repeats — a user dragging the slider backwards must not snap them
+      // forward again onto a verse they left deliberately.
+      if (
+        this.repeatTotal > 0 &&
+        this.surahVerseRepeatRemaining > 0 &&
+        prev >= 0 &&
+        idx === prev + 1
+      ) {
+        this.surahVerseRepeatRemaining -= 1;
+        this.seekMs(this.surahTimings[prev].start_ms);
+        return;
+      }
       this.currentVerseIndex = idx;
+      // A real crossing starts a fresh repeat budget for the new verse.
+      this.resetSurahVerseRepeat();
       const cb = this.verseChangeCallback;
       if (cb) queueMicrotask(() => cb(this.surahTimings![idx].verseKey));
     }
+  }
+
+  /** Verse index at a position (end-of-file counts as the last verse), or -1. */
+  private indexAtPosition(pos: number): number {
+    const timings = this.surahTimings;
+    if (!timings || timings.length === 0) return -1;
+    for (let i = 0; i < timings.length; i++) {
+      const t = timings[i];
+      if (pos >= t.start_ms && pos < t.end_ms) {
+        return i;
+      }
+    }
+    if (pos >= timings[timings.length - 1].start_ms) {
+      return timings.length - 1;
+    }
+    return -1;
+  }
+
+  /**
+   * The verse of the loaded surah the audio is currently inside, or null.
+   * Used by tap-to-jump (did the reciter move off the tapped verse?) and the
+   * Media Session handlers (stepping needs the current verse).
+   */
+  sungVerseKey(): string | null {
+    const idx = this.indexAtPosition(this.nowMs());
+    return idx === -1 ? null : this.surahTimings![idx].verseKey;
+  }
+
+  /**
+   * Position the surah audio at a verse's first millisecond and start a fresh
+   * per-verse repeat budget for it (tap-to-jump, prev/next verse, and
+   * selection-follows all go through here). False when the verse is unknown.
+   */
+  seekToVerse(verseKey: string): boolean {
+    const timings = this.surahTimings;
+    if (!verseKey || !timings || timings.length === 0) return false;
+    const idx = timings.findIndex((x) => x.verseKey === verseKey);
+    if (idx === -1) return false;
+    this.resetSurahVerseRepeat();
+    this.seekMs(timings[idx].start_ms);
+    return true;
+  }
+
+  /**
+   * Jump one verse relative to wherever the audio currently is (not the UI
+   * selection, which can lag or be user-pinned). Clamped at the surah edges.
+   * False when there is no surah audio positioned to step from.
+   */
+  stepVerse(delta: number): boolean {
+    const idx = this.indexAtPosition(this.nowMs());
+    const timings = this.surahTimings;
+    if (idx === -1 || !timings || timings.length === 0) return false;
+    const next = Math.min(timings.length - 1, Math.max(0, idx + delta));
+    if (next === idx) return false;
+    return this.seekToVerse(timings[next].verseKey);
+  }
+
+  private resetSurahVerseRepeat() {
+    this.surahVerseRepeatRemaining = this.repeatTotal > 0 ? this.repeatTotal : 0;
   }
 
   async load(
@@ -132,6 +206,7 @@ export class AudioEngine {
     // the previous clip must not leak into the next one and skew a ×3 into a
     // ×5 when the user navigates mid-play.
     this.repeatRemaining = this.repeatTotal;
+    this.resetSurahVerseRepeat();
     this.anchorPos = 0;
     if (typeof window === "undefined") return;
     this.mode = "loading";
@@ -159,7 +234,15 @@ export class AudioEngine {
         // the MP3 between reps. The clip promise has already been resolved
         // above, so looping is invisible to the study UI; onVerseChange keeps
         // firing from the play event, pinning the same verse each rep.
-        if (this.repeatRemaining !== 0 && this.url) {
+        // Excluded in per-verse repeat mode (surah timings + repeatTotal>0):
+        // there the repeats happen at every verse crossing, so reaching the
+        // file's end plays on to the surah-end callback instead of restarting
+        // the surah. -1 (loop whole surah) still lands here.
+        if (
+          this.repeatRemaining !== 0 &&
+          this.url &&
+          !(this.surahTimings && this.repeatTotal > 0)
+        ) {
           if (this.repeatRemaining > 0) this.repeatRemaining -= 1;
           this.seekMs(0);
           howl.play();
@@ -342,6 +425,8 @@ export class AudioEngine {
       // case: when the surah file is still loading, play() below only queues
       // pendingPlay and the "load" handler must seek before its own play.
       this.pendingVerseKey = verseKey;
+      // Deliberately starting a verse restarts its repeat budget too.
+      this.resetSurahVerseRepeat();
     }
     this.play();
   }
