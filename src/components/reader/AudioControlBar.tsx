@@ -136,7 +136,10 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
     } else if (playing) {
       engine.pause();
     } else {
-      engine.play();
+      // The selected ayah is what "play" means: in surah-audio mode this
+      // jumps the full-surah file to the highlighted verse instead of
+      // resuming from wherever it last paused.
+      engine.playFromVerse(verseKey);
     }
   }
 

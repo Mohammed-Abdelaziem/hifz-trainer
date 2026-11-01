@@ -11,7 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { formatMs } from "@/lib/utils";
 import { PROGRESS_BAR_MIN_MS } from "@/lib/constants";
 
-export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { surahId: number; ayahCount: number }) {
+export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount, verseKey }: { surahId: number; ayahCount: number; verseKey?: string }) {
   const { engine } = useAudioSyncContext();
   const positionMs = usePlayback((p) => p.positionMs);
   const playing = usePlayback((p) => p.playing);
@@ -52,7 +52,18 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount }: { su
         <Button
           size="icon"
           aria-label={playing ? "Pause" : "Play"}
-          onClick={() => (playing ? engine.pause() : engine.play())}
+          onClick={() => {
+            if (playing) {
+              engine.pause();
+            } else if (verseKey) {
+              // The full-surah file must start at the ayah the reader has
+              // selected ("click an ayah to select it for audio playback"),
+              // not resume from the file position.
+              engine.playFromVerse(verseKey);
+            } else {
+              engine.play();
+            }
+          }}
         >
           {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
         </Button>

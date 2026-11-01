@@ -142,9 +142,9 @@ export function useAudioEngine({
       }
       e.preventDefault();
       if (engine.isPlaying()) engine.pause();
-      else engine.play();
+      else engine.playFromVerse(selected?.verse_key ?? "");
     },
-    [engine]
+    [engine, selected]
   );
 
   useEffect(() => {

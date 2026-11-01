@@ -229,6 +229,77 @@ describe("AudioEngine", () => {
     });
   });
 
+  describe("playFromVerse", () => {
+    const timings: VerseTiming[] = [
+      { verseKey: "1:1", start_ms: 0, end_ms: 4000 },
+      { verseKey: "1:2", start_ms: 4000, end_ms: 9000 },
+      { verseKey: "1:3", start_ms: 9000, end_ms: 15000 },
+      { verseKey: "1:4", start_ms: 15000, end_ms: 20000 },
+    ];
+
+    async function loadedEngineWithTimings(url = "https://example.com/surah.mp3") {
+      const engine = new AudioEngine();
+      await engine.load(url);
+      getLastHowl().fireLoad();
+      engine.setSurahTimings(timings);
+      return engine;
+    }
+
+    it("seeks to the selected verse's start when paused elsewhere", async () => {
+      const engine = await loadedEngineWithTimings();
+      engine.playFromVerse("1:3");
+      expect(getLastHowl()._playing).toBe(true);
+      expect(getLastHowl()._seekPos).toBe(9); // 9000 ms = verse 3 start
+    });
+
+    it("resumes without seeking when paused inside the selected verse", async () => {
+      const engine = await loadedEngineWithTimings();
+      // Park the file inside verse 2 and pause there.
+      engine.playFromVerse("1:2");
+      engine.pause();
+      expect(getLastHowl()._seekPos).toBe(4);
+      // Starting the SAME verse again must resume, not restart.
+      engine.playFromVerse("1:2");
+      expect(getLastHowl()._seekPos).toBe(4);
+      expect(getLastHowl()._playing).toBe(true);
+    });
+
+    it("seeks the file even when play was pressed while still loading", async () => {
+      const engine = new AudioEngine();
+      // Awaited only through Howl creation; fireLoad below is the LOADED event,
+      // so the engine is genuinely still in "loading" mode here.
+      await engine.load("https://example.com/surah.mp3");
+      expect(engine.getMode()).toBe("loading");
+      engine.setSurahTimings(timings);
+      engine.play();
+      engine.playFromVerse("1:3");
+      // Selection and play intent queued before the file is ready...
+      getLastHowl().fireLoad();
+      // ...must start at the verse's first millisecond, not 0.
+      expect(getLastHowl()._playing).toBe(true);
+      expect(getLastHowl()._seekPos).toBe(9);
+    });
+
+    it("starts from the verse after an explicit stop", async () => {
+      const engine = await loadedEngineWithTimings();
+      engine.playFromVerse("1:3");
+      engine.stop();
+      expect(getLastHowl()._seekPos).toBe(0);
+      engine.playFromVerse("1:3");
+      expect(getLastHowl()._playing).toBe(true);
+      expect(getLastHowl()._seekPos).toBe(9);
+    });
+
+    it("does not seek in verse-clip mode (no timings)", async () => {
+      const engine = new AudioEngine();
+      await engine.load("https://example.com/verse.mp3");
+      getLastHowl().fireLoad();
+      engine.playFromVerse("1:2");
+      expect(getLastHowl()._playing).toBe(true);
+      expect(getLastHowl()._seekPos).toBe(0);
+    });
+  });
+
   describe("stop", () => {
     it("stops and resets position to 0", async () => {
       const engine = new AudioEngine();

@@ -9,6 +9,7 @@ const mockEngineInstance = {
   setRepeat: vi.fn(),
   load: vi.fn(() => Promise.resolve()),
   play: vi.fn(),
+  playFromVerse: vi.fn(),
   pause: vi.fn(),
   stop: vi.fn(),
   destroy: vi.fn(),
