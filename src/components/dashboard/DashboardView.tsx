@@ -17,6 +17,7 @@ import {
   useDueReviewNotification,
 } from "@/hooks/use-review-reminders";
 import { TaskQueueTabs } from "./TaskQueueTabs";
+import { ForecastCard } from "./ForecastCard";
 import { SyncButton } from "./SyncButton";
 import { SabaqIntake } from "./SabaqIntake";
 import { WeeklyChartWrapper } from "./WeeklyChartWrapper";
@@ -251,6 +252,8 @@ export function DashboardView({
           </div>
 
           <TaskQueueTabs queue={queue} isGuest={isGuest} />
+
+          {!isGuest && <ForecastCard forecast={queue.forecast} />}
         </>
       )}
 

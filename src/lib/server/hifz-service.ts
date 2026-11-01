@@ -1,6 +1,7 @@
 import type { Grade, MemoryState, SchedulerKind } from "@/types/quran";
 import type {
   DailyQueue,
+  DueForecast,
   MemoryCell,
   QueueItem,
   StreakInfo,
@@ -601,6 +602,19 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     where: { userId, createdAt: { gte: startOfDay(new Date()) } },
   });
 
+  // Forecast: how many verses come due after today, by horizon. One light
+  // query (dueDate column only) buckets in JS — Prisma cannot group by
+  // arbitrary date ranges, and the rows beyond today are the same ones the
+  // dashboard heatmap already walks.
+  const futureDue = await db.userMemoryState.findMany({
+    where: {
+      userId,
+      state: { not: "KNOWN" },
+      dueDate: { gt: endOfToday },
+    },
+    select: { dueDate: true },
+  });
+
   return {
     sabaq: buckets.SABAQ,
     sabqi: buckets.SABQI,
@@ -615,7 +629,31 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
       todayReviewed,
       todayRead,
     },
+    forecast: bucketForecast(
+      futureDue.map((row) => row.dueDate),
+      endOfToday
+    ),
   };
+}
+
+/**
+ * Cumulative due counts at fixed horizons past a reference midnight. Pure,
+ * exported for tests: the horizon labels shown on the dashboard ("next
+ * 3/7/30 days") must match wherever this is consumed.
+ */
+export function bucketForecast(dueDates: Date[], now: Date): DueForecast {
+  let byDay = 0;
+  let by3Days = 0;
+  let by7Days = 0;
+  let by30Days = 0;
+  for (const d of dueDates) {
+    const offset = d.getTime() - now.getTime();
+    if (offset <= DAY_MS) byDay += 1;
+    if (offset <= 3 * DAY_MS) by3Days += 1;
+    if (offset <= 7 * DAY_MS) by7Days += 1;
+    if (offset <= 30 * DAY_MS) by30Days += 1;
+  }
+  return { dueByDay: byDay, dueBy3Days: by3Days, dueBy7Days: by7Days, dueBy30Days: by30Days };
 }
 
 // SurahProgress moved to types/srs so client components consume it without

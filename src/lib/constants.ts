@@ -25,6 +25,14 @@ export const KNOWN_RANGE_MAX = 286;
 // Day in milliseconds
 export const DAY_MS = 86_400_000;
 
+/** Sessions longer than this stop being a quiz and become a slog — extra
+ * selections are sampled down to this many rounds. */
+export const QUIZ_MAX_ROUNDS = 30;
+
+/** Listens (across all sessions) after which the reader nudges the user to
+ * grade the ayah instead of only listening to it. */
+export const LISTEN_NUDGE_THRESHOLD = 3;
+
 // Quran API
 export const QURAN_API_BASE = "https://api.quran.com/api/v4";
 export const VERSES_CDN = "https://verses.quran.com/";

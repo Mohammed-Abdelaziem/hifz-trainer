@@ -53,3 +53,35 @@ export async function POST(req: Request) {
     return Response.json({ error: "Failed to record reading" }, { status: 500 });
   }
 }
+
+/**
+ * Listen count for one verse: the grade-ready nudge in the reader needs to
+ * know how many times this ayah has been heard (across all sessions) before
+ * it asks "ready to grade?". Same access rules as POST.
+ */
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const verseKey = url.searchParams.get("verseKey") ?? undefined;
+  if (!isVerseKey(verseKey)) {
+    return Response.json({ error: "verseKey must match 'surah:ayah'" }, { status: 400 });
+  }
+
+  try {
+    const user = await getSessionUser();
+    if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+
+    const db = await getDb();
+    const state = await db.userMemoryState.findUnique({
+      where: { userId_verseKey: { userId: user.id, verseKey } },
+      select: { readCount: true, lastReadAt: true },
+    });
+    return Response.json({
+      verseKey,
+      readCount: state?.readCount ?? 0,
+      lastReadAt: state?.lastReadAt?.toISOString() ?? null,
+    });
+  } catch (err) {
+    console.error("[/api/reading]", err);
+    return Response.json({ error: "Failed to load reading state" }, { status: 500 });
+  }
+}

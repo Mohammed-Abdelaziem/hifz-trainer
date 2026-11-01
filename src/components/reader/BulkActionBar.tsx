@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, ListPlus, X } from "lucide-react";
+import { Check, ListChecks, ListPlus, X } from "lucide-react";
 import { useReaderStore } from "@/stores/reader-store";
 import { SABAQ_BATCH_MAX, KNOWN_RANGE_MAX } from "@/lib/constants";
 
@@ -15,6 +15,7 @@ export function BulkActionBar({
   isGuest,
   onResult,
   onProgressChange,
+  onQuiz,
 }: {
   /** Every verse key of the current surah — powers the "Select all" affordance. */
   allKeys: string[];
@@ -24,6 +25,8 @@ export function BulkActionBar({
   onResult: (message: string) => void;
   /** Fired when progress data changed server-side; the workspace refreshes the RSC chip. */
   onProgressChange: () => void;
+  /** Opens the fill-in-the-blank quiz over the selection (optional affordance). */
+  onQuiz?: () => void;
 }) {
   const bulkSelected = useReaderStore((s) => s.bulkSelected);
   const clearBulkSelection = useReaderStore((s) => s.clearBulkSelection);
@@ -122,6 +125,18 @@ export function BulkActionBar({
       >
         <ListPlus className="h-3.5 w-3.5" /> Add to Sabaq
       </button>
+
+      {onQuiz && (
+        <button
+          onClick={onQuiz}
+          disabled={busy || count === 0}
+          // Works for guests too: the quiz scores recall, and only the final
+          // "save to SRS" step needs an account.
+          className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 bg-white px-3 py-1 text-xs font-medium text-stone-700 transition-colors hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-200 dark:hover:bg-stone-800 cursor-pointer"
+        >
+          <ListChecks className="h-3.5 w-3.5" /> Quiz
+        </button>
+      )}
 
       <button
         onClick={() => selectBulkAll(allKeys)}

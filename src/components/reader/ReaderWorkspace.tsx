@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeft, Check, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
+  Ayah,
   Grade,
   MemoryState,
   SchedulerKind,
@@ -14,6 +15,7 @@ import type {
 import type { SurahProgress } from "@/lib/server/hifz-service";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { usePassiveReadingTracker } from "@/hooks/use-passive-reading-tracker";
+import { useListenCount } from "@/hooks/use-listen-count";
 import { useAudioEngine, useVerseData, useAudioSettings, useSurahAudio } from "@/hooks/audio";
 import {
   schedule,
@@ -34,6 +36,8 @@ import { TafsirDrawer } from "./TafsirDrawer";
 import { HelpSheet } from "./HelpSheet";
 import { VerseCanvas } from "./VerseCanvas";
 import { BulkActionBar } from "./BulkActionBar";
+import { GradeNudge } from "./GradeNudge";
+import { QuizModal } from "./QuizModal";
 import { LiveWordsContext } from "./live-words-context";
 import { offlineReviewQueue } from "@/lib/offline/review-queue";
 import { registerBackgroundSync } from "@/lib/offline/review-queue";
@@ -163,7 +167,15 @@ export function ReaderWorkspace({
   const reciterId = useReaderStore((s) => s.reciterId);
   const bulkMode = useReaderStore((s) => s.bulkMode);
   const setBulkMode = useReaderStore((s) => s.setBulkMode);
+  const bulkSelected = useReaderStore((s) => s.bulkSelected);
+  const clearBulkSelection = useReaderStore((s) => s.clearBulkSelection);
   const layoutMode = useReaderStore((s) => s.layoutMode);
+
+  // Non-null while the fill-in-the-blank quiz over the bulk selection is open.
+  const [quizAyahs, setQuizAyahs] = useState<Ayah[] | null>(null);
+  // Verses graded in this session keep the listen nudge quiet — the count
+  // from the server stays high even after a fresh grade.
+  const [sessionGraded, setSessionGraded] = useState<Set<string>>(() => new Set());
 
   // Bulk selection is a Flow-layout affordance: Mushaf renders verses as
   // inline words inside one paragraph, where per-verse checkboxes have no
@@ -201,6 +213,11 @@ export function ReaderWorkspace({
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
+
+  // Grade-ready nudge: after enough accumulated listens of the selected
+  // ayah (across sessions, per the passive tracker's readCount), invite the
+  // user to convert listening into SRS data.
+  const listenCount = useListenCount(selected?.verse_key ?? null, !isGuest && hasAyahs);
 
   useSurahAudio({
     engine,
@@ -430,6 +447,13 @@ export function ReaderWorkspace({
   const handleGrade = useCallback((grade: Grade) => {
     if (!selected) return;
     const verseKey = selected.verse_key;
+    // A verse graded this session keeps the listen nudge quiet even though
+    // its server-side listen count is still above the threshold.
+    setSessionGraded((prev) => {
+      const next = new Set(prev);
+      next.add(verseKey);
+      return next;
+    });
     const prev = memoryStatesRef.current.get(verseKey) ?? EMPTY_SNAPSHOT;
     const outcome = previewSchedule(scheduler, prev, grade, requestRetention);
     memoryStatesRef.current.set(verseKey, outcome);
@@ -756,12 +780,26 @@ export function ReaderWorkspace({
                 isGuest={!!isGuest}
                 onResult={flashFor}
                 onProgressChange={refreshProgress}
+                onQuiz={() => {
+                  // One round per verse, in surah order; the selection is
+                  // cleared — the quiz carries its own copy forward.
+                  const picked = surah.ayahs
+                    .filter((a) => bulkSelected.includes(a.verse_key))
+                    .sort((a, b) => a.ayah_number - b.ayah_number);
+                  clearBulkSelection();
+                  setQuizAyahs(picked);
+                }}
               />
             )}
             <AudioControlBar
               words={effectiveSelected.words}
               verseKey={selected!.verse_key}
               syncStatus={syncStatus}
+            />
+            <GradeNudge
+              verseKey={selected!.verse_key}
+              listenCount={listenCount}
+              hidden={sessionGraded.has(selected!.verse_key)}
             />
             <RatingBar
               verseKey={selected!.verse_key}
@@ -771,6 +809,17 @@ export function ReaderWorkspace({
             />
           </div>
         </div>
+
+        {quizAyahs && (
+          <QuizModal
+            ayahs={quizAyahs}
+            surahName={surah.name_simple}
+            isGuest={!!isGuest}
+            onClose={() => setQuizAyahs(null)}
+            onResult={flashFor}
+            onProgressChange={refreshProgress}
+          />
+        )}
 
         <TafsirDrawer ayah={effectiveSelected} />
         <HelpSheet />
