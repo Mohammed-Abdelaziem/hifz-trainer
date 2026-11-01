@@ -8,6 +8,11 @@ updates:
     # Hard cap: a coordinated upstream release must not flood review queues.
     # Security patches are handled by the scheduled npm audit job, which fails
     # loudly, so Dependabot only needs to cover ordinary version bumps.
+    # NOTE (2026-11-01): the minimatch Dependabot alert is intentionally
+    # DISMISSED as tolerable_risk (dev-only eslint chain, no non-breaking
+    # fix) — otherwise the automated-security-fixes job fails indefinitely
+    # with "update path still resolves it to 3.1.5". Do not "fix" this by
+    # re-enabling the alert; see the audit-batch PR for the full rationale.
     open-pull-requests-limit: 5
     # One grouped PR per train: minor+patch together, majors stay individual
     # (they usually carry breaking changes that deserve their own review).
