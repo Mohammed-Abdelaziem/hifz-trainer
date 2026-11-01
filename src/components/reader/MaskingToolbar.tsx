@@ -1,6 +1,6 @@
 "use client";
 
-import { EyeOff, LetterText, Layers, ScanEye, Type } from "lucide-react";
+import { EyeOff, LetterText, ScanEye, Type } from "lucide-react";
 import type { BlurScope, LayoutMode, MaskMode } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 import { cn } from "@/lib/utils";
@@ -104,6 +104,8 @@ export function MaskingToolbar() {
   const toggleVerseTranslation = useReaderStore((s) => s.toggleVerseTranslation);
   const toggleRoots = useReaderStore((s) => s.toggleRoots);
   const setFontSize = useReaderStore((s) => s.setFontSize);
+  const helpOpen = useReaderStore((s) => s.helpOpen);
+  const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
 
   return (
     <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -152,7 +154,19 @@ export function MaskingToolbar() {
         >
           A+
         </button>
-        <Layers className="ml-1 hidden h-3.5 w-3.5 text-stone-400 sm:block" />
+        {/* Lives inline after the font-size chips: this used to be a fixed
+            `?` FAB above the bottom sheet, which materialized exactly on
+            top of the right-aligned A-/A+ at narrow widths. Placed in the
+            row it can never overlap anything, while staying next to the
+            controls it explains (Layer icon kept as the row's ornament). */}
+        <button
+          onClick={() => setHelpOpen(!helpOpen)}
+          aria-label="Keyboard shortcuts"
+          title="Keyboard shortcuts (?)"
+          className="ml-1 inline-flex h-7 w-7 items-center justify-center rounded-md border border-stone-300 bg-white text-xs font-bold text-stone-600 shadow-sm transition-transform hover:scale-105 hover:bg-stone-100 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 dark:hover:bg-stone-800 cursor-pointer"
+        >
+          ?
+        </button>
       </div>
     </div>
   );

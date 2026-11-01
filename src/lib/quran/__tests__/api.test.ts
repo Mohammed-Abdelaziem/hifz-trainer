@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
@@ -12,6 +12,16 @@ describe("quran/api — getSurahBundle", () => {
     vi.clearAllMocks();
     vi.restoreAllMocks();
     (getDb as ReturnType<typeof vi.fn>).mockRejectedValue(new Error("db not configured"));
+    // The fixture path still asks the live Quran API for fresh metadata when
+    // the DB is unavailable, so a slow host flaked these tests under the
+    // parallel suite (5s timeout < the API's 6s fetch budget). Forcing fetch
+    // to fail pins the suite to the deterministic fixture fallback; the
+    // network path itself is covered by the dedicated mock test below.
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network disabled in unit tests")));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it("returns fixture for surah 1 (Al-Fatiha)", async () => {
@@ -48,16 +58,11 @@ describe("quran/api — getSurahBundle", () => {
   });
 
   it("still returns fixture even if fetchChapterMeta fails", async () => {
-    const origFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockRejectedValue(new Error("network fail"));
-    try {
-      const bundle = await getSurahBundle(1);
-      expect(bundle).not.toBeNull();
-      expect(bundle!.id).toBe(1);
-      expect(bundle!.ayahs.length).toBe(7);
-    } finally {
-      globalThis.fetch = origFetch;
-    }
+    // beforeEach already stubs fetch to a rejected promise.
+    const bundle = await getSurahBundle(1);
+    expect(bundle).not.toBeNull();
+    expect(bundle!.id).toBe(1);
+    expect(bundle!.ayahs.length).toBe(7);
   });
 
   it("fetches from DB for non-fixture surahs", async () => {

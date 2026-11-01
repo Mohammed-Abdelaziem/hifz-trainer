@@ -154,13 +154,12 @@ export function ReaderWorkspace({
   const memoryStatesRef = useRef(new Map<string, MemorySnapshot>());
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "completed" | "failed">("idle");
   const swTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
   const [markingSurah, setMarkingSurah] = useState(false);
   // Optimistic companion to the server progress flag below: flips the
   // "Surah known ✓" chip the moment the user clicks, before refresh() lands.
   const [surahKnownOptimistic, setSurahKnownOptimistic] = useState(false);
 
-  const helpOpen = useReaderStore((s) => s.helpOpen);
-  const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
@@ -823,14 +822,9 @@ export function ReaderWorkspace({
 
         <TafsirDrawer ayah={effectiveSelected} />
         <HelpSheet />
-        <button
-          onClick={() => setHelpOpen(!helpOpen)}
-          aria-label="Keyboard shortcuts"
-          title="Keyboard shortcuts (?)"
-          className="fixed bottom-[calc(var(--bottom-sheet-h,6.75rem)+68px)] right-5 z-40 inline-flex h-9 w-9 items-center justify-center rounded-full border border-stone-300 bg-white text-stone-600 shadow-lg transition-transform hover:scale-105 dark:border-stone-600 dark:bg-stone-900 dark:text-stone-300 cursor-pointer"
-        >
-          ?
-        </button>
+        {/* The keyboard-shortcuts affordance moved into the masking toolbar
+            row next to A-/A+ — as a fixed FAB it rendered exactly on top of
+            that row's right-aligned chips at narrow widths. */}
       </LiveWordsContext.Provider>
     </AudioSyncProvider>
   );

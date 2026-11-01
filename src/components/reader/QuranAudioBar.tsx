@@ -134,7 +134,7 @@ export function QuranAudioBar({ surahId: _surahId, ayahCount: _ayahCount, verseK
         value={String(repeatTotal)}
         onChange={(e) => setRepeatTotal(Number(e.target.value))}
         aria-label="Repeat"
-        className="max-w-[82px] shrink-0"
+        className="max-w-[110px] shrink-0"
         options={[
           { value: "0", label: "Repeat off" },
           { value: "3", label: "Repeat ×3" },

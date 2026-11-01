@@ -71,6 +71,8 @@ export function useSurahAudio({
   // load lands while pendingPlay is queued, and idempotent engine.play().
   useEffect(() => {
     if (surahAudioMode || !hasAyahs) return undefined;
+    // verse mode holds no per-verse metadata: crossing out of surah mode
+    // (reciter switch, surah change) invalidates the fetched timings.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setVerseTimings([]);
     setLoading(false);

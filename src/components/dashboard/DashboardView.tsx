@@ -28,6 +28,8 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    // syncs the draft whenever the saved retention changes elsewhere (the
+    // settings round-trip or the slider commit), not just on mount.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setRetentionDraft(Math.round(retention * 100));
   }, [retention]);
