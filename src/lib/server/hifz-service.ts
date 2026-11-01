@@ -20,9 +20,13 @@ import {
 import { scheduleFsrs, type FsrsInput } from "@/lib/srs/fsrs";
 import { applyHifzRouting } from "@/lib/srs/routing";
 import { stabilityScore } from "@/lib/srs/stability";
+import { deriveStreak } from "@/lib/streak-grace";
 
 /** Upper bound on items returned by buildDailyQueue for a single user. */
 const MAX_QUEUE_ITEMS = 500;
+
+/** How far back the derived (ledger) streak window reaches, in days. */
+export const STREAK_ACTIVITY_WINDOW_DAYS = 90;
 
 function startOfDay(date: Date): Date {
   const d = new Date(date);
@@ -56,6 +60,118 @@ function computeStreak(
     longestStreak: Math.max(user.longestStreak, streak),
     lastActiveDate: now,
     lastReadDate: now,
+  };
+}
+
+/**
+ * UTC day keys of any activity (review or read) within the window, used for
+ * the ledger-derived streak. Two `select: { createdAt }`-only queries over
+ * indexed columns; the window is short enough (90d) that the row count stays
+ * in the low hundreds even for heavy users.
+ */
+export async function getActivityDayKeys(
+  userId: string,
+  windowDays: number = STREAK_ACTIVITY_WINDOW_DAYS
+): Promise<string[]> {
+  const db = await getDb();
+  const since = new Date(Date.now() - (windowDays - 1) * DAY_MS);
+  since.setUTCHours(0, 0, 0, 0);
+  const [reviewRows, readRows] = await Promise.all([
+    db.reviewLog.findMany({ where: { userId, createdAt: { gte: since } }, select: { createdAt: true } }),
+    db.readingLog.findMany({ where: { userId, createdAt: { gte: since } }, select: { createdAt: true } }),
+  ]);
+  const days = new Set<string>();
+  for (const r of reviewRows) days.add(r.createdAt.toISOString().slice(0, 10));
+  for (const r of readRows) days.add(r.createdAt.toISOString().slice(0, 10));
+  return [...days].sort();
+}
+
+/**
+ * The dashboard's streak display: derived from the ledger with the freeze
+ * rule (src/lib/streak-grace — a first missed day inside a run is bridged),
+ * falling back to the stored values when the sourced window truncates the
+ * run (a streak longer than the window may reach back further than we know).
+ * Fetches the user row itself so callers can race it in a Promise.all.
+ */
+export async function deriveDisplayedStreak(userId: string): Promise<{
+  user: { id: string; dailyTargetCount: number; scheduler: string; requestRetention: number };
+  current: number;
+  longest: number;
+  graceUsed: boolean;
+}> {
+  const db = await getDb();
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - (STREAK_ACTIVITY_WINDOW_DAYS - 1));
+  since.setUTCHours(0, 0, 0, 0);
+  const [user, days] = await Promise.all([
+    db.user.findUniqueOrThrow({ where: { id: userId } }),
+    getActivityDayKeys(userId),
+  ]);
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const derived = deriveStreak(days, todayKey, since.toISOString().slice(0, 10));
+  if (derived.truncated) {
+    // Run extends past the window: the stored increment-only counter is the
+    // better estimate (it counts the full stored run; the display freeze then
+    // applies only once the window is long enough to see it).
+    return {
+      user,
+      current: Math.max(user.currentStreak, derived.current),
+      longest: Math.max(user.longestStreak, derived.current),
+      graceUsed: false,
+    };
+  }
+  return {
+    user,
+    current: derived.current,
+    longest: Math.max(user.longestStreak, derived.current),
+    graceUsed: derived.graceUsed,
+  };
+}
+
+/**
+ * Everything the achievement badges need, in one round trip. Verses known
+ * come from one column-only scan of KNOWN rows (≤6,236 small rows); per-surah
+ * totals from a verse-table groupBy; streaks reuse the ledger derivation.
+ */
+export async function getAchievementSnapshot(userId: string): Promise<{
+  totalReviews: number;
+  versesKnown: number;
+  surahsKnown: number;
+  streakCurrent: number;
+  streakLongest: number;
+}> {
+  const db = await getDb();
+  const [streakData, totalReviews, knownRows, surahTotals] = await Promise.all([
+    deriveDisplayedStreak(userId),
+    db.reviewLog.count({ where: { userId } }),
+    db.userMemoryState.findMany({
+      where: { userId, state: "KNOWN" },
+      select: { verseKey: true },
+    }),
+    db.verse.groupBy({ by: ["surahId"], _count: { _all: true } }),
+  ]);
+
+  const knownBySurah = new Map<number, number>();
+  for (const row of knownRows) {
+    const surahId = Number.parseInt(row.verseKey.split(":")[0] ?? "", 10);
+    if (Number.isInteger(surahId)) {
+      knownBySurah.set(surahId, (knownBySurah.get(surahId) ?? 0) + 1);
+    }
+  }
+  let surahsKnown = 0;
+  for (const totals of surahTotals) {
+    const total = totals._count._all;
+    if (total > 0 && (knownBySurah.get(totals.surahId) ?? 0) >= total) {
+      surahsKnown += 1;
+    }
+  }
+
+  return {
+    totalReviews,
+    versesKnown: knownRows.length,
+    surahsKnown,
+    streakCurrent: streakData.current,
+    streakLongest: streakData.longest,
   };
 }
 
@@ -226,7 +342,7 @@ export async function recordReview(params: {
  * Builds a surahId -> name map, preferring the Surah table and falling back to
  * the two-surah fixture for a database that has not been synced yet.
  */
-function buildSurahNameMap(
+export function buildSurahNameMap(
   rows: { id: number; nameSimple: string }[]
 ): Map<number, string> {
   const names = new Map<number, string>();
@@ -550,8 +666,8 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
   const endOfToday = new Date();
   endOfToday.setHours(23, 59, 59, 999);
 
-  const [user, states, surahRows] = await Promise.all([
-    db.user.findUniqueOrThrow({ where: { id: userId } }),
+  const [streakData, states, surahRows] = await Promise.all([
+    deriveDisplayedStreak(userId),
     // `include: { verse: true }` fetched the whole Verse row (text, translation,
     // wordsJson) for every due verse. The mapper below needs four fields, and
     // the due set grows with the corpus, so the result set is also capped.
@@ -572,6 +688,7 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     db.surah.findMany({ select: { id: true, nameSimple: true } }),
   ]);
   const names = buildSurahNameMap(surahRows);
+  const user = streakData.user;
   const toItem = (s: (typeof states)[number]): QueueItem => ({
     verseKey: s.verseKey,
     surahId: s.verse.surahId,
@@ -623,11 +740,12 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     scheduler: user.scheduler === "fsrs" ? "fsrs" : "sm2",
     requestRetention: user.requestRetention ?? DEFAULT_RETENTION,
     streak: {
-      current: user.currentStreak,
-      longest: user.longestStreak,
+      current: streakData.current,
+      longest: streakData.longest,
       dailyTargetCount: user.dailyTargetCount,
       todayReviewed,
       todayRead,
+      graceUsed: streakData.graceUsed,
     },
     forecast: bucketForecast(
       futureDue.map((row) => row.dueDate),

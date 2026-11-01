@@ -6,6 +6,12 @@ export interface StreakInfo {
   dailyTargetCount: number;
   todayReviewed: number;
   todayRead: number;
+  /**
+   * True when the displayed run has already consumed its bridged miss (the
+   * ledger freeze). Nested form only — the review-transaction payload omits
+   * it (its transient value is not the displayed source of truth).
+   */
+  graceUsed?: boolean;
 }
 
 /** Cumulative due counts at upcoming horizons (excluding today's queue). */
