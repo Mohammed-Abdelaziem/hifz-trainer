@@ -8,6 +8,14 @@ export interface StreakInfo {
   todayRead: number;
 }
 
+/** Cumulative due counts at upcoming horizons (excluding today's queue). */
+export interface DueForecast {
+  dueByDay: number; // within the next 1 day
+  dueBy3Days: number; // within the next 3 days
+  dueBy7Days: number; // within the next 7 days
+  dueBy30Days: number; // within the next 30 days
+}
+
 export interface QueueItem {
   verseKey: string;
   surahId: number;
@@ -26,6 +34,8 @@ export interface DailyQueue {
   scheduler: SchedulerKind;
   requestRetention: number;
   streak: StreakInfo;
+  /** Signed-in only: cumulative due counts at upcoming horizons (after today). */
+  forecast?: DueForecast;
 }
 
 export interface MemoryCell {
