@@ -253,7 +253,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
                 Loading audio...
               </div>
             )}
-            <QuranAudioBar surahId={surah.id} ayahCount={surah.ayah_count} />
+            <QuranAudioBar surahId={surah.id} ayahCount={surah.ayah_count} verseKey={selected!.verse_key} />
           </div>
         </div>
 

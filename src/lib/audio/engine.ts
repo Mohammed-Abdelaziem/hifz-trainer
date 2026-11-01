@@ -19,6 +19,12 @@ export class AudioEngine {
   private anchorWall = 0;
   private anchorPos = 0;
   private pendingPlay = false;
+  /**
+   * Verse the user asked playback to start from (playFromVerse). Survives a
+   * play() that only queued pendingPlay — the Howl may still be loading — and
+   * is consumed right before the audio actually starts.
+   */
+  private pendingVerseKey: string | null = null;
   private loadSeq = 0;
   private clipResolve: (() => void) | null = null;
   private clipSeq = 0;
@@ -61,11 +67,15 @@ export class AudioEngine {
   setSurahTimings(timings: VerseTiming[]) {
     this.surahTimings = timings;
     this.currentVerseIndex = -1;
+    // A fresh timing set is a context change (surah/reciter switch): a verse
+    // target remembered from the previous one is meaningless now.
+    this.pendingVerseKey = null;
   }
 
   clearSurahTimings() {
     this.surahTimings = null;
     this.currentVerseIndex = -1;
+    this.pendingVerseKey = null;
     this.verseChangeCallback = null;
   }
 
@@ -172,6 +182,9 @@ export class AudioEngine {
         howl.volume(this.volumeFactor);
         if (this.pendingPlay) {
           this.pendingPlay = false;
+          // A playFromVerse issued while the file was still loading must seek
+          // before playback starts, or it begins at 0 (verse 1).
+          this.applyPendingVerseSeek();
           howl.play();
         }
       });
@@ -295,12 +308,67 @@ export class AudioEngine {
 
   play() {
     if (this.mode === "howler" && this.howl) {
+      this.applyPendingVerseSeek();
       if (!this.howl.playing()) this.howl.play();
     } else if (this.mode === "virtual") {
+      this.applyPendingVerseSeek();
       this.playVirtual();
     } else {
       this.pendingPlay = true;
     }
+  }
+
+  /**
+   * Play, positioned at the verse the user selected. In surah-audio mode the
+   * full-surah MP3 otherwise resumes wherever it was last paused (or starts
+   * from verse 1), ignoring the highlighted verse: "select an ayah, press
+   * play" must start that ayah. Being paused inside the very verse that is
+   * selected is treated as "resume", not "restart". Verse-clip mode (no
+   * surah timings) already loads the selected clip, so this just plays it.
+   */
+  playFromVerse(verseKey: string) {
+    const timings = this.surahTimings;
+    if (verseKey && timings && timings.length > 0) {
+      const t = timings.find((x) => x.verseKey === verseKey);
+      if (t) {
+        const pos = this.nowMs();
+        if (pos < t.start_ms || pos >= t.end_ms) {
+          // seekMs also fires the verse-change callback, which re-selects the
+          // played verse in the store — a no-op, it is already the selection.
+          this.seekMs(t.start_ms);
+        }
+      }
+      // Remembered even though the seek above covered the already-loaded
+      // case: when the surah file is still loading, play() below only queues
+      // pendingPlay and the "load" handler must seek before its own play.
+      this.pendingVerseKey = verseKey;
+    }
+    this.play();
+  }
+
+  /**
+   * Consumes {@link pendingVerseKey}: if the current position is not inside
+   * the remembered verse's window, rewinds to the verse's first millisecond.
+   * Called from play() so every resume honors a verse the user picked while
+   * the file was loading or after a stop.
+   */
+  private applyPendingVerseSeek() {
+    if (!this.pendingVerseKey) return;
+    const key = this.pendingVerseKey;
+    this.pendingVerseKey = null;
+    const timings = this.surahTimings;
+    if (!timings || timings.length === 0) return;
+    const idx = timings.findIndex((x) => x.verseKey === key);
+    if (idx === -1) return;
+    const t = timings[idx];
+    const pos = this.nowMs();
+    if (pos >= t.start_ms && pos < t.end_ms) return;
+    this.currentVerseIndex = idx;
+    if (this.mode === "howler" && this.howl) {
+      this.howl.seek(Math.max(0, t.start_ms / 1000));
+    }
+    this.anchorPos = t.start_ms;
+    this.anchorWall = Date.now();
   }
 
   private playVirtual() {
@@ -336,6 +404,9 @@ export class AudioEngine {
   }
 
   seekMs(ms: number) {
+    // Direct positioning (seek slider, loop rewind) supersedes a pending
+    // playFromVerse target; playFromVerse re-sets it after positioning.
+    this.pendingVerseKey = null;
     if (this.mode === "howler" && this.howl?.state() === "loaded") {
       this.howl.seek(Math.max(0, ms / 1000));
     }
