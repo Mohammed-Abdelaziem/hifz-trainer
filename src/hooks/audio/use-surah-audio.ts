@@ -63,13 +63,20 @@ export function useSurahAudio({
     };
   }, [engine, surahAudioMode, hasAyahs, surah.id, surah.ayah_count, reciterId]);
 
-  // Verse mode: the selection moved, so load that verse's clip.
+  // Verse mode: the selection moved, so load that verse's clip. If audio is
+  // already playing, keep it playing across the swap (tap-to-jump while a
+  // clip plays, or the portal's selection-follows grading): otherwise every
+  // mid-play selection change dropped into a paused transport. Continuous
+  // advance does not go through here — its own onEnd path re-selects, the
+  // load lands while pendingPlay is queued, and idempotent engine.play().
   useEffect(() => {
     if (surahAudioMode || !hasAyahs) return undefined;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setVerseTimings([]);
     setLoading(false);
+    const wasPlaying = engine.isPlaying();
     engine.load(effectiveAudioUrl);
+    if (wasPlaying) engine.play();
     return undefined;
   }, [engine, effectiveAudioUrl, surahAudioMode, hasAyahs]);
 

@@ -12,6 +12,7 @@ import { FONT_SIZE_MIN, FONT_SIZE_MAX } from "@/lib/constants";
 import { Select } from "@/components/ui/select";
 import { ReaderStoreHydrator } from "@/components/reader/ReaderStoreHydrator";
 import { QuranAudioBar } from "@/components/reader/QuranAudioBar";
+import { MediaSessionBridge } from "@/components/reader/MediaSessionBridge";
 import { TafsirDrawer } from "@/components/reader/TafsirDrawer";
 import { VerseCanvas } from "@/components/reader/VerseCanvas";
 import { LiveWordsContext } from "@/components/reader/live-words-context";
@@ -147,6 +148,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
     <>
       <ReaderStoreHydrator />
       <AudioSyncProvider engine={engine}>
+      <MediaSessionBridge surahName={surah.name_simple} verseKey={selected?.verse_key ?? null} />
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >

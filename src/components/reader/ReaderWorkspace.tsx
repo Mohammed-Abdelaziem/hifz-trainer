@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { RatingBar } from "./RatingBar";
 import { AudioControlBar } from "./AudioControlBar";
+import { MediaSessionBridge } from "./MediaSessionBridge";
 import { MaskingToolbar } from "./MaskingToolbar";
 import { TafsirDrawer } from "./TafsirDrawer";
 import { HelpSheet } from "./HelpSheet";
@@ -554,6 +555,7 @@ export function ReaderWorkspace({
 
   return (
     <AudioSyncProvider engine={engine}>
+      <MediaSessionBridge surahName={surah.name_simple} verseKey={selected?.verse_key ?? null} />
       <LiveWordsContext.Provider
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
