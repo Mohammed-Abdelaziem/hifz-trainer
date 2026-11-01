@@ -50,3 +50,6 @@ generated/
 # test artifacts
 playwright-report/
 test-results/
+
+# probe screenshots (scripts/mobile-probe.mjs)
+.probe/

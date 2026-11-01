@@ -100,16 +100,20 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
           >
             {isGuest ? "Guest" : (email ?? "…")}
           </span>
-          <form action={signOutAction}>
-            <button
-              type="submit"
-              title="Sign out"
-              className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
-            >
-              <LogOut className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Sign out</span>
-            </button>
-          </form>
+          {/* Guests have no session to sign out of, and the label rendered a
+              no-op-looking action on every anonymous surface. */}
+          {!isGuest && (
+            <form action={signOutAction}>
+              <button
+                type="submit"
+                title="Sign out"
+                className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Sign out</span>
+              </button>
+            </form>
+          )}
         </div>
         {offline && (
           <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
