@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Check, Star } from "lucide-react";
+import { ArrowLeft, Check, Sparkles, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
   Ayah,
@@ -38,6 +38,7 @@ import { VerseCanvas } from "./VerseCanvas";
 import { BulkActionBar } from "./BulkActionBar";
 import { GradeNudge } from "./GradeNudge";
 import { QuizModal } from "./QuizModal";
+import { RecallDrillModal } from "./RecallDrillModal";
 import { LiveWordsContext } from "./live-words-context";
 import { offlineReviewQueue } from "@/lib/offline/review-queue";
 import { registerBackgroundSync } from "@/lib/offline/review-queue";
@@ -172,6 +173,8 @@ export function ReaderWorkspace({
 
   // Non-null while the fill-in-the-blank quiz over the bulk selection is open.
   const [quizAyahs, setQuizAyahs] = useState<Ayah[] | null>(null);
+  // Non-null while the recall-drill modal (word-by-word / next-verse) is open.
+  const [drillOpen, setDrillOpen] = useState(false);
   // Verses graded in this session keep the listen nudge quiet — the count
   // from the server stays high even after a fresh grade.
   const [sessionGraded, setSessionGraded] = useState<Set<string>>(() => new Set());
@@ -603,7 +606,34 @@ export function ReaderWorkspace({
                     {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
                     {surah.ayah_count} verses
                   </span>
-                  {progress && progress.total > 0 ? (
+                  {progress && progress.total > 0 && progress.pages && progress.pages.length > 1 ? (
+                    (() => {
+                      const parts = progress.pages.map((p) => {
+                        const share = Math.max(0.03, p.total / progress.total);
+                        const tone =
+                          p.known === p.total && p.total > 0
+                            ? "bg-teal-500 dark:bg-teal-600" // page fully known
+                            : p.known + p.learning > 0
+                              ? "bg-amber-400 dark:bg-amber-500" // page in rotation
+                              : "bg-stone-300 dark:bg-stone-600";
+                        const title = `Page ${p.page}: ${p.total} verse${p.total === 1 ? "" : "s"} · ${p.known} known · ${p.learning} in rotation`;
+                        return { p, share, tone, title };
+                      });
+                      return (
+                        <span
+                          role="img"
+                          aria-label="Per-page memorization progress"
+                          title={parts.map((x) => x.title).join(" · ")}
+                          className="inline-flex h-1.5 min-w-16 overflow-hidden rounded-full bg-stone-200 align-middle dark:bg-stone-700"
+                          style={{ width: 96 }}
+                        >
+                          {parts.map((x) => (
+                            <span key={x.p.page} className={x.tone} style={{ flexGrow: x.share }} />
+                          ))}
+                        </span>
+                      );
+                    })()
+                  ) : progress && progress.total > 0 ? (
                     (() => {
                       const learning =
                         progress.sabaq + progress.sabqi + progress.manzil;
@@ -700,6 +730,15 @@ export function ReaderWorkspace({
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <MaskingToolbar />
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDrillOpen(true)}
+                title="Active-recall drills: recite word by word or predict the next verse opening"
+                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-800 cursor-pointer dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
+                Recall drill
+              </button>
               <button
                 type="button"
                 onClick={handleKnownSurah}
@@ -815,6 +854,18 @@ export function ReaderWorkspace({
             surahName={surah.name_simple}
             isGuest={!!isGuest}
             onClose={() => setQuizAyahs(null)}
+            onResult={flashFor}
+            onProgressChange={refreshProgress}
+          />
+        )}
+
+        {drillOpen && (
+          <RecallDrillModal
+            ayahs={surah.ayahs}
+            surahName={surah.name_simple}
+            focusVerseKey={selected!.verse_key}
+            isGuest={!!isGuest}
+            onClose={() => setDrillOpen(false)}
             onResult={flashFor}
             onProgressChange={refreshProgress}
           />

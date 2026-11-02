@@ -64,6 +64,16 @@ export interface SurahProgress {
   sabqi: number;
   manzil: number;
   known: number;
+  /** Signed-in only, newest conformance: per-mushaf-page breakdown. */
+  pages?: PageProgress[];
+}
+
+/** How much of one mushaf page of this surah is known / still in rotation. */
+export interface PageProgress {
+  page: number;
+  total: number;
+  known: number;
+  learning: number;
 }
 
 export interface MemoryMapPayload {
