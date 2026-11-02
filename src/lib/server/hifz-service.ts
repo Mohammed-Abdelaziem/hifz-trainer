@@ -6,7 +6,7 @@ import type {
   QueueItem,
   StreakInfo,
 } from "@/types/srs";
-import type { SurahProgress } from "@/types/srs";
+import type { PageProgress, SurahProgress } from "@/types/srs";
 import { getDb } from "@/lib/db";
 import { isVerseKey } from "@/lib/quran/verse-key";
 import { DAY_MS, DEFAULT_RETENTION } from "@/lib/constants";
@@ -552,12 +552,15 @@ export async function getSurahProgress(
   surahId: number
 ): Promise<SurahProgress> {
   const db = await getDb();
-  const [total, states] = await Promise.all([
+  const [total, states, verses] = await Promise.all([
     db.verse.count({ where: { surahId } }),
     db.userMemoryState.findMany({
       where: { userId, verse: { surahId } },
-      select: { state: true },
+      select: { state: true, verse: { select: { pageNumber: true } } },
     }),
+    // All verses of the surah contribute to page buckets, even untracked
+    // ones — a known page means every page verse known, not just tracked.
+    db.verse.findMany({ where: { surahId }, select: { pageNumber: true } }),
   ]);
   const progress: SurahProgress = {
     total,
@@ -572,6 +575,26 @@ export async function getSurahProgress(
     else if (s.state === "MANZIL") progress.manzil += 1;
     else if (s.state === "KNOWN") progress.known += 1;
   }
+
+  // Per-mushaf-page breakdown for the header strip: buckets keyed by page
+  // over the verse rows, then overlaying the user's known/learning states.
+  const pageTotals = new Map<number, number>();
+  for (const v of verses) {
+    pageTotals.set(v.pageNumber, (pageTotals.get(v.pageNumber) ?? 0) + 1);
+  }
+  const byPage = new Map<number, PageProgress>();
+  for (const [page, count] of pageTotals) {
+    byPage.set(page, { page, total: count, known: 0, learning: 0 });
+  }
+  for (const s of states) {
+    const page = s.verse?.pageNumber;
+    if (page === null || page === undefined) continue;
+    const entry = byPage.get(page);
+    if (!entry) continue;
+    if (s.state === "KNOWN") entry.known += 1;
+    else if (s.state !== "SABAQ") entry.learning += 1;
+  }
+  progress.pages = [...byPage.values()].sort((a, b) => a.page - b.page);
   return progress;
 }
 

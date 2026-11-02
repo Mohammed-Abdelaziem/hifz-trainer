@@ -101,7 +101,7 @@ describe("buildRecap", () => {
   const today = new Date("2026-11-01T12:00:00Z");
   const names = new Map<number, string>([[1, "Al-Fatihah"], [2, "Al-Baqara"]]);
   const log = (daysAgo: number, verseKey = "1:1", grade = "GOOD") => ({
-    createdAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
+    createdAt: new Date(today.getTime() - daysAgo * 24 * 60 * 60 * 1000),
     verseKey,
     grade,
   });
