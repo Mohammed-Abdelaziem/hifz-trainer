@@ -234,7 +234,7 @@ export function MushafGrid() {
                   knownFull={fullyKnown}
                   readCount={readCount}
                   label={String(n)}
-                  href={agg.tracked > 0 || agg.read > 0 ? `/reader/${n}` : undefined}
+                  href={`/reader/${n}`}
                   sublabel={formatSublabel(name, agg)}
                 />
               );

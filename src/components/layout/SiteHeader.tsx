@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookMarked, BookOpen, LayoutDashboard, LogOut, Map, PenLine, Settings, WifiOff } from "lucide-react";
+import { BookMarked, BookOpen, LayoutDashboard, LogIn, LogOut, Map, PenLine, Search, Settings, WifiOff, X } from "lucide-react";
 import { signOutAction } from "@/app/actions/auth";
 import { cn } from "@/lib/utils";
 import { SearchBar } from "@/components/search/SearchBar";
@@ -21,6 +21,7 @@ const LINKS = [
 export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
   const pathname = usePathname();
   const [offline, setOffline] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   // undefined = not yet resolved (no fetch on the server render), null = the
   // session lookup says signed out. Never render the email from server props:
   // this component ships in every page's HTML, including the shells the
@@ -86,6 +87,15 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
         </nav>
         {/* Outside the user/guest conditional so signed-out visitors get it too. */}
         <ThemeToggle />
+        <button
+          type="button"
+          onClick={() => setMobileSearchOpen((v) => !v)}
+          aria-label={mobileSearchOpen ? "Close verse search" : "Search verses"}
+          aria-expanded={mobileSearchOpen}
+          className="inline-flex cursor-pointer items-center justify-center rounded-lg p-1.5 text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:hidden dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+        >
+          {mobileSearchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+        </button>
         <div className="hidden w-48 md:block">
           <SearchBar />
         </div>
@@ -94,25 +104,34 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
             server version was unreachable. The block stays unconditional; the
             authoritative guest flag from the server layout decides its label. */}
         <div className="flex items-center gap-2 border-l border-stone-200 pl-2 dark:border-stone-700 md:pl-3">
-          <span
-            title={isGuest ? "Guest mode — progress saved locally" : (email ?? "Loading…")}
-            className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
-          >
-            {isGuest ? "Guest" : (email ?? "…")}
-          </span>
-          {/* Guests have no session to sign out of, and the label rendered a
-              no-op-looking action on every anonymous surface. */}
-          {!isGuest && (
-            <form action={signOutAction}>
-              <button
-                type="submit"
-                title="Sign out"
-                className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+          {isGuest ? (
+            <Link
+              href="/login"
+              title="Sign in to sync your progress"
+              className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
+            >
+              <LogIn className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sign in</span>
+            </Link>
+          ) : (
+            <>
+              <span
+                title={email ?? "Loading…"}
+                className="hidden max-w-[140px] truncate text-xs text-stone-500 md:inline dark:text-stone-400"
               >
-                <LogOut className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Sign out</span>
-              </button>
-            </form>
+                {email ?? "…"}
+              </span>
+              <form action={signOutAction}>
+                <button
+                  type="submit"
+                  title="Sign out"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-lg px-1 py-1.5 text-xs font-medium text-stone-500 transition-colors hover:bg-stone-100 hover:text-stone-800 md:px-2 dark:text-stone-400 dark:hover:bg-stone-800 dark:hover:text-stone-200"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Sign out</span>
+                </button>
+              </form>
+            </>
           )}
         </div>
         {offline && (
@@ -122,6 +141,11 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
           </span>
         )}
       </div>
+      {mobileSearchOpen && (
+        <div className="border-t border-stone-200 bg-white px-4 py-2 md:hidden dark:border-stone-800 dark:bg-stone-950">
+          <SearchBar />
+        </div>
+      )}
     </header>
   );
 }

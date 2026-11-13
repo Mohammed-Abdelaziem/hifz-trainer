@@ -239,12 +239,23 @@ export function DashboardView({
           </div>
 
           <div className="mb-4 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-            <div className="mb-2 flex items-center gap-2">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
               <Clock className="h-4 w-4 text-amber-600" />
               <h3 className="text-sm font-semibold">Today&apos;s Plan</h3>
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
                 ~{queue.estimatedMinutes} min
               </span>
+              {(() => {
+                const firstDue = queue.sabaq[0] ?? queue.sabqi[0] ?? queue.manzil[0];
+                return firstDue ? (
+                  <Link
+                    href={`/reader/${firstDue.surahId}?verse=${firstDue.verseKey}`}
+                    className="ml-auto inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+                  >
+                    Start review →
+                  </Link>
+                ) : null;
+              })()}
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/20">
