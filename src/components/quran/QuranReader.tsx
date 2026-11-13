@@ -150,7 +150,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
       <AudioSyncProvider engine={engine}>
       <MediaSessionBridge surahName={surah.name_simple} verseKey={selected?.verse_key ?? null} />
       <LiveWordsContext.Provider
-        value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
+        value={live && selected ? { verseKey: selected.verse_key, words: live.words } : null}
       >
         <div className="mx-auto max-w-4xl px-4 pb-48 pt-6">
           <header className="mb-5">
@@ -210,8 +210,9 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
 
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <label className="text-xs text-stone-500 dark:text-stone-400">Layout:</label>
+              <label htmlFor="quran-layout" className="text-xs text-stone-500 dark:text-stone-400">Layout:</label>
               <Select
+                id="quran-layout"
                 value={layoutMode}
                 onChange={(e) => {
                   useReaderStore.getState().setLayoutMode(e.target.value as "FLOW" | "MUSHAF");
@@ -223,8 +224,9 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
               />
             </div>
             <div className="flex items-center gap-2">
-              <label className="text-xs text-stone-500 dark:text-stone-400">Size:</label>
+              <label htmlFor="quran-font-size" className="text-xs text-stone-500 dark:text-stone-400">Size:</label>
               <input
+                id="quran-font-size"
                 type="range"
                 min={FONT_SIZE_MIN}
                 max={FONT_SIZE_MAX}
@@ -247,7 +249,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
           </p>
         </div>
 
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95">
+        <div className="fixed inset-x-0 bottom-14 z-40 border-t border-stone-200 bg-white/95 backdrop-blur md:bottom-0 dark:border-stone-700 dark:bg-stone-900/95">
           <div className="mx-auto max-w-4xl p-3">
             {audioLoading && (
               <div className="flex items-center justify-center gap-2 pb-1 text-xs text-stone-500 dark:text-stone-400">

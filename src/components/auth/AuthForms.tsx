@@ -112,7 +112,11 @@ export function AuthForms() {
 
   return (
     <div className="w-full max-w-sm">
-      <div className="mb-5 inline-flex w-full rounded-lg border border-stone-200 bg-stone-100 p-0.5 dark:border-stone-700 dark:bg-stone-800">
+      <div
+        role="tablist"
+        aria-label="Authentication mode"
+        className="mb-5 inline-flex w-full rounded-lg border border-stone-200 bg-stone-100 p-0.5 dark:border-stone-700 dark:bg-stone-800"
+      >
         {(
           [
             ["signin", "Sign in"],
@@ -121,6 +125,7 @@ export function AuthForms() {
         ).map(([key, label]) => (
           <button
             key={key}
+            type="button"
             onClick={() => setMode(key)}
             aria-selected={mode === key}
             role="tab"

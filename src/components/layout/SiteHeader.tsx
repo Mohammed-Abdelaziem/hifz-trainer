@@ -63,7 +63,7 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
           </span>
           <span className="hidden sm:inline">Hifz Trainer</span>
         </Link>
-        <nav className="ml-auto flex items-center gap-1">
+        <nav aria-label="Primary" className="ml-auto flex items-center gap-1">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href);

@@ -1,16 +1,9 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { countEarned, type Achievement } from "@/lib/achievements";
-import type { RecapData } from "@/app/api/stats/route";
+import { useReviewStats } from "@/hooks/use-srs-data";
 import { Hourglass, Sparkles, TrendingUp } from "lucide-react";
-
-interface StatsShape {
-  xp: { level: number; intoLevel: number; toNextLevel: number; totalXp: number };
-  recap: RecapData;
-  achievements: Achievement[];
-}
 
 function AchievementChip({ a }: { a: Achievement }) {
   if (a.earned) {
@@ -40,11 +33,7 @@ function AchievementChip({ a }: { a: Achievement }) {
 }
 
 export function BadgesCard() {
-  const { data: stats } = useQuery<StatsShape>({
-    queryKey: ["stats"],
-    queryFn: () => fetch("/api/stats").then((r) => r.json()),
-    staleTime: 60_000,
-  });
+  const { data: stats } = useReviewStats();
   if (!stats?.achievements?.length) return null;
 
   const earned = countEarned(stats.achievements);
@@ -82,11 +71,7 @@ export function BadgesCard() {
 }
 
 export function RecapCard() {
-  const { data: stats } = useQuery<StatsShape>({
-    queryKey: ["stats"],
-    queryFn: () => fetch("/api/stats").then((r) => r.json()),
-    staleTime: 60_000,
-  });
+  const { data: stats } = useReviewStats();
   const recap = stats?.recap;
   if (!recap || (recap.reviewsThisWeek === 0 && recap.reviewsLastWeek === 0)) return null;
 

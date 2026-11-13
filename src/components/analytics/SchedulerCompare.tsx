@@ -9,7 +9,7 @@ const SERIES = [
 ];
 
 export function SchedulerCompare() {
-  const { data, isLoading } = useReviewStats();
+  const { data, isLoading, isError } = useReviewStats();
 
   const compare = data?.schedulerCompare;
   const hasData =
@@ -32,7 +32,11 @@ export function SchedulerCompare() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isError ? (
+        <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
+          Failed to load scheduler comparison.
+        </p>
+      ) : isLoading ? (
         <div className="h-32 animate-pulse rounded-lg bg-stone-100 dark:bg-stone-800" />
       ) : !hasData ? (
         <p className="py-8 text-center text-sm text-stone-400">

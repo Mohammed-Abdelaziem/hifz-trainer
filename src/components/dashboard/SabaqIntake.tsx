@@ -17,7 +17,7 @@ export function SabaqIntake({ availableSurahs }: { availableSurahs: IntakeSurah[
   const queryClient = useQueryClient();
   const [surahId, setSurahId] = useState(availableSurahs[0]?.id ?? 1);
   const [fromAyah, setFromAyah] = useState(1);
-  const [toAyah, setToAyah] = useState(5);
+  const [toAyah, setToAyah] = useState(Math.min(5, availableSurahs[0]?.ayah_count ?? 5));
   // "I already know this" bypasses the Sabaq plan entirely: the range is
   // labeled KNOWN (bulk import of memorized passages) instead of scheduled.
   const [knownMode, setKnownMode] = useState(false);
@@ -111,6 +111,10 @@ export function SabaqIntake({ availableSurahs }: { availableSurahs: IntakeSurah[
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ surahId, fromAyah, toAyah }),
       });
+      if (res.status === 401) {
+        setStatus("Sign in to add verses to your plan");
+        return;
+      }
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
         added?: number;

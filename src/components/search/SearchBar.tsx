@@ -16,6 +16,7 @@ export function SearchBar() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const [open, setOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -23,18 +24,23 @@ export function SearchBar() {
   const search = useCallback(async (q: string, signal: AbortSignal) => {
     if (q.length < 2) {
       setResults([]);
+      setError(false);
       return;
     }
     setLoading(true);
+    setError(false);
     try {
       const res = await fetch(`/api/search?q=${encodeURIComponent(q)}&limit=10`, { signal });
+      if (!res.ok) throw new Error(`Search failed: ${res.status}`);
       const data = await res.json();
-      setResults(data.results ?? []);
+      if (!signal.aborted) setResults(data.results ?? []);
     } catch {
-      // Aborted as stale, or network failure — same handling either way.
-      setResults([]);
+      if (!signal.aborted) {
+        setResults([]);
+        setError(true);
+      }
     } finally {
-      setLoading(false);
+      if (!signal.aborted) setLoading(false);
     }
   }, []);
 
@@ -80,6 +86,9 @@ export function SearchBar() {
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setOpen(false);
+          }}
           placeholder="Search verses..."
           aria-label="Search verses"
           className="w-full bg-transparent text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none dark:text-stone-100 dark:placeholder:text-stone-500"
@@ -87,9 +96,12 @@ export function SearchBar() {
         {loading && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-stone-400" />}
         {query && !loading && (
           <button
+            type="button"
+            aria-label="Clear search"
             onClick={() => {
               setQuery("");
               setResults([]);
+              setError(false);
               inputRef.current?.focus();
             }}
             className="shrink-0 text-stone-400 hover:text-stone-600 dark:hover:text-stone-200"
@@ -101,7 +113,11 @@ export function SearchBar() {
 
       {open && query.length >= 2 && (
         <div className="absolute top-full z-50 mt-1 w-full overflow-hidden rounded-lg border border-stone-200 bg-white shadow-lg dark:border-stone-700 dark:bg-stone-900">
-          {results.length === 0 && !loading ? (
+          {error && !loading ? (
+            <div className="p-4 text-center text-sm text-red-600 dark:text-red-400">
+              Search failed — please try again
+            </div>
+          ) : results.length === 0 && !loading ? (
             <div className="p-4 text-center text-sm text-stone-500 dark:text-stone-400">
               No results for &ldquo;{query}&rdquo;
             </div>

@@ -112,7 +112,7 @@ export function TaskQueueTabs({
       </div>
 
       {/* Tabs */}
-      <div className="mb-3 flex flex-wrap gap-2">
+      <div className="mb-3 flex flex-wrap gap-2" role="tablist" aria-label="Review queue">
         {TABS.map((t) => (
           <button
             key={t.key}

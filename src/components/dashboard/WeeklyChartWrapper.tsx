@@ -1,16 +1,10 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useReviewStats } from "@/hooks/use-srs-data";
 import { WeeklyChart } from "./WeeklyChart";
 
 export function WeeklyChartWrapper() {
-  const { data: stats } = useQuery<{
-    perDay: { date: string; count: number }[];
-  }>({
-    queryKey: ["stats"],
-    queryFn: () => fetch("/api/stats").then((r) => r.json()),
-    staleTime: 60_000,
-  });
+  const { data: stats } = useReviewStats();
 
   if (!stats?.perDay?.length) return null;
 

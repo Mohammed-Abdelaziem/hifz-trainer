@@ -123,11 +123,19 @@ function renderMarkdown(content: string): string {
   // Horizontal rule
   html = html.replace(/^---+$/gm, '<hr class="my-6 border-stone-200 dark:border-stone-700" />');
 
-  // Paragraphs
-  html = html.replace(/\n\n/g, '</p><p class="mb-4 leading-relaxed">');
-  html = html.replace(/\n/g, "<br />");
-
-  return html;
+  // Paragraphs — wrap non-block chunks in <p> rather than emitting unmatched </p><p> tags.
+  return html
+    .split(/\n{2,}/)
+    .map((block) => {
+      const trimmed = block.trim();
+      if (!trimmed) return "";
+      if (/^<(h[1-6]|table|ol|ul|blockquote|hr)\b/.test(trimmed)) {
+        return trimmed;
+      }
+      return `<p class="mb-4 leading-relaxed">${trimmed.replace(/\n/g, "<br />")}</p>`;
+    })
+    .filter(Boolean)
+    .join("\n");
 }
 
 export default async function BlogPostPage({ params }: Props) {

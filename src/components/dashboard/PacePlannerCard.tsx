@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Target } from "lucide-react";
 import { computePace, type PaceStats } from "@/lib/progress/pace";
@@ -17,7 +17,7 @@ function defaultTargetDateMs() {
 }
 
 export function PacePlannerCard() {
-  const [stats, setStats] = useState<PaceStats | null>(null);
+  const [paceCounts, setPaceCounts] = useState<{ memorized: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [targetMs, setTargetMs] = useState<number | null>(null);
 
@@ -38,13 +38,7 @@ export function PacePlannerCard() {
           setError(data?.error ?? "Failed to load pace data");
           return;
         }
-        setStats(
-          computePace({
-            memorized: data.memorized,
-            total: data.total,
-            targetDateMs: targetMs,
-          })
-        );
+        setPaceCounts({ memorized: data.memorized, total: data.total });
       })
       .catch(() => {
         if (alive) setError("Failed to load pace data");
@@ -52,7 +46,19 @@ export function PacePlannerCard() {
     return () => {
       alive = false;
     };
-  }, [targetMs]);
+  }, []);
+
+  const stats = useMemo(
+    () =>
+      paceCounts
+        ? computePace({
+            memorized: paceCounts.memorized,
+            total: paceCounts.total,
+            targetDateMs: targetMs,
+          })
+        : null,
+    [paceCounts, targetMs]
+  );
 
   const onTargetChange = useCallback((value: string) => {
     const parsed = Date.parse(value);
@@ -100,6 +106,7 @@ export function PacePlannerCard() {
               Target date
               <input
                 type="date"
+                min={new Date().toISOString().slice(0, 10)}
                 value={dateValue}
                 onChange={(e) => onTargetChange(e.target.value)}
                 className="ml-2 rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-700 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"

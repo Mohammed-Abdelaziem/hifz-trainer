@@ -17,7 +17,7 @@ function ChartSkeleton() {
 }
 
 export function ReviewActivity() {
-  const { data, isLoading } = useReviewStats();
+  const { data, isLoading, isError } = useReviewStats();
 
   const maxPerDay = useMemo(
     () => Math.max(1, ...(data?.perDay ?? []).map((d) => d.count)),
@@ -38,7 +38,11 @@ export function ReviewActivity() {
         )}
       </div>
 
-      {isLoading || !data ? (
+      {isError ? (
+        <p className="py-8 text-center text-sm text-red-600 dark:text-red-400">
+          Failed to load review activity.
+        </p>
+      ) : isLoading || !data ? (
         <ChartSkeleton />
       ) : (
         <>

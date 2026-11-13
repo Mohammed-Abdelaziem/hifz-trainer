@@ -93,15 +93,15 @@ export function OnboardingTour() {
   }
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || hasCompletedOnboarding) return;
     const onKey = (e: KeyboardEvent) => {
       // Escape dismisses the modal the same way the Skip button does; the
       // overlay had no keyboard exit at all before.
-      if (e.key === "Escape") skip();
+      if (e.key === "Escape") completeOnboarding();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, [hydrated, hasCompletedOnboarding, completeOnboarding]);
 
   if (!hydrated) return null;
   if (hasCompletedOnboarding) return null;

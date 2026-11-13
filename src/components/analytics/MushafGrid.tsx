@@ -46,6 +46,25 @@ function aggregate(cells: MemoryCell[]): {
   };
 }
 
+function formatSublabel(
+  name: string,
+  agg: ReturnType<typeof aggregate>
+): string {
+  const fullyKnown = agg.total > 0 && agg.known === agg.total;
+  if (fullyKnown) {
+    return `${name} · ${agg.known}/${agg.total} verses · fully known`;
+  }
+  const inHifz = agg.tracked - agg.known;
+  const parts = [name];
+  if (agg.known > 0) parts.push(`${agg.known}/${agg.total} already known`);
+  if (inHifz > 0) {
+    parts.push(`${inHifz}/${agg.total} in hifz · stability ${agg.score}`);
+  } else if (agg.known === 0) {
+    parts.push(agg.read > 0 ? `${agg.read} read` : "not started");
+  }
+  return parts.join(" · ");
+}
+
 function Cell({
   score,
   knownFull,
@@ -154,7 +173,11 @@ export function MushafGrid() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-0.5 dark:border-stone-700 dark:bg-stone-800">
+        <div
+          className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-0.5 dark:border-stone-700 dark:bg-stone-800"
+          role="tablist"
+          aria-label="Grid view"
+        >
           {(["surahs", "pages"] as GridMode[]).map((m) => (
             <button
               key={m}
@@ -203,21 +226,6 @@ export function MushafGrid() {
               const name = cells[0]?.surahName ?? `Surah ${n}`;
               const readCount = cells.reduce((sum, c) => sum + c.readCount, 0);
               const fullyKnown = agg.total > 0 && agg.known === agg.total;
-              // Surahs mixing known and in-process verses need both numbers;
-              // stability only describes the in-process remainder.
-              const sublabel = fullyKnown
-                ? `${name} · ${agg.known}/${agg.total} verses · fully known`
-                : `${name}${
-                    agg.known > 0 ? ` · ${agg.known}/${agg.total} already known` : ""
-                  }${
-                    agg.tracked - agg.known > 0
-                      ? ` · ${agg.tracked - agg.known}/${agg.total} in hifz · stability ${agg.score}`
-                      : agg.known === 0
-                        ? agg.read > 0
-                          ? ` · ${agg.read} read`
-                          : " · not started"
-                        : ""
-                  }`;
               return (
                 <Cell
                   key={n}
@@ -227,7 +235,7 @@ export function MushafGrid() {
                   readCount={readCount}
                   label={String(n)}
                   href={agg.tracked > 0 || agg.read > 0 ? `/reader/${n}` : undefined}
-                  sublabel={sublabel}
+                  sublabel={formatSublabel(name, agg)}
                 />
               );
             })}
@@ -237,18 +245,20 @@ export function MushafGrid() {
             {Array.from({ length: TOTAL_PAGES }, (_, i) => i + 1).map((n) => {
               const cells = byPage.get(n) ?? [];
               const agg = aggregate(cells);
+              const fullyKnown = agg.total > 0 && agg.known === agg.total;
               return (
                 <Cell
                   key={n}
                   score={agg.score}
+                  knownFull={fullyKnown}
                   readCount={cells.reduce((sum, c) => sum + c.readCount, 0)}
                   label={`Page ${n}`}
                   href={
-                    agg.tracked > 0 || agg.read > 0 && cells[0]
+                    (agg.tracked > 0 || agg.read > 0) && cells[0]
                       ? `/reader/${cells[0].surahId}?verse=${cells[0].verseKey}`
                       : undefined
                   }
-                  sublabel={agg.tracked ? `${agg.tracked}/${agg.total} verses · stability ${agg.score}` : agg.read > 0 ? `${agg.read} read` : "not started"}
+                  sublabel={formatSublabel(`Page ${n}`, agg)}
                 />
               );
             })}

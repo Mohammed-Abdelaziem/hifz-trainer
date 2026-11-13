@@ -283,7 +283,7 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           value={String(reciterId)}
           onChange={(e) => setReciterId(Number(e.target.value))}
           aria-label="Reciter"
-          className="hidden max-w-[140px] shrink-0 md:block"
+          className="hidden max-w-[140px] shrink-0 md:inline-flex"
           options={RECITERS.map((r) => ({
             value: String(r.id),
             label: r.name,
@@ -304,18 +304,20 @@ export function AudioControlBar({ words, verseKey, syncStatus }: { words: QuranW
           {/* Per-verse repeat: in surah-audio mode ×N replays each ayah N
               extra times before flowing on; in verse-clip mode it replays
               the clip. -1 loops the whole selection until stopped. */}
-          <Select
-            value={String(repeatTotal)}
-            onChange={(e) => setRepeatTotal(Number(e.target.value))}
-            aria-label="Repeat"
-            className="ml-auto max-w-[110px] shrink-0"
-            options={[
-              { value: "0", label: "Repeat off" },
-              { value: "3", label: "Repeat ×3" },
-              { value: "5", label: "Repeat ×5" },
-              { value: "-1", label: "Repeat loop" },
-            ]}
-          />
+          <div className="ml-auto shrink-0">
+            <Select
+              value={String(repeatTotal)}
+              onChange={(e) => setRepeatTotal(Number(e.target.value))}
+              aria-label="Repeat"
+              className="max-w-[110px]"
+              options={[
+                { value: "0", label: "Repeat off" },
+                { value: "3", label: "Repeat ×3" },
+                { value: "5", label: "Repeat ×5" },
+                { value: "-1", label: "Repeat loop" },
+              ]}
+            />
+          </div>
         </div>
       )}
     </div>

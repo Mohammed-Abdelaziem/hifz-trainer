@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Save, Loader2, Lock, Download, Upload, Bell, BellOff } from "lucide-react";
 import { MIN_RETENTION, MAX_RETENTION } from "@/lib/srs/fsrs";
 import { DAILY_TARGET_MAX, DAILY_TARGET_MIN, DEFAULT_DAILY_TARGET, DEFAULT_RETENTION } from "@/lib/constants";
@@ -23,6 +24,7 @@ interface SettingsViewProps {
 }
 
 export function SettingsView({ user, isGuest }: SettingsViewProps) {
+  const queryClient = useQueryClient();
   const [scheduler, setScheduler] = useState(user?.scheduler ?? "sm2");
   const [retention, setRetention] = useState(user?.requestRetention ?? DEFAULT_RETENTION);
   const [dailyTarget, setDailyTarget] = useState(user?.dailyTargetCount ?? DEFAULT_DAILY_TARGET);
@@ -60,7 +62,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
       a.href = url;
       a.download = `wholly-quran-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
-      URL.revokeObjectURL(url);
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (e: unknown) {
       setImportError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -95,8 +97,21 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
       }
       const parts = [`${data?.imported ?? 0} verse states restored`];
       if (data?.skipped) parts.push(`${data.skipped} entries skipped`);
-      if (data?.profileApplied) parts.push("settings restored");
+      if (data?.profileApplied) {
+        parts.push("settings restored");
+        const fresh = await fetch("/api/settings").then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (fresh) {
+          if (typeof fresh.scheduler === "string") setScheduler(fresh.scheduler);
+          if (typeof fresh.requestRetention === "number") setRetention(fresh.requestRetention);
+          if (typeof fresh.dailyTargetCount === "number") setDailyTarget(fresh.dailyTargetCount);
+        }
+      }
       setImportMessage(parts.join(" · "));
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["queue"] }),
+        queryClient.invalidateQueries({ queryKey: ["memory-map"] }),
+        queryClient.invalidateQueries({ queryKey: ["stats"] }),
+      ]);
     } catch (e: unknown) {
       setImportError(e instanceof Error ? e.message : "Something went wrong");
     } finally {
@@ -138,6 +153,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
         const data = await res.json().catch(() => null);
         throw new Error(data?.error ?? "Failed to save");
       }
+      await queryClient.invalidateQueries({ queryKey: ["queue"] });
       setSaved(true);
       savedTimerRef.current = window.setTimeout(() => setSaved(false), 2000);
     } catch (e: unknown) {
@@ -430,66 +446,77 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
                 Change Password
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                  Current Password
-                </label>
-                <input
-                  type="password"
-                  value={oldPassword}
-                  onChange={(e) => setOldPassword(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
-                  autoComplete="current-password"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                  New Password
-                </label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
-                  autoComplete="new-password"
-                />
-                <p className="mt-1 text-[11px] text-stone-400">
-                  12+ chars, at least 3 of: uppercase, lowercase, digit, symbol
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
-                  Confirm New Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
-                  autoComplete="new-password"
-                />
-              </div>
-              {pwError && (
-                <p className="text-sm text-red-600 dark:text-red-400">{pwError}</p>
-              )}
-              {pwSaved && (
-                <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                  Password changed. You&apos;ve been signed in on this device.
-                </p>
-              )}
-              <Button
-                onClick={handlePasswordChange}
-                disabled={pwSaving || !oldPassword || !newPassword || !confirmPassword}
-                variant="outline"
+            <CardContent>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handlePasswordChange();
+                }}
+                className="space-y-4"
               >
-                {pwSaving ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Lock className="mr-2 h-4 w-4" />
+                <div>
+                  <label htmlFor="pw-old" className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    Current Password
+                  </label>
+                  <input
+                    id="pw-old"
+                    type="password"
+                    value={oldPassword}
+                    onChange={(e) => setOldPassword(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
+                    autoComplete="current-password"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="pw-new" className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    New Password
+                  </label>
+                  <input
+                    id="pw-new"
+                    type="password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
+                    autoComplete="new-password"
+                  />
+                  <p className="mt-1 text-[11px] text-stone-400">
+                    12+ chars, at least 3 of: uppercase, lowercase, digit, symbol
+                  </p>
+                </div>
+                <div>
+                  <label htmlFor="pw-confirm" className="text-sm font-medium text-stone-700 dark:text-stone-300">
+                    Confirm New Password
+                  </label>
+                  <input
+                    id="pw-confirm"
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-800"
+                    autoComplete="new-password"
+                  />
+                </div>
+                {pwError && (
+                  <p className="text-sm text-red-600 dark:text-red-400">{pwError}</p>
                 )}
-                Update Password
-              </Button>
+                {pwSaved && (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
+                    Password changed. You&apos;ve been signed in on this device.
+                  </p>
+                )}
+                <Button
+                  type="submit"
+                  disabled={pwSaving || !oldPassword || !newPassword || !confirmPassword}
+                  variant="outline"
+                >
+                  {pwSaving ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Lock className="mr-2 h-4 w-4" />
+                  )}
+                  Update Password
+                </Button>
+              </form>
             </CardContent>
           </Card>
         )}
@@ -520,7 +547,7 @@ export function SettingsView({ user, isGuest }: SettingsViewProps) {
           </div>
         )}
 
-        <Button onClick={handleSave} disabled={saving} className="w-full" size="lg">
+        <Button onClick={handleSave} disabled={saving || isGuest} className="w-full" size="lg">
           {saving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : saved ? (

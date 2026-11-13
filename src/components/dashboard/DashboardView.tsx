@@ -48,9 +48,13 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
       // back to a state the user thought they had just changed.
       if (!res.ok) {
         console.error("[/api/settings] failed", res.status);
+        setRetentionDraft(Math.round(retention * 100));
         return;
       }
       await queryClient.invalidateQueries({ queryKey: ["queue"] });
+    } catch (err) {
+      console.error("[/api/settings] network error", err);
+      setRetentionDraft(Math.round(retention * 100));
     } finally {
       setSaving(false);
     }
@@ -61,7 +65,7 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
       <span className="pl-1.5 text-[10px] font-semibold uppercase tracking-wide text-stone-400">
         SRS
       </span>
-      <div className="inline-flex">
+      <div className="inline-flex" role="tablist" aria-label="SRS scheduler">
         {(["sm2", "fsrs"] as SchedulerKind[]).map((s) => (
           <button
             key={s}

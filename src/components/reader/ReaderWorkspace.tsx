@@ -375,7 +375,9 @@ export function ReaderWorkspace({
     }
     setMarkingSurah(true);
     setSurahKnownOptimistic(true);
+    const prevSnapshots = new Map<string, MemorySnapshot | undefined>();
     for (const ayah of surah.ayahs) {
+      prevSnapshots.set(ayah.verse_key, memoryStatesRef.current.get(ayah.verse_key));
       memoryStatesRef.current.set(ayah.verse_key, {
         ...EMPTY_SNAPSHOT,
         state: "KNOWN",
@@ -383,6 +385,14 @@ export function ReaderWorkspace({
       });
     }
     flashFor(`Known ✓ Marked all ${surah.ayah_count} verses of Surah ${surah.name_simple} as known`);
+
+    const rollback = () => {
+      setSurahKnownOptimistic(false);
+      for (const [key, prev] of prevSnapshots) {
+        if (prev === undefined) memoryStatesRef.current.delete(key);
+        else memoryStatesRef.current.set(key, prev);
+      }
+    };
 
     fetch("/api/memory-state", {
       method: "POST",
@@ -398,10 +408,12 @@ export function ReaderWorkspace({
         if (res.ok) {
           router.refresh();
         } else {
+          rollback();
           flashFor(`Could not mark Surah ${surah.name_simple} known — try again`);
         }
       })
       .catch(() => {
+        rollback();
         flashFor(`Could not reach the server — Surah ${surah.name_simple} not saved`);
       })
       .finally(() => {
@@ -516,6 +528,8 @@ export function ReaderWorkspace({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (quizAyahs !== null || drillOpen) return;
       const target = e.target as HTMLElement;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
       // Grading must not fire for keys pressed while an overlay or select dropdown has focus
@@ -561,7 +575,7 @@ export function ReaderWorkspace({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [handleGrade, handleKnown, handleKnownSurah, setHelpOpen]);
+  }, [handleGrade, handleKnown, handleKnownSurah, setHelpOpen, quizAyahs, drillOpen]);
 
   const refreshProgress = useCallback(() => {
     router.refresh();
@@ -729,7 +743,7 @@ export function ReaderWorkspace({
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <MaskingToolbar />
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setDrillOpen(true)}
