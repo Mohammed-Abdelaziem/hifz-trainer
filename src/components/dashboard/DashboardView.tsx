@@ -18,6 +18,7 @@ import {
   useDueReviewNotification,
 } from "@/hooks/use-review-reminders";
 import { TaskQueueTabs } from "./TaskQueueTabs";
+import { KnownRevisionCard } from "./KnownRevisionCard";
 import { ForecastCard } from "./ForecastCard";
 import { SyncButton } from "./SyncButton";
 import { SabaqIntake } from "./SabaqIntake";
@@ -197,88 +198,111 @@ export function DashboardView({
         <DashboardSkeleton />
       ) : (
         <>
-          <div className="mb-4 grid gap-4 md:grid-cols-2">
-            <GoalRing streak={queue.streak} />
-            <StreakCard streak={queue.streak} />
-          </div>
-
-          {!isGuest && (
-            <div className="mb-4">
-              <PacePlannerCard />
-            </div>
-          )}
-
-          {queue.streak.todayRead > 0 && (
-            <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm dark:border-sky-800 dark:bg-sky-950/20">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-sky-600 dark:text-sky-400" />
-                <h3 className="text-sm font-semibold text-sky-700 dark:text-sky-300">Reading Activity</h3>
-              </div>
-              <p className="mt-1 text-xs text-sky-600 dark:text-sky-400">
-                You&apos;ve read <strong>{queue.streak.todayRead}</strong> verse{queue.streak.todayRead === 1 ? "" : "s"} today.
-                Reading counts toward your streak even without grading.
-              </p>
-            </div>
-          )}
-
-          {!isGuest && (
-            <div className="mb-4">
-              <SabaqIntake availableSurahs={availableSurahs} />
-            </div>
-          )}
-
-          {!isGuest && (
-            <div className="mb-4 grid gap-4">
-              <BadgesCard />
-              <RecapCard />
-            </div>
-          )}
-
-          <div className="mb-4">
-            <WeeklyChartWrapper />
-          </div>
-
-          <div className="mb-4 rounded-xl border border-stone-200 bg-white p-4 shadow-sm dark:border-stone-800 dark:bg-stone-900">
-            <div className="mb-2 flex flex-wrap items-center gap-2">
+          {/* 1. Primary Hero: Today's Session */}
+          <div className="mb-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-sm dark:border-stone-800 dark:bg-stone-900">
+            <div className="mb-3 flex flex-wrap items-center gap-2.5">
               <Clock className="h-4 w-4 text-amber-600" />
-              <h3 className="text-sm font-semibold">Today&apos;s Plan</h3>
-              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                ~{queue.estimatedMinutes} min
+              <h2 className="text-base font-semibold tracking-tight">Today&apos;s Session</h2>
+              <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
+                {dueCount > 0 ? `${dueCount} due · ~${queue.estimatedMinutes} min` : "All caught up"}
               </span>
               {(() => {
                 const firstDue = queue.sabaq[0] ?? queue.sabqi[0] ?? queue.manzil[0];
                 return firstDue ? (
                   <Link
                     href={`/reader/${firstDue.surahId}?verse=${firstDue.verseKey}`}
-                    className="ml-auto inline-flex items-center gap-1 rounded-lg bg-amber-600 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-amber-700"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-xl bg-stone-900 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-stone-800 dark:bg-amber-600 dark:hover:bg-amber-500"
                   >
                     Start review →
                   </Link>
-                ) : null;
+                ) : (
+                  <Link
+                    href="/quran"
+                    className="ml-auto inline-flex items-center gap-1.5 rounded-xl border border-stone-200 px-3.5 py-1.5 text-xs font-semibold text-stone-700 transition-colors hover:bg-stone-50 dark:border-stone-700 dark:text-stone-200 dark:hover:bg-stone-800"
+                  >
+                    Browse Quran →
+                  </Link>
+                );
               })()}
             </div>
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-950/20">
-                <p className="text-lg font-bold text-amber-700 dark:text-amber-400">{queue.sabaq.length}</p>
-                <p className="text-xs font-medium text-amber-600 dark:text-amber-500">Sabaq</p>
+              <div className="rounded-xl bg-amber-50/80 p-3 dark:bg-amber-950/20">
+                <p className="text-xl font-bold tabular-nums text-amber-700 dark:text-amber-400">
+                  {queue.sabaq.length}
+                </p>
+                <p className="text-xs font-medium text-amber-700 dark:text-amber-400">Sabaq</p>
                 <p className="text-[10px] text-stone-500 dark:text-stone-400">New memorisation</p>
               </div>
-              <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-950/20">
-                <p className="text-lg font-bold text-emerald-700 dark:text-emerald-400">{queue.sabqi.length}</p>
-                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-500">Sabqi</p>
+              <div className="rounded-xl bg-emerald-50/80 p-3 dark:bg-emerald-950/20">
+                <p className="text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">
+                  {queue.sabqi.length}
+                </p>
+                <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Sabqi</p>
                 <p className="text-[10px] text-stone-500 dark:text-stone-400">Recent review</p>
               </div>
-              <div className="rounded-lg bg-sky-50 p-3 dark:bg-sky-950/20">
-                <p className="text-lg font-bold text-sky-700 dark:text-sky-400">{queue.manzil.length}</p>
-                <p className="text-xs font-medium text-sky-600 dark:text-sky-500">Manzil</p>
+              <div className="rounded-xl bg-sky-50/80 p-3 dark:bg-sky-950/20">
+                <p className="text-xl font-bold tabular-nums text-sky-700 dark:text-sky-400">
+                  {queue.manzil.length}
+                </p>
+                <p className="text-xs font-medium text-sky-700 dark:text-sky-400">Manzil</p>
                 <p className="text-[10px] text-stone-500 dark:text-stone-400">Long-term rotation</p>
               </div>
             </div>
           </div>
 
-          <TaskQueueTabs queue={queue} isGuest={isGuest} />
+          {/* 2. Actionable Queue & Periodic Revision */}
+          <div className="mb-6 space-y-4">
+            <TaskQueueTabs queue={queue} isGuest={isGuest} />
+            {!isGuest && queue.knownRevision && queue.knownRevision.totalKnown > 0 && (
+              <KnownRevisionCard knownRevision={queue.knownRevision} />
+            )}
+            {!isGuest && <SabaqIntake availableSurahs={availableSurahs} />}
+          </div>
 
-          {!isGuest && <ForecastCard forecast={queue.forecast} />}
+          {/* 3. Consistency & Pace Bento */}
+          <section className="mb-6 space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+              Consistency &amp; Pace
+            </h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              <GoalRing streak={queue.streak} />
+              <StreakCard streak={queue.streak} />
+            </div>
+
+            {queue.streak.todayRead > 0 && (
+              <div className="rounded-xl border border-sky-200 bg-sky-50/80 px-4 py-3 dark:border-sky-800 dark:bg-sky-950/20">
+                <div className="flex items-center gap-2 text-xs text-sky-700 dark:text-sky-300">
+                  <BookOpen className="h-4 w-4 shrink-0 text-sky-600 dark:text-sky-400" />
+                  <span>
+                    <strong>Reading Activity:</strong> You&apos;ve read{" "}
+                    <strong>{queue.streak.todayRead}</strong> verse
+                    {queue.streak.todayRead === 1 ? "" : "s"} today — counts toward your streak.
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {!isGuest && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <PacePlannerCard />
+                <ForecastCard forecast={queue.forecast} />
+              </div>
+            )}
+          </section>
+
+          {/* 4. Activity & Insights */}
+          <section className="space-y-4">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-stone-400">
+              Activity &amp; Insights
+            </h2>
+            <WeeklyChartWrapper />
+            {!isGuest && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <RecapCard />
+                <BadgesCard />
+              </div>
+            )}
+          </section>
         </>
       )}
 

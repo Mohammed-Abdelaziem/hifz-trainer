@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Sparkles, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type {
@@ -149,6 +150,14 @@ export function ReaderWorkspace({
   isGuest?: boolean;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const refreshProgress = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["memory-map"] });
+    void queryClient.invalidateQueries({ queryKey: ["queue"] });
+    void queryClient.invalidateQueries({ queryKey: ["stats"] });
+    void queryClient.invalidateQueries({ queryKey: ["pace"] });
+    router.refresh();
+  }, [queryClient, router]);
   const hasAyahs = surah.ayahs.length > 0;
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -406,7 +415,7 @@ export function ReaderWorkspace({
     })
       .then((res) => {
         if (res.ok) {
-          router.refresh();
+          refreshProgress();
         } else {
           rollback();
           flashFor(`Could not mark Surah ${surah.name_simple} known — try again`);
@@ -419,7 +428,7 @@ export function ReaderWorkspace({
       .finally(() => {
         setMarkingSurah(false);
       });
-  }, [isGuest, isSurahFullyKnown, surah, flashFor, router]);
+  }, [isGuest, isSurahFullyKnown, surah, flashFor, refreshProgress]);
 
   /**
    * Marks the selected verse as already memorized and skips it with no SRS
@@ -450,13 +459,17 @@ export function ReaderWorkspace({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ verseKeys: [verseKey], known: true }),
     }).then((res) => {
-      // The optimistic advance already happened; just surface failures with
-      // the verse key so the user knows what to retry.
-      if (!res.ok) flashFor(`Could not mark ${verseKey} known — try again`);
+      if (res.ok) {
+        refreshProgress();
+      } else {
+        // The optimistic advance already happened; just surface failures with
+        // the verse key so the user knows what to retry.
+        flashFor(`Could not mark ${verseKey} known — try again`);
+      }
     }).catch(() => {
       flashFor(`Could not reach the server — ${verseKey} not saved`);
     });
-  }, [selected, isGuest, advanceToNext, flashFor]);
+  }, [selected, isGuest, advanceToNext, flashFor, refreshProgress]);
 
   const handleGrade = useCallback((grade: Grade) => {
     if (!selected) return;
@@ -513,7 +526,16 @@ export function ReaderWorkspace({
           next.lapses =
             grade === "AGAIN" && prev.state !== "SABAQ" ? prev.lapses + 1 : prev.lapses;
           memoryStatesRef.current.set(verseKey, next);
-          flashFor(describeOutcome(next, grade));
+          if (prev.state === "KNOWN") {
+            flashFor(
+              grade === "AGAIN"
+                ? `Needs refresh — ${verseKey} moved to Sabqi`
+                : `Revised ✓ ${verseKey} — next check-in in ${Math.max(1, Math.round(next.intervalDays))}d`
+            );
+          } else {
+            flashFor(describeOutcome(next, grade));
+          }
+          refreshProgress();
         })
         .catch(() => {
           // Offline mid-request, a dropped connection, or a backgrounded tab.
@@ -524,7 +546,7 @@ export function ReaderWorkspace({
     // Deliberately not an early return: where the grade is persisted must not
     // change whether the reader advances to the next verse.
     advanceToNext();
-  }, [selected, scheduler, requestRetention, isGuest, advanceToNext, flashFor]);
+  }, [selected, scheduler, requestRetention, isGuest, advanceToNext, flashFor, refreshProgress]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -576,10 +598,6 @@ export function ReaderWorkspace({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [handleGrade, handleKnown, handleKnownSurah, setHelpOpen, quizAyahs, drillOpen]);
-
-  const refreshProgress = useCallback(() => {
-    router.refresh();
-  }, [router]);
 
   if (!hasAyahs) {
     return (

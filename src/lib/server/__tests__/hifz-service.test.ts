@@ -68,6 +68,8 @@ describe("markKnown", () => {
     );
     for (const row of created) {
       expect((row as { state: string }).state).toBe("KNOWN");
+      expect((row as { intervalDays: number }).intervalDays).toBe(14);
+      expect((row as { dueDate: Date }).dueDate.getTime()).toBeGreaterThan(Date.now());
     }
     expect(result).toEqual({
       changed: 2,
@@ -103,6 +105,8 @@ describe("markKnown", () => {
     expect(created).toHaveLength(2);
     for (const row of created) {
       expect((row as { state: string }).state).toBe("KNOWN");
+      expect((row as { intervalDays: number }).intervalDays).toBe(14);
+      expect((row as { dueDate: Date }).dueDate.getTime()).toBeGreaterThan(Date.now());
     }
   });
 

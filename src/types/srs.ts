@@ -32,6 +32,14 @@ export interface QueueItem {
   intervalDays: number;
 }
 
+export interface KnownRevisionSummary {
+  totalKnown: number;
+  dueCount: number;
+  revisedRecently: number;
+  nextDueAt: string | null;
+  dueItems: QueueItem[];
+}
+
 export interface DailyQueue {
   sabaq: QueueItem[];
   sabqi: QueueItem[];
@@ -42,6 +50,8 @@ export interface DailyQueue {
   streak: StreakInfo;
   /** Signed-in only: cumulative due counts at upcoming horizons (after today). */
   forecast?: DueForecast;
+  /** Signed-in only: periodic revision tracking for KNOWN surahs/verses. */
+  knownRevision?: KnownRevisionSummary;
 }
 
 export interface MemoryCell {

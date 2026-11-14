@@ -3,6 +3,7 @@ import { getAvailableSurahs } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
 import { SITE_URL } from "@/lib/server/site-url";
 import { DashboardView } from "@/components/dashboard/DashboardView";
+import { GuestLanding } from "@/components/landing/GuestLanding";
 
 export const dynamic = "force-dynamic";
 
@@ -34,11 +35,15 @@ export default async function HomePage() {
     available = [];
   }
 
+  if (!user) {
+    return <GuestLanding />;
+  }
+
   return (
     <DashboardView
       availableSurahs={available}
-      isGuest={!user}
-      isAdmin={user?.role === "admin"}
+      isGuest={false}
+      isAdmin={user.role === "admin"}
     />
   );
 }

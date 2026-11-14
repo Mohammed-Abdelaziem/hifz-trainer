@@ -15,6 +15,7 @@ const TOTAL_PAGES = 604;
 /** Color for verses/surahs the user marked as already memorized — KNOWN is
  *  excluded from the stability heat scale because it is not "growing". */
 const KNOWN_COLOR = "#0d9488";
+const PARTIAL_KNOWN_COLOR = "#2dd4bf";
 
 type GridMode = "pages" | "surahs";
 
@@ -68,6 +69,8 @@ function formatSublabel(
 function Cell({
   score,
   knownFull,
+  knownCount = 0,
+  totalCount = 0,
   readCount,
   label,
   sublabel,
@@ -76,31 +79,66 @@ function Cell({
 }: {
   score: number | null;
   knownFull?: boolean;
+  knownCount?: number;
+  totalCount?: number;
   readCount?: number;
   label: string;
   sublabel?: string;
   large?: boolean;
   href?: string;
 }) {
-  const isRead = (!score && score !== 0) && (readCount ?? 0) > 0;
-  const bgColor = knownFull ? KNOWN_COLOR : isRead ? "#bae6fd" : stabilityColor(score);
+  const hasPartialKnown = !knownFull && knownCount > 0;
+  const isRead = (!score && score !== 0) && !hasPartialKnown && (readCount ?? 0) > 0;
+  const bgColor = knownFull
+    ? KNOWN_COLOR
+    : hasPartialKnown && score === null
+      ? PARTIAL_KNOWN_COLOR
+      : isRead
+        ? "#bae6fd"
+        : stabilityColor(score);
+  const partialPct =
+    hasPartialKnown && totalCount > 0
+      ? Math.max(12, Math.round((knownCount / totalCount) * 100))
+      : 0;
+
   const body = (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       title={sublabel ? `${label} — ${sublabel}` : label}
       className={cn(
-        "flex cursor-default items-center justify-center rounded-[3px] transition-transform hover:scale-125 hover:z-10",
+        "relative flex cursor-default items-center justify-center overflow-hidden rounded-[3px] transition-transform hover:scale-125 hover:z-10",
         large ? "aspect-square text-[11px] font-semibold" : "aspect-square",
         href && "cursor-pointer"
       )}
       style={{
         backgroundColor: bgColor,
-        color: knownFull || (score !== null && score >= 60) ? "#fff" : undefined,
-        outline: !knownFull && score !== null && score < 20 ? "2px solid #fecaca" : "none",
+        color:
+          knownFull || (score !== null && score >= 60)
+            ? "#fff"
+            : hasPartialKnown && score === null
+              ? "#0f172a"
+              : undefined,
+        outline:
+          !knownFull && score !== null && score < 20
+            ? "2px solid #fecaca"
+            : hasPartialKnown && score !== null
+              ? "2px solid #0d9488"
+              : "none",
       }}
     >
       {large ? label : ""}
+      {large && hasPartialKnown && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-1 bg-teal-900/20"
+        >
+          <span
+            className="block h-full bg-teal-700"
+            style={{ width: `${partialPct}%` }}
+          />
+        </span>
+      )}
     </motion.div>
   );
   return href ? (
@@ -207,6 +245,9 @@ export function MushafGrid() {
             <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: KNOWN_COLOR }} /> Already known
           </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
+            <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: PARTIAL_KNOWN_COLOR }} /> Partially known
+          </span>
+          <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
             <span className="h-3 w-3 rounded-sm bg-sky-200" /> Read only
           </span>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-stone-500">
@@ -232,6 +273,8 @@ export function MushafGrid() {
                   large
                   score={agg.score}
                   knownFull={fullyKnown}
+                  knownCount={agg.known}
+                  totalCount={agg.total}
                   readCount={readCount}
                   label={String(n)}
                   href={`/reader/${n}`}
@@ -251,6 +294,8 @@ export function MushafGrid() {
                   key={n}
                   score={agg.score}
                   knownFull={fullyKnown}
+                  knownCount={agg.known}
+                  totalCount={agg.total}
                   readCount={cells.reduce((sum, c) => sum + c.readCount, 0)}
                   label={`Page ${n}`}
                   href={

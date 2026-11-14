@@ -68,3 +68,8 @@ export const DEFAULT_DAILY_TARGET = 10;
 
 // SRS defaults
 export const DEFAULT_RETENTION = 0.9;
+
+/** Initial periodic revision interval (days) when marking verses as KNOWN. */
+export const KNOWN_REVISION_INTERVAL_DAYS = 14;
+/** Maximum periodic revision interval (days) for KNOWN verses. */
+export const KNOWN_REVISION_MAX_INTERVAL_DAYS = 90;

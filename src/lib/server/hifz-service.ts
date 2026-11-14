@@ -9,7 +9,12 @@ import type {
 import type { PageProgress, SurahProgress } from "@/types/srs";
 import { getDb } from "@/lib/db";
 import { isVerseKey } from "@/lib/quran/verse-key";
-import { DAY_MS, DEFAULT_RETENTION } from "@/lib/constants";
+import {
+  DAY_MS,
+  DEFAULT_RETENTION,
+  KNOWN_REVISION_INTERVAL_DAYS,
+  KNOWN_REVISION_MAX_INTERVAL_DAYS,
+} from "@/lib/constants";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 import {
   GRADE_QUALITY,
@@ -503,9 +508,10 @@ export async function markKnown(params: {
             userId: params.userId,
             verseKey,
             state: "KNOWN",
-            // The daily queue filters state != "KNOWN", so a due-now
-            // dueDate never surfaces; stability ignores dueDate for KNOWN.
-            dueDate: now,
+            // Schedule the first periodic revision check-in so memorized
+            // verses still get gentle spaced revision advice.
+            intervalDays: KNOWN_REVISION_INTERVAL_DAYS,
+            dueDate: new Date(now.getTime() + KNOWN_REVISION_INTERVAL_DAYS * DAY_MS),
             repetitionCount: 1,
             lastReviewedAt: now,
           })),
@@ -742,18 +748,35 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
     where: { userId, createdAt: { gte: startOfDay(new Date()) } },
   });
 
-  // Forecast: how many verses come due after today, by horizon. One light
-  // query (dueDate column only) buckets in JS — Prisma cannot group by
-  // arbitrary date ranges, and the rows beyond today are the same ones the
-  // dashboard heatmap already walks.
-  const futureDue = await db.userMemoryState.findMany({
-    where: {
-      userId,
-      state: { not: "KNOWN" },
-      dueDate: { gt: endOfToday },
-    },
-    select: { dueDate: true },
-  });
+  const knownWindowStart = new Date(Date.now() - KNOWN_REVISION_INTERVAL_DAYS * DAY_MS);
+  const [futureDue, knownRows] = await Promise.all([
+    db.userMemoryState.findMany({
+      where: {
+        userId,
+        state: { not: "KNOWN" },
+        dueDate: { gt: endOfToday },
+      },
+      select: { dueDate: true },
+    }),
+    db.userMemoryState.findMany({
+      where: { userId, state: "KNOWN" },
+      select: {
+        verseKey: true,
+        state: true,
+        intervalDays: true,
+        dueDate: true,
+        lastReviewedAt: true,
+        verse: { select: { surahId: true, ayahNumber: true, pageNumber: true } },
+      },
+      orderBy: { dueDate: "asc" },
+    }),
+  ]);
+
+  const dueKnownRows = knownRows.filter((r) => r.dueDate <= endOfToday);
+  const upcomingKnown = knownRows.find((r) => r.dueDate > endOfToday);
+  const revisedRecently = knownRows.filter(
+    (r) => r.lastReviewedAt !== null && r.lastReviewedAt >= knownWindowStart
+  ).length;
 
   return {
     sabaq: buckets.SABAQ,
@@ -774,7 +797,119 @@ export async function buildDailyQueue(userId: string): Promise<DailyQueue> {
       futureDue.map((row) => row.dueDate),
       endOfToday
     ),
+    knownRevision: {
+      totalKnown: knownRows.length,
+      dueCount: dueKnownRows.length,
+      revisedRecently,
+      nextDueAt: upcomingKnown ? upcomingKnown.dueDate.toISOString() : null,
+      dueItems: dueKnownRows.slice(0, MAX_QUEUE_ITEMS).map(toItem),
+    },
   };
+}
+
+/**
+ * Records a periodic revision of KNOWN verses (either for a whole surah or
+ * explicit verse keys), advancing their dueDate and logging ReviewLog entries
+ * so revision is tracked in stats, XP, and streaks.
+ */
+export async function recordKnownRevision(params: {
+  userId: string;
+  surahId?: number;
+  verseKeys?: string[];
+}): Promise<{ revised: number; nextDueAt: string | null; streak: StreakInfo }> {
+  const db = await getDb();
+  const now = new Date();
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+
+  return db.$transaction(async (tx) => {
+    const user = await tx.user.findUniqueOrThrow({ where: { id: params.userId } });
+    const scheduler: SchedulerKind = user.scheduler === "fsrs" ? "fsrs" : "sm2";
+
+    const whereClause =
+      params.verseKeys && params.verseKeys.length > 0
+        ? { userId: params.userId, state: "KNOWN", verseKey: { in: params.verseKeys } }
+        : params.surahId
+          ? { userId: params.userId, state: "KNOWN", verse: { surahId: params.surahId } }
+          : { userId: params.userId, state: "KNOWN", dueDate: { lte: endOfToday } };
+
+    const candidates = await tx.userMemoryState.findMany({
+      where: whereClause,
+      select: {
+        id: true,
+        verseKey: true,
+        intervalDays: true,
+        easeFactor: true,
+        repetitionCount: true,
+        difficulty: true,
+        stability: true,
+        dueDate: true,
+      },
+    });
+
+    // When revising a whole surah, prioritize due verses; if none are due yet,
+    // allow proactive revision of all KNOWN verses in that surah.
+    const dueOnly = candidates.filter((c) => c.dueDate <= endOfToday);
+    const targets = dueOnly.length > 0 ? dueOnly : candidates;
+
+    let earliestNext: Date | null = null;
+    if (targets.length > 0) {
+      const reviewLogs = [];
+      for (const row of targets) {
+        const base = row.intervalDays > 0 ? row.intervalDays : KNOWN_REVISION_INTERVAL_DAYS;
+        const nextInterval = Math.min(
+          KNOWN_REVISION_MAX_INTERVAL_DAYS,
+          Math.max(KNOWN_REVISION_INTERVAL_DAYS, Math.round(base * 1.5))
+        );
+        const nextDue = new Date(now.getTime() + nextInterval * DAY_MS);
+        if (!earliestNext || nextDue < earliestNext) earliestNext = nextDue;
+
+        await tx.userMemoryState.update({
+          where: { id: row.id },
+          data: {
+            intervalDays: nextInterval,
+            repetitionCount: row.repetitionCount + 1,
+            dueDate: nextDue,
+            lastReviewedAt: now,
+          },
+        });
+
+        reviewLogs.push({
+          userId: params.userId,
+          verseKey: row.verseKey,
+          grade: "GOOD",
+          quality: GRADE_QUALITY.GOOD,
+          intervalDays: nextInterval,
+          easeFactorAfter: row.easeFactor,
+          difficultyAfter: row.difficulty,
+          stabilityAfter: row.stability,
+          scheduler,
+          reviewDurationMs: 0,
+        });
+      }
+
+      await tx.reviewLog.createMany({ data: reviewLogs });
+      await tx.user.update({ where: { id: params.userId }, data: computeStreak(user, now) });
+    }
+
+    const [updatedUser, todayReviewed, todayRead] = await Promise.all([
+      tx.user.findUniqueOrThrow({ where: { id: params.userId } }),
+      tx.reviewLog.count({ where: { userId: params.userId, createdAt: { gte: startOfDay(now) } } }),
+      tx.readingLog.count({ where: { userId: params.userId, createdAt: { gte: startOfDay(now) } } }),
+    ]);
+
+    return {
+      revised: targets.length,
+      nextDueAt: earliestNext ? earliestNext.toISOString() : null,
+      streak: {
+        current: updatedUser.currentStreak,
+        longest: updatedUser.longestStreak,
+        dailyTargetCount: updatedUser.dailyTargetCount,
+        todayReviewed,
+        todayRead,
+      },
+    };
+  });
 }
 
 /**
