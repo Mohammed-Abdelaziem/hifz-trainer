@@ -458,15 +458,34 @@ export function ReaderWorkspace({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ verseKeys: [verseKey], known: true }),
-    }).then((res) => {
-      if (res.ok) {
-        refreshProgress();
-      } else {
-        // The optimistic advance already happened; just surface failures with
-        // the verse key so the user knows what to retry.
+    }).then(async (res) => {
+      if (!res.ok) {
+        if (prev === undefined) memoryStatesRef.current.delete(verseKey);
+        else memoryStatesRef.current.set(verseKey, prev);
         flashFor(`Could not mark ${verseKey} known — try again`);
+        return;
       }
+      const data = (await res.json()) as {
+        created?: number;
+        changed?: number;
+        alreadyKnown?: number;
+        invalid?: number;
+      };
+      if (
+        (data.invalid ?? 0) > 0 &&
+        (data.created ?? 0) === 0 &&
+        (data.changed ?? 0) === 0 &&
+        (data.alreadyKnown ?? 0) === 0
+      ) {
+        if (prev === undefined) memoryStatesRef.current.delete(verseKey);
+        else memoryStatesRef.current.set(verseKey, prev);
+        flashFor(`Could not save ${verseKey} — verse not synced yet`);
+        return;
+      }
+      refreshProgress();
     }).catch(() => {
+      if (prev === undefined) memoryStatesRef.current.delete(verseKey);
+      else memoryStatesRef.current.set(verseKey, prev);
       flashFor(`Could not reach the server — ${verseKey} not saved`);
     });
   }, [selected, isGuest, advanceToNext, flashFor, refreshProgress]);
@@ -638,55 +657,70 @@ export function ReaderWorkspace({
                     {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
                     {surah.ayah_count} verses
                   </span>
-                  {progress && progress.total > 0 && progress.pages && progress.pages.length > 1 ? (
+                  {progress ? (
                     (() => {
-                      const parts = progress.pages.map((p) => {
-                        const share = Math.max(0.03, p.total / progress.total);
-                        const tone =
-                          p.known === p.total && p.total > 0
-                            ? "bg-teal-500 dark:bg-teal-600" // page fully known
-                            : p.known + p.learning > 0
-                              ? "bg-amber-400 dark:bg-amber-500" // page in rotation
-                              : "bg-stone-300 dark:bg-stone-600";
-                        const title = `Page ${p.page}: ${p.total} verse${p.total === 1 ? "" : "s"} · ${p.known} known · ${p.learning} in rotation`;
-                        return { p, share, tone, title };
-                      });
+                      const totalVerses =
+                        progress.total > 0 ? progress.total : surah.ayah_count;
+                      const learning =
+                        progress.sabaq + progress.sabqi + progress.manzil;
+                      const fullyKnown =
+                        totalVerses > 0 && progress.known >= totalVerses;
+                      const hasProgress = progress.known > 0 || learning > 0;
                       return (
-                        <span
-                          role="img"
-                          aria-label="Per-page memorization progress"
-                          title={parts.map((x) => x.title).join(" · ")}
-                          className="inline-flex h-1.5 min-w-16 overflow-hidden rounded-full bg-stone-200 align-middle dark:bg-stone-700"
-                          style={{ width: 96 }}
-                        >
-                          {parts.map((x) => (
-                            <span key={x.p.page} className={x.tone} style={{ flexGrow: x.share }} />
-                          ))}
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={
+                              fullyKnown
+                                ? "success"
+                                : hasProgress
+                                  ? "warning"
+                                  : "secondary"
+                            }
+                            className="gap-1"
+                            title={`${progress.known} known · ${progress.sabaq} new · ${progress.sabqi} recent review · ${progress.manzil} long-term of ${totalVerses} verses`}
+                          >
+                            <Star className="h-3 w-3" aria-hidden="true" />
+                            {progress.known}/{totalVerses} known
+                            {learning > 0 ? ` · ${learning} in hifz` : ""}
+                          </Badge>
+                          {progress.pages &&
+                            progress.pages.length > 1 &&
+                            (() => {
+                              const parts = progress.pages.map((p) => {
+                                const share = Math.max(
+                                  0.03,
+                                  p.total / Math.max(1, totalVerses)
+                                );
+                                const tone =
+                                  p.known === p.total && p.total > 0
+                                    ? "bg-teal-500 dark:bg-teal-600"
+                                    : p.known + p.learning > 0
+                                      ? "bg-amber-400 dark:bg-amber-500"
+                                      : "bg-stone-300 dark:bg-stone-600";
+                                const title = `Page ${p.page}: ${p.total} verse${p.total === 1 ? "" : "s"} · ${p.known} known · ${p.learning} in rotation`;
+                                return { p, share, tone, title };
+                              });
+                              return (
+                                <span
+                                  role="img"
+                                  aria-label="Per-page memorization progress"
+                                  title={parts.map((x) => x.title).join(" · ")}
+                                  className="inline-flex h-1.5 min-w-16 overflow-hidden rounded-full bg-stone-200 align-middle dark:bg-stone-700"
+                                  style={{ width: 96 }}
+                                >
+                                  {parts.map((x) => (
+                                    <span
+                                      key={x.p.page}
+                                      className={x.tone}
+                                      style={{ flexGrow: x.share }}
+                                    />
+                                  ))}
+                                </span>
+                              );
+                            })()}
                         </span>
                       );
                     })()
-                  ) : progress && progress.total > 0 ? (
-                    (() => {
-                      const learning =
-                        progress.sabaq + progress.sabqi + progress.manzil;
-                      const fullyKnown = progress.known === progress.total;
-                      return (
-                        // Real per-surah progress: replaced the fake "Sabqi"
-                        // badge that decorated every surah regardless of
-                        // history, and makes "already known" parts visible.
-                        <Badge
-                          variant={fullyKnown ? "success" : learning > 0 ? "warning" : "secondary"}
-                          className="gap-1"
-                          title={`${progress.known} known · ${progress.sabaq} new · ${progress.sabqi} recent review · ${progress.manzil} long-term of ${progress.total} verses`}
-                        >
-                          <Star className="h-3 w-3" aria-hidden="true" />
-                          {progress.known}/{progress.total} known
-                          {learning > 0 ? ` · ${learning} in hifz` : ""}
-                        </Badge>
-                      );
-                    })()
-                  ) : progress ? (
-                    <Badge variant="secondary">Not tracked yet</Badge>
                   ) : (
                     // Guest (no progress data): stay silent instead of a badge
                     // that claims a state nobody verified.

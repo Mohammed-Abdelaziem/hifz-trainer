@@ -10,12 +10,16 @@ import type { PageProgress, SurahProgress } from "@/types/srs";
 import { getDb } from "@/lib/db";
 import { isVerseKey } from "@/lib/quran/verse-key";
 import {
+  API_TIMEOUT_LONG_MS,
   DAY_MS,
   DEFAULT_RETENTION,
   KNOWN_REVISION_INTERVAL_DAYS,
   KNOWN_REVISION_MAX_INTERVAL_DAYS,
+  QURAN_API_BASE,
 } from "@/lib/constants";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
+import { everyAyahUrl } from "@/lib/quran/timings";
+import { fetchJson } from "@/lib/server/fetch-json";
 import {
   GRADE_QUALITY,
   NEW_MEMORY_STATE,
@@ -365,6 +369,106 @@ export function buildSurahNameMap(
  * side effect of grading a verse in the reader, so a new account had a
  * permanently empty queue and an empty state that congratulated them on it.
  */
+/**
+ * When the database only holds a partial corpus (e.g. before full sync),
+ * verses for a surah opened via the upstream API are not yet in `Verse`,
+ * causing FK-guarded inserts in `addToSabaq` / `markKnown` to reject them.
+ * Seed any missing surah's `Surah` + `Verse` rows on demand from Quran.com.
+ */
+async function ensureMissingSurahsForKeys(
+  db: Awaited<ReturnType<typeof getDb>>,
+  missingKeys: string[]
+): Promise<void> {
+  if (
+    missingKeys.length === 0 ||
+    typeof db.surah?.upsert !== "function" ||
+    typeof db.verse?.createMany !== "function"
+  ) {
+    return;
+  }
+
+  const surahIds = [
+    ...new Set(
+      missingKeys
+        .map((k) => Number.parseInt(k.split(":")[0] ?? "", 10))
+        .filter((id) => Number.isInteger(id) && id >= 1 && id <= 114)
+    ),
+  ];
+
+  for (const surahId of surahIds) {
+    try {
+      const existingCount = await db.verse.count({ where: { surahId } });
+      if (existingCount > 0) continue;
+
+      const [chapterRes, versesRes] = await Promise.all([
+        fetchJson<{
+          chapter?: {
+            id: number;
+            name_arabic: string;
+            name_simple: string;
+            revelation_place: string;
+            verses_count: number;
+            translated_name?: { name: string };
+          };
+        }>(`${QURAN_API_BASE}/chapters/${surahId}`, {
+          timeout: API_TIMEOUT_LONG_MS,
+          retries: 1,
+        }),
+        fetchJson<{
+          verses?: Array<{
+            verse_key: string;
+            verse_number: number;
+            page_number: number;
+            text_uthmani: string;
+            translations?: Array<{ text?: string }>;
+          }>;
+        }>(
+          `${QURAN_API_BASE}/verses/by_chapter/${surahId}?fields=text_uthmani,page_number&translations=131&per_page=1000`,
+          { timeout: API_TIMEOUT_LONG_MS, retries: 1 }
+        ),
+      ]);
+
+      const c = chapterRes.chapter;
+      const verses = versesRes.verses ?? [];
+      if (!c || verses.length === 0) continue;
+
+      await db.surah.upsert({
+        where: { id: surahId },
+        create: {
+          id: surahId,
+          nameArabic: c.name_arabic,
+          nameSimple: c.name_simple,
+          englishName: c.translated_name?.name ?? c.name_simple,
+          revelationPlace: c.revelation_place,
+          ayahCount: c.verses_count,
+        },
+        update: {
+          nameArabic: c.name_arabic,
+          nameSimple: c.name_simple,
+          englishName: c.translated_name?.name ?? c.name_simple,
+          revelationPlace: c.revelation_place,
+          ayahCount: c.verses_count,
+        },
+      });
+
+      await db.verse.createMany({
+        data: verses.map((v) => ({
+          verseKey: v.verse_key,
+          surahId,
+          ayahNumber: v.verse_number,
+          pageNumber: v.page_number ?? 1,
+          uthmaniText: v.text_uthmani,
+          translation: v.translations?.[0]?.text ?? "",
+          audioUrl: everyAyahUrl(v.verse_key),
+        })),
+        skipDuplicates: true,
+      });
+    } catch {
+      // Upstream unavailable — leave missing keys as invalid
+    }
+  }
+}
+
 export async function addToSabaq(params: {
   userId: string;
   verseKeys: string[];
@@ -377,10 +481,21 @@ export async function addToSabaq(params: {
   const keys = [...new Set(params.verseKeys)].filter((k) => isVerseKey(k));
   if (keys.length === 0) return { added: 0, invalid: 0, duplicate: 0 };
 
-  const existingVerses = await db.verse.findMany({
+  let existingVerses = await db.verse.findMany({
     where: { verseKey: { in: keys } },
     select: { verseKey: true },
   });
+  if (existingVerses.length < keys.length) {
+    const foundSet = new Set(existingVerses.map((v) => v.verseKey));
+    await ensureMissingSurahsForKeys(
+      db,
+      keys.filter((k) => !foundSet.has(k))
+    );
+    existingVerses = await db.verse.findMany({
+      where: { verseKey: { in: keys } },
+      select: { verseKey: true },
+    });
+  }
   const valid = existingVerses.map((v) => v.verseKey);
   // Three buckets so the UI can say something useful: a range may be partly
   // real, partly already tracked, and partly reference ayah numbers that do
@@ -472,10 +587,21 @@ export async function markKnown(params: {
     let creatableKeys: string[] = [];
     let invalid = 0;
     if (untrackedKeys.length > 0) {
-      const found = await db.verse.findMany({
+      let found = await db.verse.findMany({
         where: { verseKey: { in: untrackedKeys } },
         select: { verseKey: true },
       });
+      if (found.length < untrackedKeys.length) {
+        const foundSet = new Set(found.map((f) => f.verseKey));
+        await ensureMissingSurahsForKeys(
+          db,
+          untrackedKeys.filter((k) => !foundSet.has(k))
+        );
+        found = await db.verse.findMany({
+          where: { verseKey: { in: untrackedKeys } },
+          select: { verseKey: true },
+        });
+      }
       const foundKeys = new Set(found.map((f) => f.verseKey));
       creatableKeys = untrackedKeys.filter((k) => foundKeys.has(k));
       invalid = untrackedKeys.length - creatableKeys.length;
