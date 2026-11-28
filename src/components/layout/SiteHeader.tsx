@@ -138,13 +138,22 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
           <span
             aria-label="Offline"
             title="Offline"
-            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 sm:ml-2 sm:px-2 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+            className="hidden shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 sm:inline-flex dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
           >
             <WifiOff className="h-3 w-3" />
-            <span className="hidden sm:inline">Offline</span>
+            Offline
           </span>
         )}
       </div>
+      {offline && (
+        <div
+          role="note"
+          className="flex items-center justify-center gap-1.5 border-t border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-800 sm:hidden dark:border-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+        >
+          <WifiOff className="h-3 w-3" />
+          Offline — reviews will sync when you reconnect
+        </div>
+      )}
       {mobileSearchOpen && (
         <div className="border-t border-stone-200 bg-white px-4 py-2 md:hidden dark:border-stone-800 dark:bg-stone-950">
           <SearchBar />
