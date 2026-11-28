@@ -80,15 +80,19 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
     engine.play();
   }, [autoPlay, autoPlayConsumed, hasAyahs, audioLoading, engine]);
 
+  const lastInitKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!hasAyahs) return;
+    const initKey = `${surah.id}:${initialVerseKey ?? ""}`;
+    if (lastInitKeyRef.current === initKey) return;
+    lastInitKeyRef.current = initKey;
     const target =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey
         : surah.ayahs[0].verse_key;
     selectAyah(target);
     resetRevealed(target);
-  }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
+  }, [hasAyahs, selectAyah, resetRevealed, surah.id, surah.ayahs, initialVerseKey]);
 
   if (!hasAyahs) {
     return (

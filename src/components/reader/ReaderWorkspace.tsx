@@ -98,8 +98,16 @@ export function ReaderWorkspace({
   });
   useAudioSettings(engine);
 
+  // Only initialize selection when the surah or ?verse= query actually changes.
+  // router.refresh() after grading/marking known passes a new `surah` object
+  // reference for the same surah.id — depending on `surah` directly yanked the
+  // user back to ayah 1 after every single grade or known-mark!
+  const lastInitKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!hasAyahs) return;
+    const initKey = `${surah.id}:${initialVerseKey ?? ""}`;
+    if (lastInitKeyRef.current === initKey) return;
+    lastInitKeyRef.current = initKey;
     const requested =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey
@@ -107,7 +115,7 @@ export function ReaderWorkspace({
     const target = requested ?? surah.ayahs[0].verse_key;
     selectAyah(target);
     resetRevealed(target);
-  }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
+  }, [hasAyahs, selectAyah, resetRevealed, surah.id, surah.ayahs, initialVerseKey]);
 
   usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
   const listenCount = useListenCount(selected?.verse_key ?? null, !isGuest && hasAyahs);
