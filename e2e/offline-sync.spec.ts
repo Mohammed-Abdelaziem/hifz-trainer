@@ -91,7 +91,7 @@ test.describe("Offline review queue", () => {
   // Pinned to the desktop viewport on every project (including mobile-chrome):
   // at phone widths the fixed bottom bar can overflow and let the transport
   // card intercept the grade buttons.
-  test.use({ viewport: { width: 1280, height: 720 } });
+  test.use({ viewport: { width: 1280, height: 720 }, isMobile: false });
 
   test("queues a grade offline and the service worker syncs it back", async ({
     page,
