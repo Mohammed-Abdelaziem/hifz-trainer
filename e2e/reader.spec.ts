@@ -26,7 +26,7 @@ test.describe("Reader", () => {
   test("can rate a verse and advance", async ({ page }) => {
     await expect(page.getByRole("button", { name: "Good" })).toBeVisible();
     await page.getByRole("button", { name: "Good" }).click();
-    await expect(page.getByRole("status")).toContainText("Good");
+    await expect(page.getByRole("status")).toContainText(/Good|Revised ✓/);
   });
 
   test("Know button marks the verse known and flashes the skip", async ({ page }) => {

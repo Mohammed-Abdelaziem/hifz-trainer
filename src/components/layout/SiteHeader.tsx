@@ -135,9 +135,13 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
           )}
         </div>
         {offline && (
-          <span className="ml-3 inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+          <span
+            aria-label="Offline"
+            title="Offline"
+            className="inline-flex shrink-0 items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-xs font-medium text-amber-700 sm:ml-2 sm:px-2 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
+          >
             <WifiOff className="h-3 w-3" />
-            Offline
+            <span className="hidden sm:inline">Offline</span>
           </span>
         )}
       </div>
