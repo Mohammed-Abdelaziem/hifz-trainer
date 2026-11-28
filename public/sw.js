@@ -11,6 +11,8 @@ const DATA_CACHE = `${VERSION}-data`;
 const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
 
 const SYNC_TAG = "review-sync";
+const SYNC_BATCH_SIZE = 100;
+const MAX_SYNC_RETRIES = 5;
 
 self.addEventListener("install", (event) => {
 event.waitUntil(
@@ -85,19 +87,20 @@ function isCacheableNavigation(url) {
   );
 }
 
-async function networkFirst(request, cacheName, fallbackResponse) {
+async function networkFirst(request, cacheName, fallbackResponse, shouldCache = isCacheableNavigation) {
   const cache = await caches.open(cacheName);
   const url = new URL(request.url);
   try {
     const res = await fetch(request);
-    if (res && res.ok && res.type === "basic" && isCacheableNavigation(url)) {
+    if (res && res.ok && res.type === "basic" && shouldCache(url)) {
       cache.put(request, res.clone());
     }
     return res;
   } catch {
     const hit = await cache.match(request);
     if (hit) return hit;
-    return fallbackResponse ?? Response.error();
+    const fallback = await fallbackResponse;
+    return fallback ?? Response.error();
   }
 }
 
@@ -108,7 +111,8 @@ async function syncPendingReviews() {
   }
 
   try {
-    const pending = await getPendingReviews();
+    const allPending = await getPendingReviews();
+    const pending = allPending.filter((item) => (item.retries || 0) < MAX_SYNC_RETRIES);
     if (pending.length === 0) {
       for (const client of clients) {
         client.postMessage({ type: "SYNC_COMPLETED", payload: { synced: 0, failed: 0 } });
@@ -116,35 +120,71 @@ async function syncPendingReviews() {
       return;
     }
 
-    const response = await fetch("/api/reviews/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reviews: pending.map((r) => ({
-          verseKey: r.verseKey,
-          grade: r.grade,
-          durationMs: r.durationMs,
-        })),
-      }),
-    });
-    const result = await response.json();
+    let totalSynced = 0;
+    let totalFailed = 0;
+    const allResults = [];
 
-    // The server skips invalid entries and returns failures in the middle of
-    // the array, so `result.synced` is not a prefix count. Match each result
-    // back to its queued item by verseKey and mark it individually.
-    const byVerseKey = new Map(pending.map((item) => [item.verseKey, item]));
-    for (const entry of result.results ?? []) {
-      const item = byVerseKey.get(entry.verseKey);
-      if (!item) continue;
-      if (entry.ok) {
-        await markReviewSynced(item.id);
-      } else {
-        await incrementReviewRetries(item.id);
+    // Chunk to match /api/reviews/sync's MAX_BATCH_SIZE (100) so large offline
+    // sessions never deadlock with HTTP 400.
+    for (let offset = 0; offset < pending.length; offset += SYNC_BATCH_SIZE) {
+      const batch = pending.slice(offset, offset + SYNC_BATCH_SIZE);
+      const response = await fetch("/api/reviews/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reviews: batch.map((r) => ({
+            id: r.id,
+            verseKey: r.verseKey,
+            grade: r.grade,
+            durationMs: r.durationMs,
+          })),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Sync failed with HTTP ${response.status}`);
+      }
+      const result = await response.json();
+      totalSynced += result.synced ?? 0;
+      totalFailed += result.failed ?? 0;
+      if (Array.isArray(result.results)) allResults.push(...result.results);
+
+      // Correlate 1:1 by unique item id so duplicate offline reviews of the
+      // same verse each receive their own outcome without clobbering each other.
+      const byId = new Map(batch.map((item) => [item.id, item]));
+      const fallbackByVerseKey = new Map();
+      for (const item of batch) {
+        const group = fallbackByVerseKey.get(item.verseKey);
+        if (group) group.push(item);
+        else fallbackByVerseKey.set(item.verseKey, [item]);
+      }
+
+      for (const entry of result.results ?? []) {
+        if (entry.id && byId.has(entry.id)) {
+          if (entry.ok) {
+            await markReviewSynced(entry.id);
+          } else {
+            await incrementReviewRetries(entry.id);
+          }
+          continue;
+        }
+        const group = fallbackByVerseKey.get(entry.verseKey);
+        const item = group?.shift();
+        if (!item) continue;
+        if (entry.ok) {
+          await markReviewSynced(item.id);
+        } else {
+          await incrementReviewRetries(item.id);
+        }
       }
     }
 
+    await clearSyncedReviews().catch(() => {});
+
     for (const client of clients) {
-      client.postMessage({ type: "SYNC_COMPLETED", payload: result });
+      client.postMessage({
+        type: "SYNC_COMPLETED",
+        payload: { ok: true, synced: totalSynced, failed: totalFailed, results: allResults },
+      });
     }
   } catch (error) {
     for (const client of clients) {
@@ -153,68 +193,125 @@ async function syncPendingReviews() {
   }
 }
 
-function getPendingReviews() {
+function openOfflineDb() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open("hifz-offline", 1);
     request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction("review-queue", "readonly");
-      const store = tx.objectStore("review-queue");
-      // Store-level scan rather than the "synced" index: boolean values are
-      // not valid IndexedDB keys, so IDBKeyRange.only(false) on that index
-      // threw DataError inside onsuccess and left this promise pending
-      // forever — the sync event then retried for eternity and no offline
-      // grade ever reached the server. The app copy
-      // (src/lib/offline/review-queue.ts) mirrors this fix.
-      const req = store.getAll();
-      req.onsuccess = () =>
-        resolve(req.result.filter((item) => item && item.synced === false));
-      req.onerror = () => reject(req.error);
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains("review-queue")) {
+        const store = db.createObjectStore("review-queue", { keyPath: "id" });
+        store.createIndex("synced", "synced", { unique: false });
+        store.createIndex("timestamp", "timestamp", { unique: false });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+  });
+}
+
+async function getPendingReviews() {
+  const db = await openOfflineDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("review-queue", "readonly");
+    const store = tx.objectStore("review-queue");
+    // Store-level scan rather than the "synced" index: boolean values are
+    // not valid IndexedDB keys, so IDBKeyRange.only(false) on that index
+    // threw DataError inside onsuccess and left this promise pending
+    // forever — the sync event then retried for eternity and no offline
+    // grade ever reached the server. The app copy
+    // (src/lib/offline/review-queue.ts) mirrors this fix.
+    const req = store.getAll();
+    req.onsuccess = () =>
+      resolve(req.result.filter((item) => item && item.synced === false));
+    req.onerror = () => reject(req.error);
+    tx.oncomplete = () => db.close();
+    tx.onerror = () => db.close();
+    tx.onabort = () => db.close();
+  });
+}
+
+async function markReviewSynced(id) {
+  const db = await openOfflineDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("review-queue", "readwrite");
+    const store = tx.objectStore("review-queue");
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result;
+      if (item) {
+        item.synced = true;
+        store.put(item);
+      }
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("Transaction aborted"));
     };
   });
 }
 
-function markReviewSynced(id) {
+async function incrementReviewRetries(id) {
+  const db = await openOfflineDb();
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("hifz-offline", 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction("review-queue", "readwrite");
-      const store = tx.objectStore("review-queue");
-      const getReq = store.get(id);
-      getReq.onsuccess = () => {
-        const item = getReq.result;
-        if (item) {
-          item.synced = true;
-          store.put(item);
-        }
-        resolve();
-      };
-      getReq.onerror = () => reject(getReq.error);
+    const tx = db.transaction("review-queue", "readwrite");
+    const store = tx.objectStore("review-queue");
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result;
+      if (item) {
+        item.retries = (item.retries || 0) + 1;
+        store.put(item);
+      }
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("Transaction aborted"));
     };
   });
 }
 
-function incrementReviewRetries(id) {
+async function clearSyncedReviews() {
+  const db = await openOfflineDb();
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("hifz-offline", 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction("review-queue", "readwrite");
-      const store = tx.objectStore("review-queue");
-      const getReq = store.get(id);
-      getReq.onsuccess = () => {
-        const item = getReq.result;
-        if (item) {
-          item.retries = (item.retries || 0) + 1;
-          store.put(item);
+    const tx = db.transaction("review-queue", "readwrite");
+    const store = tx.objectStore("review-queue");
+    const req = store.openCursor();
+    req.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        if (cursor.value && cursor.value.synced === true) {
+          cursor.delete();
         }
-        resolve();
-      };
-      getReq.onerror = () => reject(getReq.error);
+        cursor.continue();
+      }
+    };
+    tx.oncomplete = () => {
+      db.close();
+      resolve();
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+    tx.onabort = () => {
+      db.close();
+      reject(tx.error ?? new Error("Transaction aborted"));
     };
   });
 }
@@ -244,7 +341,8 @@ self.addEventListener("fetch", (event) => {
         new Response(JSON.stringify({ offline: true }), {
           status: 503,
           headers: { "Content-Type": "application/json" },
-        })
+        }),
+        isAyahData
       )
     );
     return;

@@ -1,5 +1,5 @@
 import { getSessionUser } from "@/lib/server/auth";
-import { recordReading } from "@/lib/server/hifz-service";
+import { ensureMissingSurahsForKeys, recordReading } from "@/lib/server/hifz-service";
 import { isVerseKey } from "@/lib/quran/verse-key";
 import { getDb } from "@/lib/db";
 
@@ -29,10 +29,17 @@ export async function POST(req: Request) {
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
 
     const db = await getDb();
-    const verse = await db.verse.findUnique({
+    let verse = await db.verse.findUnique({
       where: { verseKey },
       select: { verseKey: true },
     });
+    if (!verse) {
+      await ensureMissingSurahsForKeys(db, [verseKey]);
+      verse = await db.verse.findUnique({
+        where: { verseKey },
+        select: { verseKey: true },
+      });
+    }
     if (!verse) return Response.json({ error: `Unknown verse ${verseKey}` }, { status: 400 });
 
     await recordReading({

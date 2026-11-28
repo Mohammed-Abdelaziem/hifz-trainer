@@ -5,6 +5,7 @@ vi.mock("@/lib/server/auth", () => ({
 }));
 
 vi.mock("@/lib/server/hifz-service", () => ({
+  ensureMissingSurahsForKeys: vi.fn().mockResolvedValue(undefined),
   recordReview: vi.fn(),
 }));
 
@@ -101,5 +102,54 @@ describe("/api/reviews/sync", () => {
     expect(data.failed).toBe(1);
     expect(data.results[0].ok).toBe(true);
     expect(data.results[1].ok).toBe(false);
+  });
+
+  it("POST ignores null and malformed review entries without throwing 500", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+    (recordReview as ReturnType<typeof vi.fn>).mockResolvedValue({ result: "ok" });
+
+    const req = new Request("http://localhost/api/reviews/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reviews: [
+          null,
+          "bad",
+          { verseKey: 123, grade: "GOOD" },
+          { verseKey: "1:1", grade: "INVALID" },
+          { verseKey: "1:1", grade: "GOOD" },
+        ],
+      }),
+    });
+    const res = await POST(req);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.ok).toBe(true);
+    expect(data.synced).toBe(1);
+    expect(recordReview).toHaveBeenCalledTimes(1);
+  });
+
+  it("POST echoes item ids so duplicate offline reviews correlate 1:1", async () => {
+    (getSessionUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: "u1" });
+    (recordReview as ReturnType<typeof vi.fn>)
+      .mockResolvedValueOnce({ result: "ok" })
+      .mockRejectedValueOnce(new Error("fail"));
+
+    const req = new Request("http://localhost/api/reviews/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reviews: [
+          { id: "rev-1", verseKey: "1:1", grade: "AGAIN" },
+          { id: "rev-2", verseKey: "1:1", grade: "GOOD" },
+        ],
+      }),
+    });
+    const res = await POST(req);
+    const data = await res.json();
+    expect(data.synced).toBe(1);
+    expect(data.failed).toBe(1);
+    expect(data.results[0]).toMatchObject({ id: "rev-1", verseKey: "1:1", ok: true });
+    expect(data.results[1]).toMatchObject({ id: "rev-2", verseKey: "1:1", ok: false });
   });
 });

@@ -15,7 +15,7 @@ export async function GET() {
     // means to THIS deployment — a partial-corpus environment (tests, staging)
     // stays self-consistent instead of claiming a false remaining count.
     const [memorized, total] = await Promise.all([
-      db.userMemoryState.count({ where: { userId: user.id } }),
+      db.userMemoryState.count({ where: { userId: user.id, state: { not: "READ" } } }),
       db.verse.count(),
     ]);
     return Response.json({ memorized, total });

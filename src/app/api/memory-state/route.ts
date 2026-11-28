@@ -1,15 +1,11 @@
 import { getSessionUser } from "@/lib/server/auth";
 import { markKnown } from "@/lib/server/hifz-service";
-import { isVerseKey } from "@/lib/quran/verse-key";
-import { KNOWN_RANGE_MAX, MAX_AYAH_COUNT } from "@/lib/constants";
+import { parseVerseSelection, type VerseSelectionBody } from "@/lib/server/validation";
+import { KNOWN_RANGE_MAX } from "@/lib/constants";
 
 export const dynamic = "force-dynamic";
 
-interface Body {
-  verseKeys?: unknown;
-  surahId?: unknown;
-  fromAyah?: unknown;
-  toAyah?: unknown;
+interface Body extends VerseSelectionBody {
   known?: unknown;
 }
 
@@ -30,52 +26,31 @@ export async function POST(req: Request) {
       return Response.json({ error: "known must be true or false" }, { status: 400 });
     }
 
-    let verseKeys: string[] = [];
-
-    if (Array.isArray(body.verseKeys)) {
-      verseKeys = body.verseKeys.filter((k) => isVerseKey(k));
-    } else if (body.surahId !== undefined) {
-      const surahId = Number(body.surahId);
-      const fromAyah = Number(body.fromAyah ?? 1);
-      const toAyah = Number(body.toAyah ?? fromAyah);
-      if (
-        !Number.isInteger(surahId) ||
-        surahId < 1 ||
-        surahId > 114 ||
-        !Number.isInteger(fromAyah) ||
-        !Number.isInteger(toAyah) ||
-        fromAyah < 1 ||
-        toAyah < fromAyah ||
-        // Known-marking is a bulk import (whole surahs are common), so the
-        // per-request span cap lands on KNOWN_RANGE_MAX; this ayah bound just
-        // rejects impossible verse numbers.
-        toAyah > MAX_AYAH_COUNT
-      ) {
-        return Response.json({ error: "Invalid surah or ayah range" }, { status: 400 });
-      }
-      const span = toAyah - fromAyah + 1;
-      if (span > KNOWN_RANGE_MAX) {
-        return Response.json(
-          { error: `Mark at most ${KNOWN_RANGE_MAX} verses at a time` },
-          { status: 400 }
-        );
-      }
-      verseKeys = Array.from({ length: span }, (_, i) => `${surahId}:${fromAyah + i}`);
-    } else {
-      return Response.json({ error: "Provide verseKeys or a surah range" }, { status: 400 });
+    const selection = parseVerseSelection(body, { maxCount: KNOWN_RANGE_MAX, verb: "Mark" });
+    if (!selection.ok) {
+      return Response.json({ error: selection.error }, { status: 400 });
     }
 
-    if (verseKeys.length === 0) {
-      return Response.json({ error: "No valid verse keys" }, { status: 400 });
-    }
-    if (verseKeys.length > KNOWN_RANGE_MAX) {
+    const result = await markKnown({
+      userId: user.id,
+      verseKeys: selection.verseKeys,
+      known: body.known,
+    });
+    if (
+      body.known &&
+      result.invalid > 0 &&
+      result.created === 0 &&
+      result.changed === 0 &&
+      result.alreadyKnown === 0
+    ) {
       return Response.json(
-        { error: `Mark at most ${KNOWN_RANGE_MAX} verses at a time` },
-        { status: 400 }
+        {
+          error: "Could not find or sync those verses in the database. Please try again.",
+          ...result,
+        },
+        { status: 422 }
       );
     }
-
-    const result = await markKnown({ userId: user.id, verseKeys, known: body.known });
     return Response.json({ ok: true, ...result });
   } catch (err) {
     console.error("[/api/memory-state]", err);

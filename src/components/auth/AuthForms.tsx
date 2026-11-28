@@ -23,6 +23,22 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
+function OAuthSubmitButton({
+  label,
+  icon,
+}: {
+  label: string;
+  icon: React.ReactNode;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant="outline" disabled={pending} className="w-full gap-2">
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
+      {label}
+    </Button>
+  );
+}
+
 function OAuthButton({
   action,
   label,
@@ -32,13 +48,9 @@ function OAuthButton({
   label: string;
   icon: React.ReactNode;
 }) {
-  const { pending } = useFormStatus();
   return (
     <form action={action}>
-      <Button type="submit" variant="outline" disabled={pending} className="w-full gap-2">
-        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : icon}
-        {label}
-      </Button>
+      <OAuthSubmitButton label={label} icon={icon} />
     </form>
   );
 }

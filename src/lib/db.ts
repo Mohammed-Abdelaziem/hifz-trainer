@@ -2,7 +2,6 @@ import { PrismaClient } from "../../generated/prisma";
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
-  connectionTested?: boolean;
 };
 
 function encodeUrl(rawUrl: string): string {
@@ -38,28 +37,18 @@ async function createAdapter(rawUrl: string) {
     throw new Error("DATABASE_URL is not a valid URL");
   }
 
-  if (parsedUrl.protocol === "postgres:" || parsedUrl.protocol === "postgresql:") {
-    const { PrismaPg } = await import("@prisma/adapter-pg");
-    return new PrismaPg({
-      connectionString: encodedUrl,
-      // A page load fires several concurrent requests (document plus RSC
-      // prefetches for linked routes), and each one opens a connection in the
-      // layout for getSessionUser. At max 2 with a 5s acquire timeout that
-      // starves under contention and throws mid-render, which surfaced as an
-      // intermittent 500 on /quran. Supavisor in transaction mode is built to
-      // multiplex many clients, so a slightly larger per-lambda pool is the
-      // right trade here.
-      max: 5,
-      idleTimeoutMillis: 10_000,
-      connectionTimeoutMillis: 10_000,
-      // Left unset on purpose: a low statement_timeout aborts legitimate slow
-      // reads, such as the first cold getSurahBundle for a large surah.
-      application_name: "hifz-app",
-    });
+  if (parsedUrl.protocol !== "postgres:" && parsedUrl.protocol !== "postgresql:") {
+    throw new Error("DATABASE_URL must be a postgres:// or postgresql:// connection string");
   }
 
-  const { PrismaBetterSqlite3 } = await import("@prisma/adapter-better-sqlite3");
-  return new PrismaBetterSqlite3({ url: encodedUrl });
+  const { PrismaPg } = await import("@prisma/adapter-pg");
+  return new PrismaPg({
+    connectionString: encodedUrl,
+    max: 5,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 10_000,
+    application_name: "hifz-app",
+  });
 }
 
 export function sanitizeUrl(url: string | null | undefined): string | null {
@@ -81,31 +70,11 @@ export function toAbsoluteUrl(base: string, path: string): string | null {
   }
 }
 
-async function testConnection(db: PrismaClient): Promise<void> {
-  if (globalForPrisma.connectionTested) return;
-  try {
-    await db.$queryRaw`SELECT 1`;
-    globalForPrisma.connectionTested = true;
-  } catch {
-    // Connection test failed — will retry on next call
-  }
-}
-
-export async function getDbWithTest(): Promise<PrismaClient> {
-  const db = await getDb();
-  await testConnection(db);
-  return db;
-}
-
 let pendingClient: Promise<PrismaClient> | null = null;
 
 export async function getDb(): Promise<PrismaClient> {
   if (globalForPrisma.prisma) return globalForPrisma.prisma;
   const rawUrl = process.env.DATABASE_URL;
-  // No silent default: the old "file:./dev.db" fallback silently steered a
-  // misconfigured deployment/developer into the sqlite adapter even though
-  // the schema and every migration now target Postgres, surfacing much later
-  // as baffling Prisma errors mid-request.
   if (!rawUrl) {
     throw new Error(
       "DATABASE_URL is not set. Copy .env.example to .env.local and set a Postgres connection string."
@@ -116,10 +85,6 @@ export async function getDb(): Promise<PrismaClient> {
       const adapter = await createAdapter(rawUrl);
       return new PrismaClient({ adapter });
     })().catch((err: unknown) => {
-      // A rejected module-level promise here would otherwise be cached
-      // forever: one transient connection/DNS/auth hiccup on boot kept every
-      // later getDb() call failing with the same stale error until the
-      // process restarted. Resetting lets the next call retry from scratch.
       pendingClient = null;
       throw err;
     });

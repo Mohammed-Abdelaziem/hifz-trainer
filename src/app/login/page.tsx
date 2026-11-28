@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { CalendarCheck2, Flame, Map, ShieldCheck } from "lucide-react";
 import { getSessionUser } from "@/lib/server/auth";
 import { AuthForms } from "@/components/auth/AuthForms";
@@ -18,7 +18,12 @@ const PREVIEW_CELLS = [
 ];
 
 export default async function LoginPage() {
-  const user = await getSessionUser();
+  let user = null;
+  try {
+    user = await getSessionUser();
+  } catch (err) {
+    unstable_rethrow(err);
+  }
   if (user) redirect("/");
 
   return (

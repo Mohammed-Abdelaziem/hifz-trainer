@@ -1,5 +1,5 @@
 import type { QuranWord } from "@/types/quran";
-import { getDb, getDbWithTest, sanitizeUrl, toAbsoluteUrl } from "@/lib/db";
+import { getDb, sanitizeUrl, toAbsoluteUrl } from "@/lib/db";
 import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
 import { fetchJson } from "@/lib/server/fetch-json";
 import { QURAN_API_BASE, VERSES_CDN, API_TIMEOUT_MEDIUM_MS } from "@/lib/constants";
@@ -100,7 +100,7 @@ export async function getOrFetchAyahData(
 }
 
 async function enrichAyahData(verseKey: string, reciterId: number): Promise<AyahData> {
-  const db = await getDbWithTest();
+  const db = await getDb();
   const row = await db.verse.findUnique({ where: { verseKey } });
 
   let words: QuranWord[] | null = null;
@@ -206,7 +206,7 @@ const BULK_CONCURRENCY = 12;
 
 export async function bulkWarmAyahData(limit: number): Promise<BulkWarmReport> {
   const startedAt = Date.now();
-  const db = await getDbWithTest();
+  const db = await getDb();
   const pending = await db.verse.findMany({
     where: { wordsSource: "synthetic" },
     select: { verseKey: true },

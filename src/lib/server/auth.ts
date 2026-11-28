@@ -1,8 +1,9 @@
 import { createHash, randomBytes, scrypt as scryptCb, timingSafeEqual } from "node:crypto";
 import { promisify } from "node:util";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type { User } from "../../../generated/prisma";
-import { getDbWithTest } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 const scryptAsync = promisify(scryptCb) as (
   password: string,
@@ -62,7 +63,7 @@ export const DECOY_PASSWORD_HASH = DECOY_HASH;
 
 /** Removes sessions whose expiry has passed. Call opportunistically. */
 export async function purgeExpiredSessions(): Promise<void> {
-  const db = await getDbWithTest();
+  const db = await getDb();
   await db.session
     .deleteMany({ where: { expiresAt: { lt: new Date() } } })
     .catch(() => {});
@@ -75,7 +76,7 @@ function expiryDate(): Date {
 }
 
 export async function createSession(userId: string, rotate = false): Promise<string> {
-  const db = await getDbWithTest();
+  const db = await getDb();
 
   if (rotate) {
     const jar = await cookies();
@@ -100,12 +101,16 @@ export async function createSession(userId: string, rotate = false): Promise<str
   return token;
 }
 
-export async function getSessionUser(): Promise<User | null> {
+/**
+ * Resolves the authenticated user for the current request, deduplicated per
+ * React Server Component render pass via `React.cache()`.
+ */
+export const getSessionUser = cache(async (): Promise<User | null> => {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (!token) return null;
 
-  const db = await getDbWithTest();
+  const db = await getDb();
   const session = await db.session.findUnique({
     where: { token: hashToken(token) },
     include: { user: true },
@@ -154,25 +159,25 @@ export async function getSessionUser(): Promise<User | null> {
   }
 
   return session.user;
-}
+});
 
 export async function destroySession(): Promise<void> {
   const jar = await cookies();
   const token = jar.get(SESSION_COOKIE)?.value;
   if (token) {
-    const db = await getDbWithTest();
+    const db = await getDb();
     await db.session.deleteMany({ where: { token: hashToken(token) } }).catch(() => {});
   }
   jar.delete(SESSION_COOKIE);
 }
 
 export async function revokeAllSessions(userId: string): Promise<void> {
-  const db = await getDbWithTest();
+  const db = await getDb();
   await db.session.deleteMany({ where: { userId } });
 }
 
 export async function recordFailedLogin(email: string): Promise<{ locked: boolean; remainingAttempts: number }> {
-  const db = await getDbWithTest();
+  const db = await getDb();
   const user = await db.user.findUnique({ where: { email } });
   if (!user) return { locked: false, remainingAttempts: MAX_FAILED_ATTEMPTS };
 
@@ -205,7 +210,7 @@ export async function recordFailedLogin(email: string): Promise<{ locked: boolea
 }
 
 export async function resetFailedLogins(userId: string): Promise<void> {
-  const db = await getDbWithTest();
+  const db = await getDb();
   await db.user.update({
     where: { id: userId },
     data: { failedLoginAttempts: 0, lockedUntil: null },

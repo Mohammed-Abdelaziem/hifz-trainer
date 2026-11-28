@@ -1,8 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import type { DailyQueue, MemoryMapPayload } from "@/types/srs";
-import type { ReviewStats } from "@/app/api/stats/route";
+import type { DailyQueue, MemoryMapPayload, ReviewStats } from "@/types/srs";
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url);
@@ -33,6 +32,14 @@ export function useReviewStats() {
   return useQuery({
     queryKey: ["stats"],
     queryFn: () => fetchJson<ReviewStats>("/api/stats"),
+    staleTime: 30_000,
+  });
+}
+
+export function usePace() {
+  return useQuery({
+    queryKey: ["pace"],
+    queryFn: () => fetchJson<{ memorized: number; total: number }>("/api/pace"),
     staleTime: 30_000,
   });
 }

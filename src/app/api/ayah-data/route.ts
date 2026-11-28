@@ -1,5 +1,5 @@
 import { getOrFetchAyahData } from "@/lib/server/ayah-data";
-import { VALID_RECITER_IDS } from "@/lib/quran/reciters";
+import { DEFAULT_RECITER_ID, VALID_RECITER_IDS } from "@/lib/quran/reciters";
 import { isVerseKey } from "@/lib/quran/verse-key";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ export async function GET(req: Request) {
 
     let reciterId = Number(params.get("reciter") ?? "");
     if (!Number.isInteger(reciterId) || !VALID_RECITER_IDS.has(reciterId)) {
-      reciterId = VALID_RECITER_IDS.has(7) ? 7 : [...VALID_RECITER_IDS][0];
+      reciterId = DEFAULT_RECITER_ID;
     }
 
     const data = await getOrFetchAyahData(verseKey, reciterId);

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Target } from "lucide-react";
+import { usePace } from "@/hooks/use-srs-data";
 import { computePace, type PaceStats } from "@/lib/progress/pace";
 import { DAY_MS } from "@/lib/constants";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,35 +18,19 @@ function defaultTargetDateMs() {
 }
 
 export function PacePlannerCard() {
-  const [paceCounts, setPaceCounts] = useState<{ memorized: number; total: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { data: paceCounts, isError } = usePace();
   const [targetMs, setTargetMs] = useState<number | null>(null);
 
   useEffect(() => {
-    const stored = localStorage.getItem(PACE_TARGET_KEY);
+    let stored: string | null = null;
+    try {
+      stored = localStorage.getItem(PACE_TARGET_KEY);
+    } catch {
+      stored = null;
+    }
     const parsed = stored ? Date.parse(stored) : Number.NaN;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot hydration read; the target date lives in localStorage, which SSR cannot see.
     setTargetMs(Number.isNaN(parsed) ? defaultTargetDateMs() : parsed);
-  }, []);
-
-  useEffect(() => {
-    let alive = true;
-    fetch("/api/pace")
-      .then(async (res) => {
-        const data = await res.json();
-        if (!alive) return;
-        if (!res.ok) {
-          setError(data?.error ?? "Failed to load pace data");
-          return;
-        }
-        setPaceCounts({ memorized: data.memorized, total: data.total });
-      })
-      .catch(() => {
-        if (alive) setError("Failed to load pace data");
-      });
-    return () => {
-      alive = false;
-    };
   }, []);
 
   const stats = useMemo(
@@ -65,7 +50,11 @@ export function PacePlannerCard() {
     if (Number.isNaN(parsed)) return;
     const ms = Math.max(parsed, Date.now());
     setTargetMs(ms);
-    localStorage.setItem(PACE_TARGET_KEY, new Date(ms).toISOString().slice(0, 10));
+    try {
+      localStorage.setItem(PACE_TARGET_KEY, new Date(ms).toISOString().slice(0, 10));
+    } catch {
+      // Quota or privacy-mode browsers just don't persist the preference.
+    }
   }, []);
 
   const dateValue = targetMs ? new Date(targetMs).toISOString().slice(0, 10) : "";
@@ -86,7 +75,7 @@ export function PacePlannerCard() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {error ? (
+        {isError ? (
           <p className="text-sm text-stone-500 dark:text-stone-400">Pace data unavailable.</p>
         ) : !stats ? (
           <div className="h-14 animate-pulse rounded-lg bg-stone-100 dark:bg-stone-800" />

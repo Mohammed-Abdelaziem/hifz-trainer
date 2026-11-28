@@ -2,7 +2,8 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getAvailableSurahs, getSurahBundle } from "@/lib/quran/api";
 import { getSessionUser } from "@/lib/server/auth";
-import { getSurahProgress } from "@/lib/server/hifz-service";
+import { getSurahProgress, getSurahVerseStates } from "@/lib/server/hifz-service";
+import type { SurahVerseState } from "@/types/srs";
 import { DEFAULT_RETENTION } from "@/lib/constants";
 import { SITE_URL } from "@/lib/server/site-url";
 import { ReaderWorkspace } from "@/components/reader/ReaderWorkspace";
@@ -89,11 +90,16 @@ export default async function ReaderPage(props: Props) {
   // "Sabqi" badge on every surah). Guests and DB failures render the guest
   // state instead.
   let progress = null;
+  let initialVerseStates: Record<string, SurahVerseState> = {};
   if (user) {
     try {
-      progress = await getSurahProgress(user.id, id);
+      [progress, initialVerseStates] = await Promise.all([
+        getSurahProgress(user.id, id),
+        getSurahVerseStates(user.id, id),
+      ]);
     } catch {
       progress = null;
+      initialVerseStates = {};
     }
   }
 
@@ -107,6 +113,7 @@ export default async function ReaderPage(props: Props) {
         scheduler={!user ? "sm2" : (user?.scheduler === "fsrs" ? "fsrs" : "sm2")}
         requestRetention={!user ? DEFAULT_RETENTION : (user?.requestRetention ?? DEFAULT_RETENTION)}
         progress={progress}
+        initialVerseStates={initialVerseStates}
         isGuest={!user}
         availableSurahs={navItems}
       />

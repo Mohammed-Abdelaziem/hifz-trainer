@@ -5,6 +5,11 @@ export const dynamic = "force-dynamic";
 
 const MAX_QUERY_LENGTH = 64;
 
+// Latch positive pg_trgm + VerseSearch readiness in production so we don't hit
+// pg_extension + to_regclass on every single search keystroke. Disabled in
+// tests so per-test mocks can toggle fast-path vs fallback freely.
+let cachedFastPathReady = false;
+
 function parseLimit(raw: string | null): number {
   const parsed = Number(raw ?? "20");
   // Math.min(NaN, 50) is NaN, which Prisma rejects as `take`; and a negative
@@ -97,20 +102,27 @@ export async function GET(req: Request) {
     // Probing only pg_extension is not enough: a database can have pg_trgm
     // installed while 20260930000000_verse_search has not been applied yet,
     // and the query below then throws a 500 instead of falling back.
-    const readiness = await db
-      .$queryRaw<{ hasExt: boolean; hasTable: boolean }[]>`
-        SELECT
-          EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') AS "hasExt",
-          to_regclass('"VerseSearch"') IS NOT NULL AS "hasTable"
-      `
-      .catch(() => null);
+    let fastPathReady = process.env.NODE_ENV !== "test" && cachedFastPathReady;
+    if (!fastPathReady) {
+      const readiness = await db
+        .$queryRaw<{ hasExt: boolean; hasTable: boolean }[]>`
+          SELECT
+            EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_trgm') AS "hasExt",
+            to_regclass('"VerseSearch"') IS NOT NULL AS "hasTable"
+        `
+        .catch(() => null);
+      fastPathReady = Boolean(readiness?.[0]?.hasExt && readiness[0].hasTable);
+      if (fastPathReady && process.env.NODE_ENV !== "test") {
+        cachedFastPathReady = true;
+      }
+    }
 
-    if (readiness?.[0]?.hasExt && readiness[0].hasTable) {
+    if (fastPathReady) {
       try {
         verses = await db.$queryRaw<
           { verseKey: string; surahId: number; ayahNumber: number; wordsJson: string | null }[]
         >`
-          SELECT s."verseKey", s."surahId", s."ayahNumber", v."wordsJson"
+          SELECT s."verseKey", v."surahId", v."ayahNumber", v."wordsJson"
           FROM "VerseSearch" s
           JOIN "Verse" v ON v."verseKey" = s."verseKey"
           WHERE s."textNormalized" ILIKE ${'%' + needle + '%'} ESCAPE '\\'
@@ -120,6 +132,7 @@ export async function GET(req: Request) {
       } catch {
         // A partially applied migration leaves the table present but without
         // the expected column. Degrade instead of returning a 500.
+        cachedFastPathReady = false;
         verses = await fallbackScan();
       }
     } else {

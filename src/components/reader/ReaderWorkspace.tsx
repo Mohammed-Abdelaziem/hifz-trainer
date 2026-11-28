@@ -1,34 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Check, Sparkles, Star } from "lucide-react";
+import { Check, Sparkles, Star } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import type {
-  Ayah,
-  Grade,
-  MemoryState,
-  SchedulerKind,
-  SurahBundle,
-} from "@/types/quran";
-import type { SurahProgress } from "@/lib/server/hifz-service";
+import type { Ayah, SchedulerKind, SurahBundle } from "@/types/quran";
+import type { SurahProgress, SurahVerseState } from "@/types/srs";
 import { AudioSyncProvider } from "@/hooks/use-audio-sync";
 import { usePassiveReadingTracker } from "@/hooks/use-passive-reading-tracker";
 import { useListenCount } from "@/hooks/use-listen-count";
+import { useSwSyncStatus } from "@/hooks/use-sw-sync-status";
+import { useBottomSheetHeight } from "@/hooks/use-bottom-sheet-height";
+import { useReaderShortcuts } from "@/hooks/use-reader-shortcuts";
+import { useReaderMutations } from "@/hooks/use-reader-mutations";
 import { useAudioEngine, useVerseData, useAudioSettings, useSurahAudio } from "@/hooks/audio";
-import {
-  schedule,
-  describeOutcome,
-} from "@/lib/srs/sm2";
-import { scheduleFsrs } from "@/lib/srs/fsrs";
-import { applyHifzRouting } from "@/lib/srs/routing";
-import { GRADE_FLASH_MS, SYNC_STATUS_RESET_MS } from "@/lib/constants";
+import { GRADE_FLASH_MS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useReaderStore } from "@/stores/reader-store";
-import { Badge } from "@/components/ui/badge";
-import { Select } from "@/components/ui/select";
+import { ReaderHeader } from "./ReaderHeader";
 import { RatingBar } from "./RatingBar";
 import { AudioControlBar } from "./AudioControlBar";
 import { MediaSessionBridge } from "./MediaSessionBridge";
@@ -41,96 +31,6 @@ import { GradeNudge } from "./GradeNudge";
 import { QuizModal } from "./QuizModal";
 import { RecallDrillModal } from "./RecallDrillModal";
 import { LiveWordsContext } from "./live-words-context";
-import { offlineReviewQueue } from "@/lib/offline/review-queue";
-import { registerBackgroundSync } from "@/lib/offline/review-queue";
-
-interface MemorySnapshot {
-  state: MemoryState;
-  intervalDays: number;
-  easeFactor: number;
-  repetitionCount: number;
-  lapses: number;
-  difficulty: number;
-  stability: number;
-}
-
-const EMPTY_SNAPSHOT: MemorySnapshot = {
-  state: "SABAQ",
-  intervalDays: 0,
-  easeFactor: 2.5,
-  repetitionCount: 0,
-  lapses: 0,
-  difficulty: 0,
-  stability: 0,
-};
-
-interface ServerReviewResult {
-  verseKey: string;
-  scheduler: SchedulerKind;
-  state: MemoryState;
-  intervalDays: number;
-  easeFactor: number;
-  difficulty?: number;
-  stability?: number;
-  repetitionCount: number;
-}
-
-function toSnapshot(r: ServerReviewResult): MemorySnapshot {
-  return {
-    state: r.state,
-    intervalDays: r.intervalDays,
-    easeFactor: r.easeFactor,
-    repetitionCount: r.repetitionCount,
-    lapses: EMPTY_SNAPSHOT.lapses,
-    difficulty: r.difficulty ?? 0,
-    stability: r.stability ?? 0,
-  };
-}
-
-function previewSchedule(
-  scheduler: SchedulerKind,
-  snap: MemorySnapshot,
-  grade: Grade,
-  requestRetention: number
-): MemorySnapshot {
-  if (scheduler === "fsrs") {
-    const out = scheduleFsrs(
-      {
-        difficulty: snap.difficulty,
-        stability: snap.stability,
-        repetitionCount: snap.repetitionCount,
-        lapses: snap.lapses,
-      },
-      grade,
-      new Date(),
-      requestRetention
-    );
-    return {
-      ...snap,
-      intervalDays: out.intervalDays,
-      difficulty: out.difficulty,
-      stability: out.stability,
-      repetitionCount: snap.repetitionCount + 1,
-      state: applyHifzRouting(snap.state, grade, out.intervalDays),
-    };
-  }
-  const out = schedule(
-    {
-      easeFactor: snap.easeFactor,
-      intervalDays: snap.intervalDays,
-      repetitionCount: snap.repetitionCount,
-      state: snap.state,
-    },
-    grade
-  );
-  return {
-    ...snap,
-    intervalDays: out.intervalDays,
-    easeFactor: out.easeFactor,
-    repetitionCount: out.repetitionCount,
-    state: out.state,
-  };
-}
 
 export function ReaderWorkspace({
   surah,
@@ -139,6 +39,7 @@ export function ReaderWorkspace({
   requestRetention,
   availableSurahs,
   progress,
+  initialVerseStates,
   isGuest,
 }: {
   surah: SurahBundle;
@@ -147,6 +48,7 @@ export function ReaderWorkspace({
   requestRetention: number;
   availableSurahs: { id: number; name_simple: string }[];
   progress: SurahProgress | null;
+  initialVerseStates?: Record<string, SurahVerseState>;
   isGuest?: boolean;
 }) {
   const router = useRouter();
@@ -158,17 +60,11 @@ export function ReaderWorkspace({
     void queryClient.invalidateQueries({ queryKey: ["pace"] });
     router.refresh();
   }, [queryClient, router]);
+
   const hasAyahs = surah.ayahs.length > 0;
   const [flash, setFlash] = useState<string | null>(null);
   const flashTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const memoryStatesRef = useRef(new Map<string, MemorySnapshot>());
-  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "completed" | "failed">("idle");
-  const swTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const setHelpOpen = useReaderStore((s) => s.setHelpOpen);
-  const [markingSurah, setMarkingSurah] = useState(false);
-  // Optimistic companion to the server progress flag below: flips the
-  // "Surah known ✓" chip the moment the user clicks, before refresh() lands.
-  const [surahKnownOptimistic, setSurahKnownOptimistic] = useState(false);
+  const syncStatus = useSwSyncStatus();
 
   const selectAyah = useReaderStore((s) => s.selectAyah);
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
@@ -180,22 +76,12 @@ export function ReaderWorkspace({
   const clearBulkSelection = useReaderStore((s) => s.clearBulkSelection);
   const layoutMode = useReaderStore((s) => s.layoutMode);
 
-  // Non-null while the fill-in-the-blank quiz over the bulk selection is open.
   const [quizAyahs, setQuizAyahs] = useState<Ayah[] | null>(null);
-  // Non-null while the recall-drill modal (word-by-word / next-verse) is open.
   const [drillOpen, setDrillOpen] = useState(false);
-  // Verses graded in this session keep the listen nudge quiet — the count
-  // from the server stays high even after a fresh grade.
-  const [sessionGraded, setSessionGraded] = useState<Set<string>>(() => new Set());
 
-  // Bulk selection is a Flow-layout affordance: Mushaf renders verses as
-  // inline words inside one paragraph, where per-verse checkboxes have no
-  // sensible anchor. Auto-exit if the layout flips while selecting.
   useEffect(() => {
     if (bulkMode && layoutMode === "MUSHAF") setBulkMode(false);
   }, [bulkMode, layoutMode, setBulkMode]);
-
-  const [jumpInput, setJumpInput] = useState("");
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
   const onVerseChange = useCallback(() => {
@@ -224,10 +110,6 @@ export function ReaderWorkspace({
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
-
-  // Grade-ready nudge: after enough accumulated listens of the selected
-  // ayah (across sessions, per the passive tracker's readCount), invite the
-  // user to convert listening into SRS data.
   const listenCount = useListenCount(selected?.verse_key ?? null, !isGuest && hasAyahs);
 
   useSurahAudio({
@@ -239,29 +121,7 @@ export function ReaderWorkspace({
     effectiveAudioUrl: effectiveSelected.audio_url,
   });
 
-  useEffect(() => {
-    if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
-    const handleSWMessage = (event: MessageEvent) => {
-      const data = event.data;
-      if (data.type === "SYNC_STARTED") {
-        setSyncStatus("syncing");
-      } else if (data.type === "SYNC_COMPLETED") {
-        setSyncStatus("completed");
-        const t = setTimeout(() => setSyncStatus("idle"), SYNC_STATUS_RESET_MS);
-        swTimeoutsRef.current.push(t);
-      } else if (data.type === "SYNC_FAILED") {
-        setSyncStatus("failed");
-        const t = setTimeout(() => setSyncStatus("idle"), 3000);
-        swTimeoutsRef.current.push(t);
-      }
-    };
-    navigator.serviceWorker.addEventListener("message", handleSWMessage);
-    return () => {
-      navigator.serviceWorker.removeEventListener("message", handleSWMessage);
-      swTimeoutsRef.current.forEach(clearTimeout);
-      swTimeoutsRef.current = [];
-    };
-  }, []);
+  useBottomSheetHeight("reader-bottom-sheet");
 
   const flashFor = useCallback((message: string) => {
     setFlash(message);
@@ -270,20 +130,19 @@ export function ReaderWorkspace({
   }, []);
 
   const jumpToAyah = useCallback(
-    (raw: string) => {
+    (raw: string): boolean => {
       const value = raw.trim();
-      if (!value) return;
+      if (!value) return false;
       let m = /^(\d+)$/.exec(value);
       if (m) {
         const n = Number(m[1]);
         if (n < 1 || n > surah.ayah_count) {
           flashFor(`${surah.name_simple} has ${surah.ayah_count} verses`);
-          return;
+          return false;
         }
         selectAyah(`${surah.id}:${n}`);
         resetRevealed(`${surah.id}:${n}`);
-        setJumpInput("");
-        return;
+        return true;
       }
       m = /^(\d+):(\d+)$/.exec(value);
       if (m) {
@@ -292,49 +151,21 @@ export function ReaderWorkspace({
         if (s === surah.id) {
           if (n < 1 || n > surah.ayah_count) {
             flashFor(`${surah.name_simple} has ${surah.ayah_count} verses`);
-            return;
+            return false;
           }
           selectAyah(`${s}:${n}`);
           resetRevealed(`${s}:${n}`);
-          setJumpInput("");
-        } else {
-          router.push(`/reader/${s}?verse=${s}:${n}`);
+          return true;
         }
-        return;
+        router.push(`/reader/${s}?verse=${s}:${n}`);
+        return true;
       }
       flashFor("Enter an ayah number (e.g. 7) or surah:ayah (e.g. 2:255)");
+      return false;
     },
     [surah.id, surah.name_simple, surah.ayah_count, selectAyah, resetRevealed, router, flashFor]
   );
 
-  // The fixed bottom sheet (bulk bar + audio card + rating bar + the mobile
-  // nav reserve) is as tall as its content: the height changes with viewport
-  // width and whatever appears or expands inside. Hardcoded offsets under the
-  // floating tafsir and "?" buttons and the flash toast landed ON the volume
-  // slider and audio card on phones, so publish the measured height as a CSS
-  // custom property and let each floating element ride above the sheet's
-  // live size (the fallbacks in the calc()s reproduce the old fixed offsets,
-  // so server-rendered HTML paints identically before hydration).
-  useEffect(() => {
-    const sheet = document.getElementById("reader-bottom-sheet");
-    if (!sheet) return;
-    const apply = () => {
-      const h = Math.round(sheet.getBoundingClientRect().height);
-      if (h > 0) {
-        document.documentElement.style.setProperty("--bottom-sheet-h", `${h}px`);
-      }
-    };
-    apply();
-    const observer = new ResizeObserver(apply);
-    observer.observe(sheet);
-    return () => {
-      observer.disconnect();
-      document.documentElement.style.removeProperty("--bottom-sheet-h");
-    };
-  }, []);
-
-  // Shared "move on to the next verse (or surah)" logic for grading and for
-  // the known-marking flow, so both behaviors always stay in step.
   const advanceToNext = useCallback(() => {
     if (!selected) return;
     const idx = surah.ayahs.findIndex((a) => a.verse_key === selected.verse_key);
@@ -362,261 +193,33 @@ export function ReaderWorkspace({
     }
   }, [selected, surah.ayahs, surah.id, selectAyah, resetRevealed, availableSurahs, router]);
 
-  // Survives reloads because it reads the server's persisted progress — the
-  // previous session-only ref map cleared the chip on every page load. The
-  // optimistic flag covers the click-to-refresh window and resets with the
-  // keyed remount on surah change.
-  const isSurahFullyKnown =
-    (!!progress && progress.total > 0 && progress.known === progress.total) ||
-    surahKnownOptimistic;
+  const {
+    verseStateMap,
+    markingSurah,
+    isSurahFullyKnown,
+    sessionGraded,
+    handleGrade,
+    handleKnown,
+    handleKnownSurah,
+  } = useReaderMutations({
+    surah,
+    selected,
+    scheduler,
+    requestRetention,
+    progress,
+    initialVerseStates,
+    isGuest,
+    flashFor,
+    advanceToNext,
+    refreshProgress,
+  });
 
-  /**
-   * Marks the entire current surah as already memorized.
-   */
-  const handleKnownSurah = useCallback(() => {
-    if (isGuest) {
-      flashFor("Sign in to mark surah as known");
-      return;
-    }
-    if (isSurahFullyKnown) {
-      flashFor(`All verses in Surah ${surah.name_simple} are already marked known`);
-      return;
-    }
-    setMarkingSurah(true);
-    setSurahKnownOptimistic(true);
-    const prevSnapshots = new Map<string, MemorySnapshot | undefined>();
-    for (const ayah of surah.ayahs) {
-      prevSnapshots.set(ayah.verse_key, memoryStatesRef.current.get(ayah.verse_key));
-      memoryStatesRef.current.set(ayah.verse_key, {
-        ...EMPTY_SNAPSHOT,
-        state: "KNOWN",
-        repetitionCount: 1,
-      });
-    }
-    flashFor(`Known ✓ Marked all ${surah.ayah_count} verses of Surah ${surah.name_simple} as known`);
-
-    const rollback = () => {
-      setSurahKnownOptimistic(false);
-      for (const [key, prev] of prevSnapshots) {
-        if (prev === undefined) memoryStatesRef.current.delete(key);
-        else memoryStatesRef.current.set(key, prev);
-      }
-    };
-
-    fetch("/api/memory-state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        surahId: surah.id,
-        fromAyah: 1,
-        toAyah: surah.ayah_count,
-        known: true,
-      }),
-    })
-      .then((res) => {
-        if (res.ok) {
-          refreshProgress();
-        } else {
-          rollback();
-          flashFor(`Could not mark Surah ${surah.name_simple} known — try again`);
-        }
-      })
-      .catch(() => {
-        rollback();
-        flashFor(`Could not reach the server — Surah ${surah.name_simple} not saved`);
-      })
-      .finally(() => {
-        setMarkingSurah(false);
-      });
-  }, [isGuest, isSurahFullyKnown, surah, flashFor, refreshProgress]);
-
-  /**
-   * Marks the selected verse as already memorized and skips it with no SRS
-   * churn — the audit's "I already know this part" flow.
-   */
-  const handleKnown = useCallback(() => {
-    if (!selected) return;
-    if (isGuest) {
-      flashFor("Sign in to mark verses as known");
-      return;
-    }
-    const verseKey = selected.verse_key;
-    const prev = memoryStatesRef.current.get(verseKey);
-    if (prev?.state === "KNOWN") {
-      flashFor(`${verseKey} is already marked known`);
-      return;
-    }
-    memoryStatesRef.current.set(verseKey, {
-      ...EMPTY_SNAPSHOT,
-      state: "KNOWN",
-      repetitionCount: 1,
-    });
-    flashFor(`Known ✓ ${verseKey} — skipped from the hifz process`);
-    advanceToNext();
-
-    fetch("/api/memory-state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ verseKeys: [verseKey], known: true }),
-    }).then(async (res) => {
-      if (!res.ok) {
-        if (prev === undefined) memoryStatesRef.current.delete(verseKey);
-        else memoryStatesRef.current.set(verseKey, prev);
-        flashFor(`Could not mark ${verseKey} known — try again`);
-        return;
-      }
-      const data = (await res.json()) as {
-        created?: number;
-        changed?: number;
-        alreadyKnown?: number;
-        invalid?: number;
-      };
-      if (
-        (data.invalid ?? 0) > 0 &&
-        (data.created ?? 0) === 0 &&
-        (data.changed ?? 0) === 0 &&
-        (data.alreadyKnown ?? 0) === 0
-      ) {
-        if (prev === undefined) memoryStatesRef.current.delete(verseKey);
-        else memoryStatesRef.current.set(verseKey, prev);
-        flashFor(`Could not save ${verseKey} — verse not synced yet`);
-        return;
-      }
-      refreshProgress();
-    }).catch(() => {
-      if (prev === undefined) memoryStatesRef.current.delete(verseKey);
-      else memoryStatesRef.current.set(verseKey, prev);
-      flashFor(`Could not reach the server — ${verseKey} not saved`);
-    });
-  }, [selected, isGuest, advanceToNext, flashFor, refreshProgress]);
-
-  const handleGrade = useCallback((grade: Grade) => {
-    if (!selected) return;
-    const verseKey = selected.verse_key;
-    // A verse graded this session keeps the listen nudge quiet even though
-    // its server-side listen count is still above the threshold.
-    setSessionGraded((prev) => {
-      const next = new Set(prev);
-      next.add(verseKey);
-      return next;
-    });
-    const prev = memoryStatesRef.current.get(verseKey) ?? EMPTY_SNAPSHOT;
-    const outcome = previewSchedule(scheduler, prev, grade, requestRetention);
-    memoryStatesRef.current.set(verseKey, outcome);
-    flashFor(describeOutcome(outcome, grade));
-
-    const queueLocally = (reason: string) => {
-      offlineReviewQueue
-        .enqueue({ verseKey, grade, timestamp: Date.now() })
-        .then((id) => {
-          flashFor(`${reason} — review queued (${id.slice(0, 8)})`);
-          registerBackgroundSync().catch(() => {});
-        })
-        .catch(() => {
-          // The IndexedDB write itself failed; the local SRS preview above
-          // still stands, so say so rather than claiming it was saved.
-          flashFor("Saved locally only — could not reach the queue");
-        });
-    };
-
-    if (isGuest) {
-      queueLocally("Guest");
-    } else if (!navigator.onLine) {
-      queueLocally("Offline");
-    } else {
-      fetch("/api/reviews", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ verseKey, grade }),
-      })
-        .then(async (res) => {
-          if (res.status === 401) {
-            queueLocally("Session expired");
-            return;
-          }
-          // A 500, a rate limit, or an expired session all used to return
-          // early, silently discarding a grade the user had just seen succeed.
-          if (!res.ok) {
-            queueLocally("Server error");
-            return;
-          }
-          const data = (await res.json()) as { result: ServerReviewResult };
-          const next = toSnapshot(data.result);
-          next.lapses =
-            grade === "AGAIN" && prev.state !== "SABAQ" ? prev.lapses + 1 : prev.lapses;
-          memoryStatesRef.current.set(verseKey, next);
-          if (prev.state === "KNOWN") {
-            flashFor(
-              grade === "AGAIN"
-                ? `Needs refresh — ${verseKey} moved to Sabqi`
-                : `Revised ✓ ${verseKey} — next check-in in ${Math.max(1, Math.round(next.intervalDays))}d`
-            );
-          } else {
-            flashFor(describeOutcome(next, grade));
-          }
-          refreshProgress();
-        })
-        .catch(() => {
-          // Offline mid-request, a dropped connection, or a backgrounded tab.
-          queueLocally("Connection lost");
-        });
-    }
-
-    // Deliberately not an early return: where the grade is persisted must not
-    // change whether the reader advances to the next verse.
-    advanceToNext();
-  }, [selected, scheduler, requestRetention, isGuest, advanceToNext, flashFor, refreshProgress]);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (quizAyahs !== null || drillOpen) return;
-      const target = e.target as HTMLElement;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
-      // Grading must not fire for keys pressed while an overlay or select dropdown has focus
-      if (target.closest("select, [role='combobox'], [role='listbox'], [role='slider'], [role='dialog']")) {
-        return;
-      }
-      const store = useReaderStore.getState();
-      if (store.tafsirOpen || store.helpOpen) return;
-      if (e.key === "?") {
-        e.preventDefault();
-        setHelpOpen(!store.helpOpen);
-        return;
-      }
-      // While selecting verses, digits are worksheets not grades: a stray
-      // "3" during selection must not grade the still-selected verse.
-      if (store.bulkMode) return;
-      if (e.shiftKey && (e.key === "5" || e.key === "%")) {
-        e.preventDefault();
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        handleKnownSurah();
-        return;
-      }
-      if (e.key === "5") {
-        e.preventDefault();
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        handleKnown();
-        return;
-      }
-      const map: Record<string, Grade> = { "1": "AGAIN", "2": "HARD", "3": "GOOD", "4": "EASY" };
-      const grade = map[e.key];
-      if (grade) {
-        e.preventDefault();
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur();
-        }
-        handleGrade(grade);
-        return;
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [handleGrade, handleKnown, handleKnownSurah, setHelpOpen, quizAyahs, drillOpen]);
+  useReaderShortcuts({
+    disabled: quizAyahs !== null || drillOpen,
+    onGrade: handleGrade,
+    onKnown: handleKnown,
+    onKnownSurah: handleKnownSurah,
+  });
 
   if (!hasAyahs) {
     return (
@@ -637,161 +240,12 @@ export function ReaderWorkspace({
         value={live ? { verseKey: selected!.verse_key, words: live.words } : null}
       >
         <div className="mx-auto max-w-4xl px-4 pb-[calc(var(--bottom-sheet-h,4rem)+8rem)] pt-6">
-          <header className="mb-5">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 sm:items-center">
-              <div>
-                <Link
-                  href="/"
-                  className="mb-2 inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-800 dark:text-stone-400 dark:hover:text-stone-200"
-                >
-                  <ArrowLeft className="h-3 w-3" /> Dashboard
-                </Link>
-                <h1 className="flex items-baseline gap-3">
-                  <span dir="rtl" lang="ar" className="font-quran text-4xl">
-                    {surah.name_arabic}
-                  </span>
-                </h1>
-                <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-stone-500 dark:text-stone-400">
-                  <span className="whitespace-nowrap">
-                    {surah.name_simple} ·{" "}
-                    {surah.revelation_place === "makkah" ? "Makkan" : "Madinan"} ·{" "}
-                    {surah.ayah_count} verses
-                  </span>
-                  {progress ? (
-                    (() => {
-                      const totalVerses =
-                        progress.total > 0 ? progress.total : surah.ayah_count;
-                      const learning =
-                        progress.sabaq + progress.sabqi + progress.manzil;
-                      const fullyKnown =
-                        totalVerses > 0 && progress.known >= totalVerses;
-                      const hasProgress = progress.known > 0 || learning > 0;
-                      return (
-                        <span className="inline-flex flex-wrap items-center gap-2">
-                          <Badge
-                            variant={
-                              fullyKnown
-                                ? "success"
-                                : hasProgress
-                                  ? "warning"
-                                  : "secondary"
-                            }
-                            className="gap-1"
-                            title={`${progress.known} known · ${progress.sabaq} new · ${progress.sabqi} recent review · ${progress.manzil} long-term of ${totalVerses} verses`}
-                          >
-                            <Star className="h-3 w-3" aria-hidden="true" />
-                            {progress.known}/{totalVerses} known
-                            {learning > 0 ? ` · ${learning} in hifz` : ""}
-                          </Badge>
-                          {progress.pages &&
-                            progress.pages.length > 1 &&
-                            (() => {
-                              const parts = progress.pages.map((p) => {
-                                const share = Math.max(
-                                  0.03,
-                                  p.total / Math.max(1, totalVerses)
-                                );
-                                const tone =
-                                  p.known === p.total && p.total > 0
-                                    ? "bg-teal-500 dark:bg-teal-600"
-                                    : p.known + p.learning > 0
-                                      ? "bg-amber-400 dark:bg-amber-500"
-                                      : "bg-stone-300 dark:bg-stone-600";
-                                const title = `Page ${p.page}: ${p.total} verse${p.total === 1 ? "" : "s"} · ${p.known} known · ${p.learning} in rotation`;
-                                return { p, share, tone, title };
-                              });
-                              return (
-                                <span
-                                  role="img"
-                                  aria-label="Per-page memorization progress"
-                                  title={parts.map((x) => x.title).join(" · ")}
-                                  className="inline-flex h-1.5 min-w-16 overflow-hidden rounded-full bg-stone-200 align-middle dark:bg-stone-700"
-                                  style={{ width: 96 }}
-                                >
-                                  {parts.map((x) => (
-                                    <span
-                                      key={x.p.page}
-                                      className={x.tone}
-                                      style={{ flexGrow: x.share }}
-                                    />
-                                  ))}
-                                </span>
-                              );
-                            })()}
-                        </span>
-                      );
-                    })()
-                  ) : (
-                    // Guest (no progress data): stay silent instead of a badge
-                    // that claims a state nobody verified.
-                    <Badge variant="secondary">Guest</Badge>
-                  )}
-                </p>
-              </div>
-              <nav className="flex shrink-0 items-center gap-1.5">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    jumpToAyah(jumpInput);
-                  }}
-                  aria-label="Jump to ayah"
-                >
-                  <input
-                    value={jumpInput}
-                    onChange={(e) => setJumpInput(e.target.value)}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    placeholder="Ayah…"
-                    aria-label="Jump to ayah"
-                    title="Jump to ayah: 7 or surah:ayah like 2:255"
-                    className="w-28 rounded-lg border border-stone-300 bg-white px-2 py-1.5 text-xs text-stone-700 outline-none transition-colors placeholder:text-stone-400 focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 dark:border-stone-600 dark:bg-stone-800 dark:text-stone-200"
-                  />
-                </form>
-                {(() => {
-                  const idx = availableSurahs.findIndex((s) => s.id === surah.id);
-                  const prev = idx > 0 ? availableSurahs[idx - 1] : null;
-                  const next =
-                    idx >= 0 && idx < availableSurahs.length - 1
-                      ? availableSurahs[idx + 1]
-                      : null;
-                  return (
-                    <>
-                      {prev && (
-                        <Link
-                          href={`/reader/${prev.id}`}
-                          title={prev.name_simple}
-                          className="rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-                        >
-                          ←
-                        </Link>
-                      )}
-                      <Select
-                        value={String(surah.id)}
-                        onChange={(e) => {
-                          router.push(`/reader/${e.target.value}`);
-                        }}
-                        aria-label="Switch surah"
-                        className="w-36 sm:w-48 max-w-[200px]"
-                        options={availableSurahs.map((s) => ({
-                          value: String(s.id),
-                          label: `${s.id}. ${s.name_simple}`,
-                        }))}
-                      />
-                      {next && (
-                        <Link
-                          href={`/reader/${next.id}`}
-                          title={next.name_simple}
-                          className="rounded-lg border border-stone-300 px-2.5 py-1.5 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100 dark:border-stone-700 dark:text-stone-300 dark:hover:bg-stone-800"
-                        >
-                          →
-                        </Link>
-                      )}
-                    </>
-                  );
-                })()}
-              </nav>
-            </div>
-          </header>
+          <ReaderHeader
+            surah={surah}
+            progress={progress}
+            availableSurahs={availableSurahs}
+            onJumpToAyah={jumpToAyah}
+          />
 
           <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <MaskingToolbar />
@@ -800,7 +254,7 @@ export function ReaderWorkspace({
                 type="button"
                 onClick={() => setDrillOpen(true)}
                 title="Active-recall drills: recite word by word or predict the next verse opening"
-                className="inline-flex items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-800 cursor-pointer dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-stone-300 px-3 py-1 text-xs font-medium text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-800 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
               >
                 <Sparkles className="h-3.5 w-3.5 text-amber-500" aria-hidden="true" />
                 Recall drill
@@ -812,13 +266,18 @@ export function ReaderWorkspace({
                 title={`Mark all ${surah.ayah_count} verses of ${surah.name_simple} as already known (key: Shift + 5)`}
                 aria-label={`Mark Surah ${surah.name_simple} as already known`}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                   isSurahFullyKnown
                     ? "border-teal-600 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-950/60 dark:text-teal-300"
                     : "border-stone-300 text-stone-600 hover:bg-stone-100 hover:text-stone-800 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
                 )}
               >
-                <Star className={cn("h-3.5 w-3.5", isSurahFullyKnown && "fill-current text-teal-600 dark:text-teal-400")} />
+                <Star
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    isSurahFullyKnown && "fill-current text-teal-600 dark:text-teal-400"
+                  )}
+                />
                 {isSurahFullyKnown ? "Surah known ✓" : "Mark surah as known"}
               </button>
               <button
@@ -832,7 +291,7 @@ export function ReaderWorkspace({
                     : "Select multiple verses to mark known or add to Sabaq"
                 }
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors cursor-pointer disabled:cursor-not-allowed disabled:opacity-50",
+                  "inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
                   bulkMode
                     ? "border-amber-600 bg-amber-600 text-white"
                     : "border-stone-300 text-stone-600 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-300 dark:hover:bg-stone-800"
@@ -845,7 +304,7 @@ export function ReaderWorkspace({
           </div>
 
           <main className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-8 dark:border-stone-800 dark:bg-stone-900">
-            <VerseCanvas surah={surah} />
+            <VerseCanvas surah={surah} verseStates={verseStateMap} />
           </main>
 
           <p className="mt-3 text-center text-xs text-stone-400">
@@ -861,7 +320,7 @@ export function ReaderWorkspace({
                 exit={{ opacity: 0 }}
                 role="status"
                 aria-live="polite"
-                className="fixed bottom-[calc(var(--bottom-sheet-h,9rem)+1rem)] right-1/2 z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
+                className="fixed right-1/2 bottom-[calc(var(--bottom-sheet-h,9rem)+1rem)] z-50 translate-x-1/2 rounded-full bg-stone-900 px-4 py-2 text-sm text-white shadow-xl dark:bg-amber-600"
               >
                 {flash}
               </motion.div>
@@ -873,11 +332,7 @@ export function ReaderWorkspace({
           id="reader-bottom-sheet"
           className="fixed inset-x-0 bottom-0 z-40 border-t border-stone-200 bg-white/95 backdrop-blur dark:border-stone-700 dark:bg-stone-900/95"
         >
-          {/* MobileNav is also fixed to the bottom and sits at z-50, so on
-              phones it covered the rating buttons and made them untappable.
-              Reserve its height here and drop back to the normal padding from
-              md up, where the nav is hidden. */}
-          <div className="mx-auto flex max-w-4xl flex-col gap-2.5 px-3 pb-16 pt-3 md:pb-3">
+          <div className="mx-auto flex max-w-4xl flex-col gap-2.5 px-3 pt-3 pb-16 md:pb-3">
             {bulkMode && (
               <BulkActionBar
                 allKeys={surah.ayahs.map((a) => a.verse_key)}
@@ -885,8 +340,6 @@ export function ReaderWorkspace({
                 onResult={flashFor}
                 onProgressChange={refreshProgress}
                 onQuiz={() => {
-                  // One round per verse, in surah order; the selection is
-                  // cleared — the quiz carries its own copy forward.
                   const picked = surah.ayahs
                     .filter((a) => bulkSelected.includes(a.verse_key))
                     .sort((a, b) => a.ayah_number - b.ayah_number);
@@ -939,9 +392,6 @@ export function ReaderWorkspace({
 
         <TafsirDrawer ayah={effectiveSelected} />
         <HelpSheet />
-        {/* The keyboard-shortcuts affordance moved into the masking toolbar
-            row next to A-/A+ — as a fixed FAB it rendered exactly on top of
-            that row's right-aligned chips at narrow widths. */}
       </LiveWordsContext.Provider>
     </AudioSyncProvider>
   );

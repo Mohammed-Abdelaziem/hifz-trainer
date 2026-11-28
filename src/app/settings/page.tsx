@@ -22,7 +22,17 @@ export default async function SettingsPage() {
 
   return (
     <SettingsView
-      user={user ? { email: user.email, scheduler: user.scheduler, requestRetention: user.requestRetention, dailyTargetCount: user.dailyTargetCount } : null}
+      user={
+        user
+          ? {
+              email: user.email,
+              scheduler: user.scheduler,
+              requestRetention: user.requestRetention,
+              dailyTargetCount: user.dailyTargetCount,
+              hasPassword: Boolean(user.passwordHash),
+            }
+          : null
+      }
       isGuest={false}
     />
   );

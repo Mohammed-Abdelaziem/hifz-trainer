@@ -103,6 +103,7 @@ export function SabaqIntake({ availableSurahs }: { availableSurahs: IntakeSurah[
         setStatus(parts.length === 0 ? "Nothing changed" : `Known ✓ ${parts.join(" — ")}`);
         await queryClient.invalidateQueries({ queryKey: ["queue"] });
         await queryClient.invalidateQueries({ queryKey: ["memory-map"] });
+        await queryClient.invalidateQueries({ queryKey: ["pace"] });
         return;
       }
 
@@ -137,6 +138,7 @@ export function SabaqIntake({ availableSurahs }: { availableSurahs: IntakeSurah[
       setStatus(parts.length === 0 ? "Nothing was added" : parts.join(" — "));
       await queryClient.invalidateQueries({ queryKey: ["queue"] });
       await queryClient.invalidateQueries({ queryKey: ["memory-map"] });
+      await queryClient.invalidateQueries({ queryKey: ["pace"] });
     } catch {
       setStatus("Network error — try again");
     } finally {

@@ -1,4 +1,6 @@
 import type { MemoryState, SchedulerKind } from "./quran";
+import type { XpLevel } from "@/lib/xp";
+import type { Achievement } from "@/lib/achievements";
 
 export interface StreakInfo {
   current: number;
@@ -86,6 +88,48 @@ export interface PageProgress {
   learning: number;
 }
 
+/** Per-verse memory snapshot hydrated into the reader for a surah. */
+export interface SurahVerseState {
+  state: MemoryState;
+  intervalDays: number;
+  easeFactor: number;
+  repetitionCount: number;
+  lapses: number;
+  difficulty: number | null;
+  stability: number | null;
+}
+
 export interface MemoryMapPayload {
   verses: MemoryCell[];
+}
+
+export interface RecapData {
+  reviewsThisWeek: number;
+  reviewsLastWeek: number;
+  activeDaysThisWeek: number;
+  bestDay: { date: string; count: number } | null;
+  topSurah: { surahId: number; name: string; count: number } | null;
+  xpThisWeek: number;
+}
+
+export interface ReviewStats {
+  totalReviews: number;
+  totalReads: number;
+  activeDays: number;
+  readDays: number;
+  avgDurationMs: number;
+  grades: Record<string, number>;
+  perDay: { date: string; count: number; reads: number }[];
+  schedulerCompare: {
+    buckets: string[];
+    sm2: number[];
+    fsrs: number[];
+    totals: { sm2: number; fsrs: number };
+  };
+  /** All-time XP / level, derived from every logged grade. */
+  xp: XpLevel;
+  /** Last-week vs previous-week motivation recap, from the same ledger. */
+  recap: RecapData;
+  /** Badge list evaluated against durable state (see src/lib/achievements). */
+  achievements: Achievement[];
 }

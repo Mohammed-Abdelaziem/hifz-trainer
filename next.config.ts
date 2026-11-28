@@ -70,11 +70,7 @@ const nextConfig: NextConfig = {
     "/blog/[slug]": ["./content/blog/**"],
     "/sitemap.xml": ["./content/blog/**"],
   },
-  serverExternalPackages: [
-    "@prisma/client",
-    "@prisma/adapter-better-sqlite3",
-    "better-sqlite3",
-  ],
+  serverExternalPackages: ["@prisma/client"],
   // Stops the X-Powered-By header: it advertises framework + version info
   // for free fingerprinting.
   poweredByHeader: false,

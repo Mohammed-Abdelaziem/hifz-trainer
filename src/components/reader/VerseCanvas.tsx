@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, memo, useCallback, useEffect, useRef, useState } from "react";
-import type { SurahBundle } from "@/types/quran";
+import type { MaskMode, MemoryState, SurahBundle } from "@/types/quran";
 import { useReaderStore } from "@/stores/reader-store";
 import { usePlayback } from "@/hooks/use-audio-sync";
 import { useLiveWords } from "./live-words-context";
@@ -18,21 +18,45 @@ function AyahMarker({ number }: { number: number }) {
   );
 }
 
+const STATE_BADGE: Record<MemoryState, { label: string; className: string }> = {
+  KNOWN: {
+    label: "Known ✓",
+    className: "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800/60",
+  },
+  SABAQ: {
+    label: "Sabaq",
+    className: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800/60",
+  },
+  SABQI: {
+    label: "Sabqi",
+    className: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800/60",
+  },
+  MANZIL: {
+    label: "Manzil",
+    className: "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800/60",
+  },
+};
+
 function FlowAyah({
   surah,
   ayahIndex,
+  verseState,
   bulkMode,
   bulkChecked,
   onBulkToggle,
+  maskModeOverride,
 }: {
   surah: SurahBundle;
   ayahIndex: number;
+  verseState?: MemoryState;
   bulkMode?: boolean;
   bulkChecked?: boolean;
   onBulkToggle?: (verseKey: string, index: number, extend: boolean) => void;
+  maskModeOverride?: MaskMode;
 }) {
   const ayah = surah.ayahs[ayahIndex];
-  const maskMode = useReaderStore((s) => s.maskMode);
+  const storeMaskMode = useReaderStore((s) => s.maskMode);
+  const maskMode = maskModeOverride ?? storeMaskMode;
   const blurScope = useReaderStore((s) => s.blurScope);
   const showVerseTranslation = useReaderStore((s) => s.showVerseTranslation);
   const showRoots = useReaderStore((s) => s.showRoots);
@@ -96,6 +120,18 @@ function FlowAyah({
         showRoots ? "pb-12" : ""
       )}
     >
+      {verseState && (
+        <span
+          dir="ltr"
+          className={cn(
+            "mb-1 inline-flex items-center rounded-full border px-2 py-0.5 font-sans text-[10px] font-semibold",
+            bulkMode ? "ml-7" : "",
+            STATE_BADGE[verseState].className
+          )}
+        >
+          {STATE_BADGE[verseState].label}
+        </span>
+      )}
       {bulkMode && (
         <span
           aria-hidden="true"
@@ -163,8 +199,15 @@ function FlowAyah({
   );
 }
 
-function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
-  const maskMode = useReaderStore((s) => s.maskMode);
+function MushafFlow({
+  ayahs,
+  maskModeOverride,
+}: {
+  ayahs: SurahBundle["ayahs"];
+  maskModeOverride?: MaskMode;
+}) {
+  const storeMaskMode = useReaderStore((s) => s.maskMode);
+  const maskMode = maskModeOverride ?? storeMaskMode;
   const blurScope = useReaderStore((s) => s.blurScope);
   const revealedWords = useReaderStore((s) => s.revealedWords);
   const revealWord = useReaderStore((s) => s.revealWord);
@@ -233,7 +276,16 @@ function MushafFlow({ ayahs }: { ayahs: SurahBundle["ayahs"] }) {
   );
 }
 
-export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBundle }) {
+export const VerseCanvas = memo(function VerseCanvas({
+  surah,
+  verseStates,
+  maskModeOverride,
+}: {
+  surah: SurahBundle;
+  verseStates?: Record<string, MemoryState>;
+  /** Route-scoped override (e.g. /quran plain reading) without mutating persisted store. */
+  maskModeOverride?: MaskMode;
+}) {
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
   const selectedVerseKey = useReaderStore((s) => s.selectedVerseKey);
@@ -324,7 +376,7 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
     >
       {layoutMode === "MUSHAF" ? (
         <div className="rounded-lg bg-[repeating-linear-gradient(0deg,rgba(180,83,9,0.05)_0px,rgba(180,83,9,0.05)_1px,transparent_1px,transparent_2.6em)] border-x-4 border-amber-800/30 bg-gradient-to-b from-amber-50 to-orange-50/50 p-5 dark:border-amber-200/20 dark:from-stone-900 dark:to-stone-900">
-          <MushafFlow ayahs={visibleAyahs} />
+          <MushafFlow ayahs={visibleAyahs} maskModeOverride={maskModeOverride} />
         </div>
       ) : (
         <div className="space-y-2">
@@ -333,9 +385,11 @@ export const VerseCanvas = memo(function VerseCanvas({ surah }: { surah: SurahBu
               key={surah.ayahs[idx].verse_key}
               surah={surah}
               ayahIndex={idx}
+              verseState={verseStates?.[surah.ayahs[idx].verse_key]}
               bulkMode={bulkMode}
               bulkChecked={bulkSelected.includes(surah.ayahs[idx].verse_key)}
               onBulkToggle={handleBulkToggle}
+              maskModeOverride={maskModeOverride}
             />
           ))}
         </div>

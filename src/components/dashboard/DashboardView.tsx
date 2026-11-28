@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { useQueryClient } from "@tanstack/react-query";
 import { Clock, Sparkles, BookOpen } from "lucide-react";
 import { useQueue } from "@/hooks/use-srs-data";
+import { useUpdateSettingsMutation } from "@/hooks/use-srs-mutations";
 import type { SchedulerKind } from "@/types/quran";
 import { Card } from "@/components/ui/card";
 import { Slider } from "@/components/ui/slider";
@@ -25,39 +25,19 @@ import { SabaqIntake } from "./SabaqIntake";
 import { WeeklyChartWrapper } from "./WeeklyChartWrapper";
 
 function SchedulerControls({ active, retention }: { active: SchedulerKind; retention: number }) {
-  const queryClient = useQueryClient();
-  const [retentionDraft, setRetentionDraft] = useState(Math.round(retention * 100));
-  const [saving, setSaving] = useState(false);
+  const updateSettings = useUpdateSettingsMutation();
+  // null means "track the saved retention prop"; non-null only while dragging.
+  const [draggingRetention, setDraggingRetention] = useState<number | null>(null);
+  const retentionDraft = draggingRetention ?? Math.round(retention * 100);
+  const saving = updateSettings.isPending;
 
-  useEffect(() => {
-    // syncs the draft whenever the saved retention changes elsewhere (the
-    // settings round-trip or the slider commit), not just on mount.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRetentionDraft(Math.round(retention * 100));
-  }, [retention]);
-
-  async function patch(payload: Record<string, unknown>) {
-    setSaving(true);
+  async function patch(payload: { scheduler?: SchedulerKind; requestRetention?: number }) {
     try {
-      const res = await fetch("/api/settings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      // A 4xx/5xx previously still counted as success — the queue would be
-      // re-fetched with the OLD scheduler, and the toggle silently snapped
-      // back to a state the user thought they had just changed.
-      if (!res.ok) {
-        console.error("[/api/settings] failed", res.status);
-        setRetentionDraft(Math.round(retention * 100));
-        return;
-      }
-      await queryClient.invalidateQueries({ queryKey: ["queue"] });
+      await updateSettings.mutateAsync(payload);
     } catch (err) {
-      console.error("[/api/settings] network error", err);
-      setRetentionDraft(Math.round(retention * 100));
+      console.error("[/api/settings] failed", err);
     } finally {
-      setSaving(false);
+      setDraggingRetention(null);
     }
   }
 
@@ -95,7 +75,7 @@ function SchedulerControls({ active, retention }: { active: SchedulerKind; reten
             max={RETENTION_PERCENT_MAX}
             step={1}
             disabled={saving}
-            onValueChange={(v) => setRetentionDraft(v[0])}
+            onValueChange={(v) => setDraggingRetention(v[0])}
             onValueCommit={(v) =>
               void patch({ requestRetention: Math.round(v[0]) / 100 })
             }

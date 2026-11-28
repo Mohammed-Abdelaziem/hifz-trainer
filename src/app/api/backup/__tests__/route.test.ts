@@ -201,8 +201,8 @@ describe("/api/backup", () => {
       });
     });
 
-    it("skips malformed rows and unknown verse keys", async () => {
-      okDb();
+    it("skips malformed rows and unknown verse keys, keeping the later duplicate", async () => {
+      const db = okDb();
       const body = backupBody({
         memoryStates: [
           { verseKey: "112:1", state: "KNOWN", dueDate: iso },
@@ -210,7 +210,7 @@ describe("/api/backup", () => {
           { verseKey: "112:2", state: "BOGUS", dueDate: iso },
           { verseKey: "112:2", state: "KNOWN", dueDate: "not-a-date" },
           null,
-          // Same verseKey twice in one file: the duplicate is dropped.
+          // Same verseKey twice in one file: later entry wins.
           { verseKey: "112:1", state: "SABQI", dueDate: iso },
         ],
       });
@@ -219,6 +219,10 @@ describe("/api/backup", () => {
       expect(data.imported).toBe(1);
       expect(data.skipped).toBe(5);
       expect(tx).toEqual(["delete", "create"]);
+      expect(db.userMemoryState.createMany).toHaveBeenCalledWith({
+        data: [expect.objectContaining({ verseKey: "112:1", state: "SABQI", userId: "u1" })],
+        skipDuplicates: false,
+      });
     });
 
     it("imports only memory states when no profile is present", async () => {

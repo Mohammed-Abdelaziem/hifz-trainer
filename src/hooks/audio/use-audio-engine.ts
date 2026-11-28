@@ -21,6 +21,8 @@ interface UseAudioEngineOptions {
    * instead.
    */
   onSurahEnd?: () => void;
+  /** Route-scoped override without mutating persisted store settings. */
+  surahAudioModeOverride?: boolean;
 }
 
 export function useAudioEngine({
@@ -32,6 +34,7 @@ export function useAudioEngine({
   availableSurahs = [],
   surahUrl = (id) => `/reader/${id}`,
   onSurahEnd,
+  surahAudioModeOverride,
 }: UseAudioEngineOptions): AudioEngine {
   const engine = useMemo(() => new AudioEngine(), []);
 
@@ -51,7 +54,8 @@ export function useAudioEngine({
   });
 
   const continuousPlay = useReaderStore((s) => s.continuousPlay);
-  const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
+  const storeSurahAudioMode = useReaderStore((s) => s.surahAudioMode);
+  const surahAudioMode = surahAudioModeOverride ?? storeSurahAudioMode;
   const reciterId = useReaderStore((s) => s.reciterId);
   const repeatTotal = useReaderStore((s) => s.repeatTotal);
   const selectAyah = useReaderStore((s) => s.selectAyah);
@@ -107,10 +111,12 @@ export function useAudioEngine({
         onVerseChangeRef.current?.();
       });
       let cancelled = false;
-      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count).then((timings) => {
-        if (cancelled) return;
-        engine.setSurahTimings(timings);
-      });
+      void fetchVerseTimings(surah.id, reciterId, surah.ayah_count)
+        .then((timings) => {
+          if (cancelled) return;
+          engine.setSurahTimings(timings);
+        })
+        .catch(() => {});
       return () => {
         cancelled = true;
         engine.onVerseChange(null);

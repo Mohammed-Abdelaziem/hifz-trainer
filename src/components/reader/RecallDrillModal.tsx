@@ -138,10 +138,10 @@ export function RecallDrillModal({
         const correct = scored.filter((v) => v.correct).length;
         if (ok === scored.length && scored.length > 0) {
           onResult(`Predictions saved — ${correct}/${scored.length} went to the SRS`);
-          onProgressChange?.();
         } else {
           onResult(`Saved ${ok} of ${scored.length} predictions — try again for the rest`);
         }
+        if (ok > 0) onProgressChange?.();
       }
       onClose();
     } catch {

@@ -108,7 +108,7 @@ function clientIp(request: NextRequest): string | null {
   return xff || null;
 }
 
-const AUTH_ROUTES = ["/login"];
+const AUTH_ROUTES = ["/login", "/api/auth/change-password"];
 const RATE_LIMIT = 5;
 const WINDOW_MS = 60_000;
 
@@ -196,9 +196,7 @@ export async function proxy(request: NextRequest) {
         { status: 429, headers: { "Retry-After": "60" } }
       );
     }
-  }
-
-  if (pathname.startsWith("/api/") && limitable) {
+  } else if (pathname.startsWith("/api/") && limitable) {
     const isExpensive = EXPENSIVE_API_ROUTES.some((r) => pathname.startsWith(r));
     const isWrite = UNSAFE_METHODS.includes(method);
 

@@ -32,7 +32,6 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
   const resetRevealed = useReaderStore((s) => s.resetRevealed);
   const layoutMode = useReaderStore((s) => s.layoutMode);
   const fontSizePx = useReaderStore((s) => s.fontSizePx);
-  const surahAudioMode = useReaderStore((s) => s.surahAudioMode);
   const reciterId = useReaderStore((s) => s.reciterId);
 
   const { selected, live, effectiveSelected } = useVerseData(surah, hasAyahs);
@@ -56,60 +55,39 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
     availableSurahs,
     surahUrl,
     onSurahEnd: handleSurahEnd,
+    surahAudioModeOverride: true,
   });
   useAudioSettings(engine);
   const { loading: audioLoading } = useSurahAudio({
     engine,
     surah,
     hasAyahs,
-    surahAudioMode,
+    surahAudioMode: true,
     reciterId,
     effectiveAudioUrl: effectiveSelected.audio_url,
   });
 
   // Autoplay pass-through: engine.play() while the surah file is still
   // loading parks playback into pendingPlay until the Howl fires its load
-  // event, so starting before the audio is ready is safe. Gated on
-  // surahAudioMode so the first render's verse-clip load (the mode is forced
-  // on by the route override effect one commit later) cannot consume the
-  // pending play before the whole-surah file is on its way. Consumed once —
+  // event, so starting before the audio is ready is safe. Consumed once —
   // later engine loads (reciter switch) may not re-trigger it.
   const autoPlayConsumed = useRef(false);
   useEffect(() => {
-    if (!autoPlay || autoPlayConsumed.current || !surahAudioMode || !hasAyahs || audioLoading) {
+    if (!autoPlay || autoPlayConsumed.current || !hasAyahs || audioLoading) {
       return;
     }
     autoPlayConsumed.current = true;
     engine.play();
-  }, [autoPlay, autoPlayConsumed, surahAudioMode, hasAyahs, audioLoading, engine]);
+  }, [autoPlay, autoPlayConsumed, hasAyahs, audioLoading, engine]);
 
   useEffect(() => {
     if (!hasAyahs) return;
-    // This route force-feeds mask/surah-audio overrides to present a plain
-    // reading experience. Directly mutating the PERSISTED settings rewrote
-    // the user's saved reader-settings forever — /quran went back to FULL
-    // masking for the next /reader visit. Capture what was there and put it
-    // back on unmount so the visit stays route-scoped.
-    const before = useReaderStore.getState();
-    const previousMaskMode = before.maskMode;
-    const previousSurahAudioMode = before.surahAudioMode;
-    useReaderStore.getState().setMaskMode("FULL");
-    useReaderStore.getState().setSurahAudioMode(true);
     const target =
       initialVerseKey && surah.ayahs.some((a) => a.verse_key === initialVerseKey)
         ? initialVerseKey
         : surah.ayahs[0].verse_key;
     selectAyah(target);
     resetRevealed(target);
-    return () => {
-      const restore = useReaderStore.getState();
-      if (restore.maskMode === "FULL") restore.setMaskMode(previousMaskMode);
-      // Whatever is running while unmounting (the surah audio pass) may have
-      // enabled auto-playback that picked a NEW mode — only roll back when the
-      // override is still active so actions the user took during the visit are
-      // kept.
-      restore.setSurahAudioMode(restore.surahAudioMode ? previousSurahAudioMode : false);
-    };
   }, [hasAyahs, selectAyah, resetRevealed, surah, initialVerseKey]);
 
   if (!hasAyahs) {
@@ -147,7 +125,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
   return (
     <>
       <ReaderStoreHydrator />
-      <AudioSyncProvider engine={engine}>
+      <AudioSyncProvider engine={engine} surahAudioModeOverride={true}>
       <MediaSessionBridge surahName={surah.name_simple} verseKey={selected?.verse_key ?? null} />
       <LiveWordsContext.Provider
         value={live && selected ? { verseKey: selected.verse_key, words: live.words } : null}
@@ -241,7 +219,7 @@ export function QuranReader({ surah, initialVerseKey, autoPlay, availableSurahs 
           </div>
 
           <main className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-8 dark:border-stone-800 dark:bg-stone-900">
-            <VerseCanvas surah={surah} />
+            <VerseCanvas surah={surah} maskModeOverride="FULL" />
           </main>
 
           <p className="mt-3 text-center text-xs text-stone-400">

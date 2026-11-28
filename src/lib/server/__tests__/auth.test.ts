@@ -51,10 +51,9 @@ vi.mock("next/headers", () => {
 
 vi.mock("@/lib/db", () => ({
   getDb: vi.fn(),
-  getDbWithTest: vi.fn(),
 }));
 
-import { getDbWithTest } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import {
   createSession,
   getSessionUser,
@@ -72,7 +71,7 @@ const sha256 = (t: string) => createHash("sha256").update(t).digest("hex");
 beforeEach(() => {
   sessionRows.length = 0;
   Object.keys(userRow).forEach((k) => delete userRow[k]);
-  (getDbWithTest as ReturnType<typeof vi.fn>).mockResolvedValue(db);
+  (getDb as ReturnType<typeof vi.fn>).mockResolvedValue(db);
   db.session.findUnique.mockClear();
   db.session.create.mockClear();
   db.session.deleteMany.mockClear();

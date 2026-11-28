@@ -59,9 +59,21 @@ export function BulkActionBar({
       for (let i = 0; i < bulkSelected.length; i += KNOWN_RANGE_MAX) {
         const chunk = bulkSelected.slice(i, i + KNOWN_RANGE_MAX);
         const res = await post("/api/memory-state", { verseKeys: chunk, known: true });
-        if (res.ok) ok += chunk.length;
+        if (res.ok) {
+          const data = (await res.json().catch(() => null)) as {
+            created?: number;
+            changed?: number;
+            alreadyKnown?: number;
+          } | null;
+          if (data && typeof data.created === "number") {
+            ok += (data.created ?? 0) + (data.changed ?? 0) + (data.alreadyKnown ?? 0);
+          } else {
+            ok += chunk.length;
+          }
+        }
       }
       if (ok === count) onResult(`Marked ${ok} verses known`);
+      else if (ok === 0) onResult("Could not save verses as known — please try again");
       else onResult(`Marked ${ok} of ${count} known — retry the rest`);
       clearBulkSelection();
       // The header progress chip is server-rendered data.
@@ -87,9 +99,20 @@ export function BulkActionBar({
       for (let i = 0; i < bulkSelected.length; i += SABAQ_BATCH_MAX) {
         const chunk = bulkSelected.slice(i, i + SABAQ_BATCH_MAX);
         const res = await post("/api/plan", { verseKeys: chunk });
-        if (res.ok) ok += chunk.length;
+        if (res.ok) {
+          const data = (await res.json().catch(() => null)) as {
+            added?: number;
+            duplicate?: number;
+          } | null;
+          if (data && typeof data.added === "number") {
+            ok += (data.added ?? 0) + (data.duplicate ?? 0);
+          } else {
+            ok += chunk.length;
+          }
+        }
       }
       if (ok === count) onResult(`Added ${ok} verses to Sabaq`);
+      else if (ok === 0) onResult("Could not add verses to Sabaq — please try again");
       else onResult(`Added ${ok} of ${count} — retry the rest`);
       clearBulkSelection();
       if (ok > 0) onProgressChange();

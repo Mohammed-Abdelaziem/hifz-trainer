@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
-import { getDbWithTest } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { createSession } from "./auth";
 import { getBaseUrl } from "./site-url";
 
@@ -142,6 +142,7 @@ export async function exchangeGitHubCode(code: string): Promise<{
   ]);
 
   if (!userRes.ok) throw new Error("Failed to fetch GitHub user info");
+  if (!emailsRes.ok) throw new Error("Failed to fetch GitHub user emails");
   const profile = await userRes.json();
 
   const emails = await emailsRes.json();
@@ -173,7 +174,7 @@ export async function findOrCreateOAuthUser(
   provider: string,
   profile: { email: string; name: string; picture?: string }
 ): Promise<void> {
-  const db = await getDbWithTest();
+  const db = await getDb();
 
   // Find existing user by email
   let user = await db.user.findUnique({ where: { email: profile.email } });

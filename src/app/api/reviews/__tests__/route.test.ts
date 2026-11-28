@@ -5,6 +5,7 @@ vi.mock("@/lib/server/auth", () => ({
 }));
 
 vi.mock("@/lib/server/hifz-service", () => ({
+  ensureMissingSurahsForKeys: vi.fn().mockResolvedValue(undefined),
   recordReview: vi.fn(),
 }));
 

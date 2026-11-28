@@ -1,7 +1,6 @@
-import { getDbWithTest, sanitizeUrl } from "@/lib/db";
+import { getDb, sanitizeUrl } from "@/lib/db";
 import { everyAyahUrl } from "@/lib/quran/timings";
-import { fetchJson } from "@/lib/server/fetch-json";
-import { QURAN_API_BASE, API_TIMEOUT_LONG_MS } from "@/lib/constants";
+import { fetchAllChapters, fetchVersesByPage, type QcVerse } from "@/lib/server/quran-client";
 
 const TOTAL_PAGES = 604;
 const CONCURRENCY = 12;
@@ -14,23 +13,6 @@ interface SyncReport {
   failedPages: number[];
   durationMs: number;
   error?: string;
-}
-
-interface ChapterMeta {
-  id: number;
-  name_arabic: string;
-  name_simple: string;
-  translated_name: { name: string };
-  revelation_place: string;
-  verses_count: number;
-}
-
-interface PageVerse {
-  verse_key: string;
-  text_uthmani: string;
-  verse_number: number;
-  page_number: number;
-  translations?: Array<{ resource_id?: number; text?: string }>;
 }
 
 async function mapWithConcurrency<T, R>(
@@ -60,16 +42,13 @@ async function mapWithConcurrency<T, R>(
 
 export async function syncFullQuran(): Promise<SyncReport> {
   const startedAt = Date.now();
-  const db = await getDbWithTest();
+  const db = await getDb();
   const failedPages: number[] = [];
 
   try {
-    const chaptersRes = await fetchJson<{ chapters: ChapterMeta[] }>(
-      `${QURAN_API_BASE}/chapters?language=en`,
-      { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
-    );
+    const chapters = await fetchAllChapters();
 
-    for (const c of chaptersRes.chapters) {
+    for (const c of chapters) {
       await db.surah.upsert({
         where: { id: c.id },
         create: {
@@ -91,17 +70,11 @@ export async function syncFullQuran(): Promise<SyncReport> {
     }
 
     const pageNumbers = Array.from({ length: TOTAL_PAGES }, (_, i) => i + 1);
-    const collected: PageVerse[] = [];
+    const collected: QcVerse[] = [];
 
-    const settled = await mapWithConcurrency(pageNumbers, CONCURRENCY, async (page) => {
-      // translations=131 pins Saheeh International so Verse.translation is a
-      // stable, meaningful English line instead of the legacy empty string.
-      const res = await fetchJson<{ verses: PageVerse[] }>(
-        `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&translations=131&per_page=50`,
-        { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
-      );
-      return res.verses;
-    });
+    const settled = await mapWithConcurrency(pageNumbers, CONCURRENCY, (page) =>
+      fetchVersesByPage(page)
+    );
 
     settled.forEach((r, i) => {
       if (r.status === "fulfilled") {
@@ -113,11 +86,7 @@ export async function syncFullQuran(): Promise<SyncReport> {
 
     for (const page of failedPages.splice(0)) {
       try {
-        const res = await fetchJson<{ verses: PageVerse[] }>(
-          `${QURAN_API_BASE}/verses/by_page/${page}?fields=text_uthmani&translations=131&per_page=50`,
-          { timeout: API_TIMEOUT_LONG_MS, retries: 2 }
-        );
-        collected.push(...res.verses);
+        collected.push(...(await fetchVersesByPage(page)));
       } catch {
         failedPages.push(page);
       }
@@ -139,16 +108,16 @@ export async function syncFullQuran(): Promise<SyncReport> {
               verseKey: v.verse_key,
               surahId: Number(surahStr),
               ayahNumber: Number(ayahStr),
-              pageNumber: v.page_number,
-              uthmaniText: v.text_uthmani,
+              pageNumber: v.page_number ?? 1,
+              uthmaniText: v.text_uthmani ?? "",
               translation: v.translations?.[0]?.text ?? "",
               audioUrl: safeAudioUrl ?? audioUrl,
             },
             // Only overwrite when the upstream call actually carried a
             // translation so a degraded retry can't wipe existing content.
             update: {
-              pageNumber: v.page_number,
-              uthmaniText: v.text_uthmani,
+              pageNumber: v.page_number ?? 1,
+              uthmaniText: v.text_uthmani ?? "",
               ...(v.translations?.[0]?.text ? { translation: v.translations[0].text! } : {}),
             },
           });
@@ -189,7 +158,7 @@ interface SyncStatus {
 }
 
 export async function getSyncStatus(): Promise<SyncStatus> {
-  const db = await getDbWithTest();
+  const db = await getDb();
   const [surahs, verses] = await Promise.all([db.surah.count(), db.verse.count()]);
   const expectedVerses = await db.surah.aggregate({ _sum: { ayahCount: true } });
   return {

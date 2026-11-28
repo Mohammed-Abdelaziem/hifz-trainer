@@ -37,7 +37,15 @@ const AudioSyncContext = createContext<SyncContextValue | null>(null);
  * a verse stay neutral. The only word highlight remaining is the explicit
  * word drill (forcedActiveIndex), which plays real per-word audio clips.
  */
-export function AudioSyncProvider({ engine, children }: { engine: AudioEngine; children: React.ReactNode }) {
+export function AudioSyncProvider({
+  engine,
+  surahAudioModeOverride,
+  children,
+}: {
+  engine: AudioEngine;
+  surahAudioModeOverride?: boolean;
+  children: React.ReactNode;
+}) {
   const [store] = useState<SyncStore>(() => ({
     snapshot: INITIAL_SNAPSHOT,
     listeners: new Set(),
@@ -59,7 +67,9 @@ export function AudioSyncProvider({ engine, children }: { engine: AudioEngine; c
 
   useEffect(() => {
     const tick = () => {
-      const { forcedActiveIndex, loopA, loopB, surahAudioMode } = useReaderStore.getState();
+      const { forcedActiveIndex, loopA, loopB, surahAudioMode: storeSurahAudioMode } =
+        useReaderStore.getState();
+      const surahAudioMode = surahAudioModeOverride ?? storeSurahAudioMode;
       const playing = engine.isPlaying();
 
       if (forcedActiveIndex !== null) {
@@ -114,7 +124,7 @@ export function AudioSyncProvider({ engine, children }: { engine: AudioEngine; c
     };
     const id = setInterval(tick, 50);
     return () => clearInterval(id);
-  }, [engine, store]);
+  }, [engine, store, surahAudioModeOverride]);
 
   useEffect(() => () => engine.pause(), [engine]);
 

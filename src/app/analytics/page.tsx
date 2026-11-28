@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { unstable_rethrow } from "next/navigation";
 import { MushafGrid } from "@/components/analytics/MushafGrid";
 import { ReviewActivity } from "@/components/analytics/ReviewActivity";
 import { SchedulerCompare } from "@/components/analytics/SchedulerCompare";
@@ -24,7 +25,12 @@ export const metadata: Metadata = {
 };
 
 export default async function AnalyticsPage() {
-  const user = await getSessionUser();
+  let user = null;
+  try {
+    user = await getSessionUser();
+  } catch (err) {
+    unstable_rethrow(err);
+  }
   const isGuest = !user;
   return (
     <div className="mx-auto max-w-5xl flex-1 space-y-6 px-4 py-8">

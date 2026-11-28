@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import {
   createSession,
   destroySession,
+  getSessionUser,
   hashPassword,
   verifyPassword,
   recordFailedLogin,
@@ -14,7 +15,7 @@ import {
 } from "@/lib/server/auth";
 import { getGoogleAuthUrl, getGitHubAuthUrl, createOAuthState } from "@/lib/server/oauth";
 import { isStrongPassword, PASSWORD_RULES_MESSAGE } from "@/lib/server/password";
-import { getDbWithTest } from "@/lib/db";
+import { getDb } from "@/lib/db";
 import { Prisma } from "../../../generated/prisma";
 
 export interface AuthState {
@@ -39,7 +40,7 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   const creds = parseCredentials(formData);
   if (!creds) return { error: "Enter a valid email and a password (min 12 chars)." };
 
-  const db = await getDbWithTest();
+  const db = await getDb();
   const user = await db.user.findUnique({ where: { email: creds.email } });
 
   if (!user?.passwordHash) {
@@ -52,8 +53,9 @@ export async function signInAction(_prev: AuthState, formData: FormData): Promis
   }
 
   if (user.lockedUntil && user.lockedUntil > new Date()) {
-    // Deliberately identical to a wrong-password failure: a distinct "locked"
-    // response would confirm the account exists to anyone willing to spam it.
+    // Burn the same scrypt cost as a real check so locked accounts cannot be
+    // distinguished from wrong passwords or unregistered emails via latency.
+    await verifyPassword(creds.password, DECOY_PASSWORD_HASH);
     return { error: "Incorrect email or password." };
   }
 
@@ -78,7 +80,7 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
   const creds = parseCredentials(formData);
   if (!creds) return { error: "Enter a valid email and a password (min 12 chars)." };
 
-  const db = await getDbWithTest();
+  const db = await getDb();
 
   if (!isStrongPassword(creds.password)) {
     return { error: PASSWORD_RULES_MESSAGE };
@@ -130,7 +132,7 @@ export async function signUpAction(_prev: AuthState, formData: FormData): Promis
 }
 
 export async function signOutAction(): Promise<void> {
-  const user = await (await import("@/lib/server/auth")).getSessionUser();
+  const user = await getSessionUser();
   if (user) {
     await revokeAllSessions(user.id);
   }

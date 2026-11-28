@@ -103,6 +103,12 @@ describe("/api/search", () => {
     expect(pattern).toBe("%لا اله الا%");
     // Diacritics and the folded alef are gone from the pattern itself.
     expect(literals.join("?")).toContain("textNormalized");
+    // surahId and ayahNumber live on "Verse" (v), not "VerseSearch" (s).
+    const sql = literals.join("?");
+    expect(sql).toContain('v."surahId"');
+    expect(sql).toContain('v."ayahNumber"');
+    expect(sql).not.toContain('s."surahId"');
+    expect(sql).not.toContain('s."ayahNumber"');
   });
 
   it("escapes LIKE wildcards so a query cannot inject them", async () => {

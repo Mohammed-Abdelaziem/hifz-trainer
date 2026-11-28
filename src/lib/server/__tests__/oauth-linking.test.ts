@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { findOrCreateOAuthUser, OAuthAccountConflictError } from "@/lib/server/oauth";
 import { createSession } from "@/lib/server/auth";
-import { getDbWithTest } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 vi.mock("next/headers", () => ({
   cookies: async () => ({ get: () => undefined, set: () => {}, delete: () => {} }),
@@ -12,7 +12,7 @@ vi.mock("@/lib/server/auth", () => ({
 }));
 
 vi.mock("@/lib/db", () => ({
-  getDbWithTest: vi.fn(),
+  getDb: vi.fn(),
 }));
 
 const db = {
@@ -24,7 +24,7 @@ const db = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  (getDbWithTest as ReturnType<typeof vi.fn>).mockResolvedValue(db);
+  (getDb as ReturnType<typeof vi.fn>).mockResolvedValue(db);
 });
 
 describe("findOrCreateOAuthUser — password-account linking guard", () => {

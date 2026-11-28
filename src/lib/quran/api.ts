@@ -1,8 +1,9 @@
 import type { SurahBundle, Ayah, QuranWord } from "@/types/quran";
 import { getDb } from "@/lib/db";
+import { fetchChapterById, fetchVersesByChapter } from "@/lib/server/quran-client";
 import { FIXTURE_SURAHS } from "./fixtures";
 import { everyAyahUrl, synthTimings } from "./timings";
-import { QURAN_API_BASE, VERSES_CDN } from "@/lib/constants";
+import { VERSES_CDN } from "@/lib/constants";
 
 interface SurahNavItem {
   id: number;
@@ -32,32 +33,28 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 2): Promise<T> {
 
 async function fetchChapterMeta(
   surahId: number
-): Promise<{ name_arabic: string; name_simple: string; english_name: string } | null> {
-  return withRetry(async () => {
-    try {
-      const res = await fetch(`${QURAN_API_BASE}/chapters/${surahId}?language=en`, {
-        cache: "no-store",
-        signal: AbortSignal.timeout(6000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = (await res.json()) as {
-        chapter?: {
-          name_arabic: string;
-          name_simple: string;
-          translated_name?: { name: string };
-        };
-      };
-      if (!json.chapter) throw new Error("missing chapter");
-      return {
-        name_arabic: json.chapter.name_arabic,
-        name_simple: json.chapter.name_simple,
-        english_name: json.chapter.translated_name?.name ?? json.chapter.name_simple,
-      };
-    } catch (err) {
-      // Swallow here so callers get null; withRetry still drives the retry.
-      throw err;
-    }
-  }).catch(() => null);
+): Promise<{
+  name_arabic: string;
+  name_simple: string;
+  english_name: string;
+  revelation_place: "makkah" | "madinah";
+} | null> {
+  try {
+    const chapter = await fetchChapterById(surahId, {
+      timeout: 6000,
+      retries: 1,
+      backoffMs: 0,
+    });
+    if (!chapter) return null;
+    return {
+      name_arabic: chapter.name_arabic,
+      name_simple: chapter.name_simple,
+      english_name: chapter.translated_name?.name ?? chapter.name_simple,
+      revelation_place: chapter.revelation_place === "madinah" ? "madinah" : "makkah",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function getAvailableSurahs(): Promise<SurahNavItem[]> {
@@ -132,41 +129,17 @@ async function bundleFromDbRows(surahId: number): Promise<SurahBundle | null> {
   };
 }
 
-interface QcVerseWord {
-  position: number;
-  char_type_name: string;
-  text_uthmani: string | null;
-  audio_url: string | null;
-  translation: { text: string } | null;
-  transliteration: { text: string } | null;
-}
-
-// resource_id 131 = Saheeh International, the edition used across the app.
-interface QcVerseTranslation {
-  resource_id?: number;
-  text?: string;
-}
-
 async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
-  return withRetry(async () => {
-    const res = await fetch(
-      `${QURAN_API_BASE}/verses/by_chapter/${surahId}?words=true&per_page=1000&word_fields=text_uthmani&translations=131`,
-      { cache: "no-store", signal: AbortSignal.timeout(20_000) }
-    );
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = (await res.json()) as {
-      verses?: Array<{
-        verse_key: string;
-        verse_number: number;
-        words: QcVerseWord[];
-        text_uthmani: string;
-        translations?: QcVerseTranslation[];
-      }>;
-    };
-    if (!json.verses || json.verses.length === 0) throw new Error("no verses");
+  try {
+    const verses = await fetchVersesByChapter(surahId, {
+      timeout: 20_000,
+      retries: 1,
+      backoffMs: 0,
+    });
+    if (verses.length === 0) return null;
 
-    return json.verses.map((v) => {
-      const words: QuranWord[] = v.words
+    return verses.map((v) => {
+      const words: QuranWord[] = (v.words ?? [])
         .filter((w) => w.char_type_name === "word" && w.text_uthmani)
         .map((w) => ({
           id: `${v.verse_key}:${w.position}`,
@@ -190,7 +163,9 @@ async function fetchVersesFromApi(surahId: number): Promise<Ayah[] | null> {
         translation: v.translations?.[0]?.text ?? "",
       };
     });
-  }).catch(() => null);
+  } catch {
+    return null;
+  }
 }
 
 export async function getSurahBundle(surahId: number): Promise<SurahBundle | null> {
@@ -220,7 +195,7 @@ export async function getSurahBundle(surahId: number): Promise<SurahBundle | nul
       name_arabic: meta.name_arabic,
       name_simple: meta.name_simple,
       english_name: meta.english_name,
-      revelation_place: "makkah",
+      revelation_place: meta.revelation_place,
       ayah_count: verses.length,
       ayahs: verses,
     };
@@ -234,7 +209,7 @@ export async function getSurahBundle(surahId: number): Promise<SurahBundle | nul
       name_arabic: meta.name_arabic,
       name_simple: meta.name_simple,
       english_name: meta.english_name,
-      revelation_place: "makkah",
+      revelation_place: meta.revelation_place,
       ayah_count: 0,
       ayahs: [],
     };

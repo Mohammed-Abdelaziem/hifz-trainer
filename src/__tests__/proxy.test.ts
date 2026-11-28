@@ -146,6 +146,19 @@ describe("proxy auth rate limiting", () => {
     expect(codes).toContain(429);
   });
 
+  it("limits repeated password change attempts with the strict auth bucket", async () => {
+    const headers = {
+      "x-forwarded-for": "7.7.7.8",
+      "sec-fetch-site": "same-origin",
+    };
+    const codes: number[] = [];
+    for (let i = 0; i < 8; i += 1) {
+      const res = await proxy(makeRequest("/api/auth/change-password", { method: "POST", headers }));
+      codes.push(res.status);
+    }
+    expect(codes).toContain(429);
+  });
+
   it("ignores RATE_LIMIT_BYPASS outside CI", async () => {
     // The e2e job sets RATE_LIMIT_BYPASS. If that ever reached a real
     // deployment, rate limiting would be silently off. Vercel never sets CI.
