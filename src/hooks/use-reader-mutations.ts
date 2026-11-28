@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Ayah, Grade, MemoryState, SchedulerKind, SurahBundle } from "@/types/quran";
 import type { SurahProgress, SurahVerseState } from "@/types/srs";
 import { describeOutcome } from "@/lib/srs/sm2";
@@ -144,6 +144,11 @@ export function useReaderMutations({
   const [markingSurah, setMarkingSurah] = useState(false);
   const [surahKnownOptimistic, setSurahKnownOptimistic] = useState(false);
   const [sessionGraded, setSessionGraded] = useState<Set<string>>(() => new Set());
+  const selectedAtRef = useRef<number>(0);
+  const selectedKey = selected?.verse_key ?? null;
+  useEffect(() => {
+    selectedAtRef.current = Date.now();
+  }, [selectedKey]);
 
   const isSurahFullyKnown =
     (!!progress && progress.total > 0 && progress.known === progress.total) ||
@@ -311,10 +316,14 @@ export function useReaderMutations({
       } else if (!navigator.onLine) {
         queueLocally("Offline");
       } else {
+        const durationMs =
+          selectedAtRef.current > 0
+            ? Math.min(Math.max(0, Date.now() - selectedAtRef.current), 600_000)
+            : 0;
         fetch("/api/reviews", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ verseKey, grade }),
+          body: JSON.stringify({ verseKey, grade, durationMs }),
         })
           .then(async (res) => {
             if (res.status === 401) {

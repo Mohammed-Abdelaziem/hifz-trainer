@@ -117,7 +117,12 @@ export function ReaderWorkspace({
     resetRevealed(target);
   }, [hasAyahs, selectAyah, resetRevealed, surah.id, surah.ayahs, initialVerseKey]);
 
-  usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs);
+  const handleReadingRecorded = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: ["stats"] });
+    void queryClient.invalidateQueries({ queryKey: ["queue"] });
+  }, [queryClient]);
+
+  usePassiveReadingTracker(selected?.verse_key, !isGuest && hasAyahs, handleReadingRecorded);
   const listenCount = useListenCount(selected?.verse_key ?? null, !isGuest && hasAyahs);
 
   useSurahAudio({

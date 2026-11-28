@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 const MIN_DWELL_MS = 800;
 const MAX_DWELL_MS = 10 * 60 * 1000;
 
-function sendReading(verseKey: string, durationMs: number) {
+function sendReading(verseKey: string, durationMs: number, onRecorded?: () => void) {
   if (durationMs < MIN_DWELL_MS) return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
   void fetch("/api/reading", {
@@ -11,7 +11,11 @@ function sendReading(verseKey: string, durationMs: number) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ verseKey, durationMs }),
     keepalive: true,
-  }).catch(() => {});
+  })
+    .then((res) => {
+      if (res.ok) onRecorded?.();
+    })
+    .catch(() => {});
 }
 
 /**
@@ -25,10 +29,15 @@ function sendReading(verseKey: string, durationMs: number) {
  */
 export function usePassiveReadingTracker(
   verseKey: string | null | undefined,
-  enabled: boolean
+  enabled: boolean,
+  onRecorded?: () => void
 ) {
   const currentRef = useRef<string | null>(null);
   const enteredAtRef = useRef(0);
+  const onRecordedRef = useRef(onRecorded);
+  useEffect(() => {
+    onRecordedRef.current = onRecorded;
+  }, [onRecorded]);
 
   useEffect(() => {
     if (!enabled || !verseKey) return;
@@ -39,7 +48,7 @@ export function usePassiveReadingTracker(
       if (!key || !enteredAt) return;
       currentRef.current = null;
       enteredAtRef.current = 0;
-      sendReading(key, Math.min(Date.now() - enteredAt, MAX_DWELL_MS));
+      sendReading(key, Math.min(Date.now() - enteredAt, MAX_DWELL_MS), onRecordedRef.current);
     };
 
     // Runs on verse change, unmount, and tab close/navigation so a listen

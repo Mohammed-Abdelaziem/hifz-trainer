@@ -20,7 +20,12 @@ export function ReviewActivity() {
   const { data, isLoading, isError } = useReviewStats();
 
   const maxPerDay = useMemo(
-    () => Math.max(1, ...(data?.perDay ?? []).map((d) => d.count)),
+    () => Math.max(1, ...(data?.perDay ?? []).map((d) => d.count + d.reads)),
+    [data]
+  );
+
+  const activeDays = useMemo(
+    () => (data?.perDay ?? []).filter((d) => d.count > 0 || d.reads > 0).length,
     [data]
   );
 
@@ -32,7 +37,9 @@ export function ReviewActivity() {
         </h2>
         {data && (
           <p className="text-xs text-stone-500">
-            {data.totalReviews} reviews · {data.activeDays} active days
+            {data.totalReviews} review{data.totalReviews === 1 ? "" : "s"}
+            {data.totalReads > 0 && ` · ${data.totalReads} read${data.totalReads === 1 ? "" : "s"}`}
+            {` · ${activeDays} active day${activeDays === 1 ? "" : "s"}`}
             {data.avgDurationMs > 0 && ` · ~${Math.round(data.avgDurationMs / 1000)}s per review`}
           </p>
         )}
@@ -48,20 +55,45 @@ export function ReviewActivity() {
         <>
           <div className="flex h-36 items-end gap-[3px]">
             {data.perDay.map((d, i) => {
-              const h = d.count === 0 ? 3 : Math.max(6, (d.count / maxPerDay) * 100);
+              const total = d.count + d.reads;
+              const totalH = total === 0 ? 3 : Math.max(8, (total / maxPerDay) * 100);
+              const reviewPct = total > 0 ? (d.count / total) * 100 : 0;
+              const readPct = total > 0 ? (d.reads / total) * 100 : 0;
+              const parts: string[] = [];
+              if (d.count > 0 || d.reads === 0) {
+                parts.push(`${d.count} review${d.count === 1 ? "" : "s"}`);
+              }
+              if (d.reads > 0) {
+                parts.push(`${d.reads} read${d.reads === 1 ? "" : "s"}`);
+              }
               return (
-                <motion.div
+                <div
                   key={d.date}
-                  initial={{ height: 0 }}
-                  animate={{ height: `${h}%` }}
-                  transition={{ delay: i * 0.012, duration: 0.35, ease: "easeOut" }}
-                  title={`${d.date}: ${d.count} review${d.count === 1 ? "" : "s"}`}
-                  className={`flex-1 rounded-t-sm ${
-                    d.count > 0
-                      ? "bg-amber-600 hover:bg-amber-500"
-                      : "bg-stone-200 dark:bg-stone-700"
-                  }`}
-                />
+                  title={`${d.date}: ${parts.join(", ")}`}
+                  className="flex h-full flex-1 flex-col justify-end"
+                >
+                  <motion.div
+                    initial={{ height: "0%" }}
+                    animate={{ height: `${totalH}%` }}
+                    transition={{ delay: i * 0.012, duration: 0.35, ease: "easeOut" }}
+                    className={`flex w-full flex-col overflow-hidden rounded-t-sm ${
+                      total === 0 ? "bg-stone-200 dark:bg-stone-700" : ""
+                    }`}
+                  >
+                    {d.reads > 0 && (
+                      <div
+                        style={{ height: `${readPct}%` }}
+                        className="w-full bg-sky-500/85 hover:bg-sky-400"
+                      />
+                    )}
+                    {d.count > 0 && (
+                      <div
+                        style={{ height: `${reviewPct}%` }}
+                        className="w-full bg-amber-600 hover:bg-amber-500"
+                      />
+                    )}
+                  </motion.div>
+                </div>
               );
             })}
           </div>
@@ -78,7 +110,19 @@ export function ReviewActivity() {
                 <strong className="tabular-nums">{data.grades[g.key] ?? 0}</strong>
               </span>
             ))}
+            <span className="inline-flex items-center gap-1.5 text-xs text-stone-600 dark:text-stone-300">
+              <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+              Reads
+              <strong className="tabular-nums">{data.totalReads}</strong>
+            </span>
           </div>
+
+          {data.totalReviews === 0 && data.totalReads === 0 && (
+            <p className="mt-2 text-xs text-stone-400 dark:text-stone-500">
+              Grade verses (Again / Hard / Good / Easy) or read in the reader to log activity here.
+              Marking verses as Already Known skips SRS reviews.
+            </p>
+          )}
         </>
       )}
     </Card>
