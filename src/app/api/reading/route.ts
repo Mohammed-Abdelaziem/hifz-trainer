@@ -33,14 +33,20 @@ export async function POST(req: Request) {
       where: { verseKey },
       select: { verseKey: true },
     });
+    let seedDiagnostic = null;
     if (!verse) {
-      await ensureMissingSurahsForKeys(db, [verseKey]);
+      seedDiagnostic = await ensureMissingSurahsForKeys(db, [verseKey]);
       verse = await db.verse.findUnique({
         where: { verseKey },
         select: { verseKey: true },
       });
     }
-    if (!verse) return Response.json({ error: `Unknown verse ${verseKey}` }, { status: 400 });
+    if (!verse) {
+      return Response.json(
+        { error: `Unknown verse ${verseKey}`, ...(seedDiagnostic ? { seedDiagnostic } : {}) },
+        { status: 400 }
+      );
+    }
 
     await recordReading({
       userId: user.id,

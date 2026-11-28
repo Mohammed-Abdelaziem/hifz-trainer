@@ -77,6 +77,7 @@ export interface KnownMarkResult {
   alreadyKnown: number;
   untouched: number;
   invalid: number;
+  seedDiagnostic?: { stage: string; code?: string };
 }
 
 /**
@@ -110,6 +111,7 @@ export async function markKnown(params: {
     const untrackedKeys = keys.filter((k) => !statesByKey.has(k));
     let creatableKeys: string[] = [];
     let invalid = 0;
+    let seedDiagnostic: { stage: string; code?: string } | null = null;
     if (untrackedKeys.length > 0) {
       let found = await db.verse.findMany({
         where: { verseKey: { in: untrackedKeys } },
@@ -117,7 +119,7 @@ export async function markKnown(params: {
       });
       if (found.length < untrackedKeys.length) {
         const foundSet = new Set(found.map((f) => f.verseKey));
-        await ensureMissingSurahsForKeys(
+        seedDiagnostic = await ensureMissingSurahsForKeys(
           db,
           untrackedKeys.filter((k) => !foundSet.has(k))
         );
@@ -167,6 +169,7 @@ export async function markKnown(params: {
       alreadyKnown: already,
       untouched: 0,
       invalid,
+      ...(seedDiagnostic ? { seedDiagnostic } : {}),
     };
   }
 

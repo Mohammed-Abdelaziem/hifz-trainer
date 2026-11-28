@@ -19,11 +19,30 @@ interface SeedVerseRow {
   audioUrl: string;
 }
 
+export interface SeedDiagnostic {
+  stage: string;
+  code?: string;
+}
+
+function safeErrorCode(err: unknown): string {
+  if (err instanceof Prisma.PrismaClientKnownRequestError) return err.code;
+  if (err && typeof err === "object" && "code" in err && typeof err.code === "string") {
+    return err.code;
+  }
+  if (err instanceof Error) {
+    const httpMatch = /HTTP \d{3}/.exec(err.message);
+    if (httpMatch) return httpMatch[0];
+    if (err.name && err.name !== "Error") return err.name;
+    return err.message.slice(0, 80);
+  }
+  return "unknown";
+}
+
 /**
  * Inserts verse rows via Prisma `createMany`, falling back to a parameterized
- * raw INSERT with `timestampsJson = '[]'` if the target database has not yet
- * applied migration `20261018000000_drop_timestampsjson_add_verse_surah_fk`
- * (where `Verse.timestampsJson` is still `TEXT NOT NULL`).
+ * raw INSERT with `timestampsJson = '[]'` if `createMany` fails (for example,
+ * on databases that have not yet applied migration
+ * `20261018000000_drop_timestampsjson_add_verse_surah_fk`).
  */
 async function insertVersesResilient(
   db: Awaited<ReturnType<typeof getDb>>,
@@ -35,26 +54,30 @@ async function insertVersesResilient(
       data: rows,
       skipDuplicates: true,
     });
-  } catch (err) {
-    if (typeof db.$executeRaw !== "function") throw err;
-    const msg = err instanceof Error ? err.message : String(err);
-    if (!msg.includes("timestampsJson")) throw err;
+  } catch (createErr) {
+    if (typeof db.$executeRaw !== "function") throw createErr;
 
-    const CHUNK = 100;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const chunk = rows.slice(i, i + CHUNK);
-      const values = chunk.map(
-        (r) =>
-          Prisma.sql`(${r.verseKey}, ${r.surahId}, ${r.ayahNumber}, ${r.pageNumber}, ${r.uthmaniText}, ${r.translation}, ${r.audioUrl}, ${"[]"})`
-      );
-      await db.$executeRaw`
-        INSERT INTO "Verse" (
-          "verseKey", "surahId", "ayahNumber", "pageNumber",
-          "uthmaniText", "translation", "audioUrl", "timestampsJson"
-        )
-        VALUES ${Prisma.join(values)}
-        ON CONFLICT ("verseKey") DO NOTHING
-      `;
+    try {
+      const CHUNK = 100;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const chunk = rows.slice(i, i + CHUNK);
+        const values = chunk.map(
+          (r) =>
+            Prisma.sql`(${r.verseKey}, ${r.surahId}, ${r.ayahNumber}, ${r.pageNumber}, ${r.uthmaniText}, ${r.translation}, ${r.audioUrl}, ${"[]"})`
+        );
+        await db.$executeRaw`
+          INSERT INTO "Verse" (
+            "verseKey", "surahId", "ayahNumber", "pageNumber",
+            "uthmaniText", "translation", "audioUrl", "timestampsJson"
+          )
+          VALUES ${Prisma.join(values)}
+          ON CONFLICT ("verseKey") DO NOTHING
+        `;
+      }
+    } catch (rawErr) {
+      console.error("[insertVersesResilient] createMany failed:", createErr);
+      console.error("[insertVersesResilient] raw fallback failed:", rawErr);
+      throw createErr;
     }
   }
 }
@@ -83,13 +106,13 @@ export function buildSurahNameMap(
 export async function ensureMissingSurahsForKeys(
   db: Awaited<ReturnType<typeof getDb>>,
   missingKeys: string[]
-): Promise<void> {
+): Promise<SeedDiagnostic | null> {
   if (
     missingKeys.length === 0 ||
     typeof db.surah?.upsert !== "function" ||
     typeof db.verse?.createMany !== "function"
   ) {
-    return;
+    return null;
   }
 
   const surahIds = [
@@ -100,13 +123,17 @@ export async function ensureMissingSurahsForKeys(
     ),
   ];
 
+  let lastDiagnostic: SeedDiagnostic | null = null;
+
   for (const surahId of surahIds) {
+    let stage = "init";
     try {
       const fixture = FIXTURE_SURAHS[surahId];
       if (fixture) {
         const existingCount = await db.verse.count({ where: { surahId } });
         if (existingCount >= fixture.ayah_count) continue;
 
+        stage = "fixture_surah_upsert";
         await db.surah.upsert({
           where: { id: surahId },
           create: {
@@ -125,6 +152,7 @@ export async function ensureMissingSurahsForKeys(
             ayahCount: fixture.ayah_count,
           },
         });
+        stage = "fixture_verse_insert";
         await insertVersesResilient(
           db,
           fixture.ayahs.map((a) => ({
@@ -144,18 +172,24 @@ export async function ensureMissingSurahsForKeys(
         (k) => Number.parseInt(k.split(":")[0] ?? "", 10) === surahId
       );
 
-      const c = await fetchChapterById(surahId).catch(() => null);
-      if (!c) continue;
+      stage = "chapter_fetch";
+      const c = await fetchChapterById(surahId).catch((err) => {
+        console.error(`[ensureMissingSurahsForKeys] chapter_fetch failed for ${surahId}`, err);
+        return null;
+      });
 
-      const existingCount = await db.verse.count({ where: { surahId } });
-      if (existingCount >= c.verses_count) continue;
+      if (c) {
+        const existingCount = await db.verse.count({ where: { surahId } });
+        if (existingCount >= c.verses_count) continue;
+      }
 
-      // Prefer lightweight full-chapter fetch (no words=true -> ~20x smaller).
-      // If that fails (e.g. transient upstream throttling), fall back to
-      // fetching just the requested verse keys so partial-surah tracking still
-      // succeeds immediately.
-      let verses: QcVerse[] = await fetchVersesByChapterLightweight(surahId).catch(() => []);
+      stage = "verses_fetch";
+      let verses: QcVerse[] = await fetchVersesByChapterLightweight(surahId).catch((err) => {
+        console.error(`[ensureMissingSurahsForKeys] verses_fetch failed for ${surahId}`, err);
+        return [];
+      });
       if (verses.length === 0 && keysForSurah.length > 0) {
+        stage = "verses_by_key_fetch";
         const fetched = await Promise.all(
           keysForSurah.slice(0, 50).map((key) =>
             fetchVerseByKeyLightweight(key).catch(() => null)
@@ -163,49 +197,69 @@ export async function ensureMissingSurahsForKeys(
         );
         verses = fetched.filter((v): v is QcVerse => v !== null);
       }
-      if (verses.length === 0) continue;
+      if (verses.length === 0) {
+        lastDiagnostic = { stage, code: "empty_verses" };
+        continue;
+      }
 
+      stage = "surah_upsert";
       await db.surah.upsert({
         where: { id: surahId },
         create: {
           id: surahId,
-          nameArabic: c.name_arabic,
-          nameSimple: c.name_simple,
-          englishName: c.translated_name?.name ?? c.name_simple,
-          revelationPlace: c.revelation_place,
-          ayahCount: c.verses_count,
+          nameArabic: c?.name_arabic ?? "",
+          nameSimple: c?.name_simple ?? `Surah ${surahId}`,
+          englishName: c?.translated_name?.name ?? c?.name_simple ?? `Surah ${surahId}`,
+          revelationPlace: c?.revelation_place ?? "makkah",
+          ayahCount: c?.verses_count ?? verses.length,
         },
-        update: {
-          nameArabic: c.name_arabic,
-          nameSimple: c.name_simple,
-          englishName: c.translated_name?.name ?? c.name_simple,
-          revelationPlace: c.revelation_place,
-          ayahCount: c.verses_count,
-        },
+        update: c
+          ? {
+              nameArabic: c.name_arabic,
+              nameSimple: c.name_simple,
+              englishName: c.translated_name?.name ?? c.name_simple,
+              revelationPlace: c.revelation_place,
+              ayahCount: c.verses_count,
+            }
+          : {},
       });
 
+      stage = "verse_insert";
       await insertVersesResilient(
         db,
-        verses.map((v) => {
-          const text =
-            v.text_uthmani ||
-            (v.words ?? [])
-              .filter((w) => w.char_type_name === "word" && w.text_uthmani)
-              .map((w) => w.text_uthmani!)
-              .join(" ");
-          return {
-            verseKey: v.verse_key,
-            surahId,
-            ayahNumber: v.verse_number,
-            pageNumber: v.page_number ?? 1,
-            uthmaniText: text,
-            translation: v.translations?.[0]?.text ?? "",
-            audioUrl: everyAyahUrl(v.verse_key),
-          };
-        })
+        verses
+          .filter((v) => typeof v.verse_key === "string" && v.verse_key.includes(":"))
+          .map((v) => {
+            const parsedAyah = Number.parseInt(v.verse_key.split(":")[1] ?? "", 10);
+            const ayahNumber =
+              Number.isInteger(v.verse_number) && v.verse_number > 0
+                ? v.verse_number
+                : Number.isInteger(parsedAyah)
+                  ? parsedAyah
+                  : 1;
+            const text =
+              v.text_uthmani ||
+              (v.words ?? [])
+                .filter((w) => w.char_type_name === "word" && w.text_uthmani)
+                .map((w) => w.text_uthmani!)
+                .join(" ");
+            return {
+              verseKey: v.verse_key,
+              surahId,
+              ayahNumber,
+              pageNumber: Number.isInteger(v.page_number) ? v.page_number! : 1,
+              uthmaniText: text,
+              translation: v.translations?.[0]?.text ?? "",
+              audioUrl: everyAyahUrl(v.verse_key),
+            };
+          })
       );
     } catch (err) {
-      console.error(`[ensureMissingSurahsForKeys] failed for surah ${surahId}`, err);
+      const code = safeErrorCode(err);
+      lastDiagnostic = { stage, code };
+      console.error(`[ensureMissingSurahsForKeys] failed for surah ${surahId} at ${stage}`, err);
     }
   }
+
+  return lastDiagnostic;
 }
