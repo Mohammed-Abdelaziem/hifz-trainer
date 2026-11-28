@@ -28,7 +28,7 @@ function makeStats(overrides: Partial<ReviewStats> = {}): ReviewStats {
       fsrs: [0, 0, 0, 0, 0],
       totals: { sm2: 0, fsrs: 0 },
     },
-    xp: { totalXp: 0, level: 1, xpIntoLevel: 0, xpForNextLevel: 50 },
+    xp: { totalXp: 0, level: 1, intoLevel: 0, toNextLevel: 25 },
     recap: {
       reviewsThisWeek: 0,
       reviewsLastWeek: 0,
