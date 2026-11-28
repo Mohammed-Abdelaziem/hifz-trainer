@@ -57,14 +57,14 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
 
   return (
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-white/85 backdrop-blur dark:border-stone-800 dark:bg-stone-950/85">
-      <div className="mx-auto flex h-14 max-w-5xl items-center gap-3 px-4 md:gap-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+      <div className="mx-auto flex h-14 max-w-5xl items-center gap-1.5 px-2.5 sm:gap-3 sm:px-4 md:gap-4">
+        <Link href="/" className="flex shrink-0 items-center gap-2 font-semibold tracking-tight">
           <span dir="rtl" lang="ar" className="font-quran text-xl leading-none text-amber-700 dark:text-amber-400">
             حِفْظ
           </span>
           <span className="hidden sm:inline">Hifz Trainer</span>
         </Link>
-        <nav aria-label="Primary" className="ml-auto flex items-center gap-1">
+        <nav aria-label="Primary" className="ml-auto flex items-center gap-0.5 sm:gap-1">
           {LINKS.map(({ href, label, icon: Icon }) => {
             const active =
               href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -103,7 +103,7 @@ export function SiteHeader({ isGuest }: { isGuest?: boolean }) {
             user already forced isGuest = true, so the sign-in branch in the
             server version was unreachable. The block stays unconditional; the
             authoritative guest flag from the server layout decides its label. */}
-        <div className="flex items-center gap-2 border-l border-stone-200 pl-2 dark:border-stone-700 md:pl-3">
+        <div className="flex shrink-0 items-center gap-1.5 border-l border-stone-200 pl-1.5 sm:gap-2 sm:pl-2 dark:border-stone-700 md:pl-3">
           {isGuest ? (
             <Link
               href="/login"

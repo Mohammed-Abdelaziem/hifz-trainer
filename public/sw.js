@@ -13,6 +13,7 @@ const SHELL_ASSETS = ["/offline", "/manifest.webmanifest", "/icon.svg"];
 const SYNC_TAG = "review-sync";
 const SYNC_BATCH_SIZE = 100;
 const MAX_SYNC_RETRIES = 5;
+const SYNCED_RETENTION_MS = 24 * 60 * 60 * 1000;
 
 self.addEventListener("install", (event) => {
 event.waitUntil(
@@ -286,7 +287,8 @@ async function incrementReviewRetries(id) {
   });
 }
 
-async function clearSyncedReviews() {
+async function clearSyncedReviews(olderThanMs = SYNCED_RETENTION_MS) {
+  const cutoff = Date.now() - olderThanMs;
   const db = await openOfflineDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction("review-queue", "readwrite");
@@ -295,7 +297,11 @@ async function clearSyncedReviews() {
     req.onsuccess = (event) => {
       const cursor = event.target.result;
       if (cursor) {
-        if (cursor.value && cursor.value.synced === true) {
+        if (
+          cursor.value &&
+          cursor.value.synced === true &&
+          (cursor.value.timestamp || 0) < cutoff
+        ) {
           cursor.delete();
         }
         cursor.continue();

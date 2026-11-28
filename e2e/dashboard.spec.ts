@@ -8,7 +8,7 @@ test.describe("Dashboard", () => {
   });
 
   test("shows streak card and goal ring", async ({ page }) => {
-    await expect(page.getByText("Consistency")).toBeVisible();
+    await expect(page.getByText("Consistency", { exact: true })).toBeVisible();
     await expect(page.getByText("Daily goal")).toBeVisible();
   });
 

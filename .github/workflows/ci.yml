@@ -42,10 +42,11 @@ jobs:
       # postinstall already runs prisma generate.
       - run: npm ci
 
-      # Runtime tree must stay clean on every PR; dev-only advisories are
-      # deliberately not gating (unpatched upstream chains exist there).
+      # Runtime tree must stay clean on every PR; dev-only advisories (including
+      # devOptional peer chains like prisma -> @prisma/config -> effect) are
+      # deliberately not gating.
       - name: Runtime dependency audit
-        run: npm audit --omit=dev --audit-level=high
+        run: npm audit --omit=dev --omit=optional --audit-level=high
 
       # Applies the real migration history, so CI validates the same SQL that
       # production will run. `db push` validated a throwaway schema and never

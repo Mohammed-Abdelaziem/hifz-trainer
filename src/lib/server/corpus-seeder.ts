@@ -1,3 +1,4 @@
+import { Prisma } from "../../../generated/prisma";
 import type { getDb } from "@/lib/db";
 import { FIXTURE_SURAHS } from "@/lib/quran/fixtures";
 import { everyAyahUrl } from "@/lib/quran/timings";
@@ -7,6 +8,56 @@ import {
   fetchVersesByChapterLightweight,
   type QcVerse,
 } from "@/lib/server/quran-client";
+
+interface SeedVerseRow {
+  verseKey: string;
+  surahId: number;
+  ayahNumber: number;
+  pageNumber: number;
+  uthmaniText: string;
+  translation: string;
+  audioUrl: string;
+}
+
+/**
+ * Inserts verse rows via Prisma `createMany`, falling back to a parameterized
+ * raw INSERT with `timestampsJson = '[]'` if the target database has not yet
+ * applied migration `20261018000000_drop_timestampsjson_add_verse_surah_fk`
+ * (where `Verse.timestampsJson` is still `TEXT NOT NULL`).
+ */
+async function insertVersesResilient(
+  db: Awaited<ReturnType<typeof getDb>>,
+  rows: SeedVerseRow[]
+): Promise<void> {
+  if (rows.length === 0) return;
+  try {
+    await db.verse.createMany({
+      data: rows,
+      skipDuplicates: true,
+    });
+  } catch (err) {
+    if (typeof db.$executeRaw !== "function") throw err;
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!msg.includes("timestampsJson")) throw err;
+
+    const CHUNK = 100;
+    for (let i = 0; i < rows.length; i += CHUNK) {
+      const chunk = rows.slice(i, i + CHUNK);
+      const values = chunk.map(
+        (r) =>
+          Prisma.sql`(${r.verseKey}, ${r.surahId}, ${r.ayahNumber}, ${r.pageNumber}, ${r.uthmaniText}, ${r.translation}, ${r.audioUrl}, ${"[]"})`
+      );
+      await db.$executeRaw`
+        INSERT INTO "Verse" (
+          "verseKey", "surahId", "ayahNumber", "pageNumber",
+          "uthmaniText", "translation", "audioUrl", "timestampsJson"
+        )
+        VALUES ${Prisma.join(values)}
+        ON CONFLICT ("verseKey") DO NOTHING
+      `;
+    }
+  }
+}
 
 /**
  * Builds a surahId -> name map, preferring the Surah table and falling back to
@@ -74,8 +125,9 @@ export async function ensureMissingSurahsForKeys(
             ayahCount: fixture.ayah_count,
           },
         });
-        await db.verse.createMany({
-          data: fixture.ayahs.map((a) => ({
+        await insertVersesResilient(
+          db,
+          fixture.ayahs.map((a) => ({
             verseKey: a.verse_key,
             surahId,
             ayahNumber: a.ayah_number,
@@ -83,9 +135,8 @@ export async function ensureMissingSurahsForKeys(
             uthmaniText: a.words.map((w) => w.text_uthmani).join(" "),
             translation: a.translation ?? "",
             audioUrl: a.audio_url || everyAyahUrl(a.verse_key),
-          })),
-          skipDuplicates: true,
-        });
+          }))
+        );
         continue;
       }
 
@@ -133,8 +184,9 @@ export async function ensureMissingSurahsForKeys(
         },
       });
 
-      await db.verse.createMany({
-        data: verses.map((v) => {
+      await insertVersesResilient(
+        db,
+        verses.map((v) => {
           const text =
             v.text_uthmani ||
             (v.words ?? [])
@@ -150,9 +202,8 @@ export async function ensureMissingSurahsForKeys(
             translation: v.translations?.[0]?.text ?? "",
             audioUrl: everyAyahUrl(v.verse_key),
           };
-        }),
-        skipDuplicates: true,
-      });
+        })
+      );
     } catch (err) {
       console.error(`[ensureMissingSurahsForKeys] failed for surah ${surahId}`, err);
     }
