@@ -68,7 +68,7 @@ export function RatingBar({
       <span className="mr-1 hidden text-xs font-medium uppercase tracking-wide text-stone-400 sm:inline">
         Rate {verseKey}
       </span>
-      <div className="flex flex-1 items-stretch gap-1.5">
+      <div className="flex flex-1 items-stretch gap-1 sm:gap-1.5">
         {GRADE_BUTTONS.map(({ grade, label, icon: Icon, classes, hotkey, description }) => (
           <button
             key={grade}
@@ -76,11 +76,11 @@ export function RatingBar({
             onClick={() => onGrade(grade)}
             title={`${label} — ${description} (key: ${hotkey})`}
             className={cn(
-              "group inline-flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-xs font-medium transition-all sm:flex-none sm:px-3 sm:text-sm",
+              "group inline-flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1 py-2 text-xs font-medium transition-all sm:flex-none sm:px-3 sm:text-sm",
               classes
             )}
           >
-            <Icon className="h-3.5 w-3.5" />
+            <Icon className="hidden h-3.5 w-3.5 sm:inline" />
             <span>{label}</span>
             <kbd className="ml-0.5 hidden rounded border border-current/20 bg-current/5 px-1 text-[10px] opacity-50 transition-opacity group-hover:opacity-100 lg:inline">
               {hotkey}
@@ -94,11 +94,11 @@ export function RatingBar({
             title="I already know this ayah — skip the hifz process (key: 5)"
             aria-label={`I already know ${verseKey} — skip the hifz process`}
             className={cn(
-              "group inline-flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-xs font-medium transition-all sm:flex-none sm:px-3 sm:text-sm",
+              "group inline-flex min-w-0 flex-1 cursor-pointer items-center justify-center gap-1 rounded-lg border px-1 py-2 text-xs font-medium transition-all sm:flex-none sm:px-3 sm:text-sm",
               "border-teal-200 bg-teal-50 text-teal-700 hover:bg-teal-100 dark:border-teal-800/60 dark:bg-teal-950/40 dark:text-teal-300 dark:hover:bg-teal-900/40"
             )}
           >
-            <Star className="h-3.5 w-3.5" />
+            <Star className="hidden h-3.5 w-3.5 sm:inline" />
             <span>Know</span>
             <kbd className="ml-0.5 hidden rounded border border-current/20 bg-current/5 px-1 text-[10px] opacity-50 transition-opacity group-hover:opacity-100 lg:inline">
               5
